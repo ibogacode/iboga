@@ -1,0 +1,202 @@
+# Iboga - Patient Management System
+
+## Project Overview
+Healthcare patient management system for treatment facilities with multiple locations.
+Built with Next.js 14, Supabase, TypeScript, and Tailwind CSS.
+
+## Tech Stack
+- **Framework**: Next.js 15 (App Router)
+- **Database**: Supabase (PostgreSQL)
+- **Auth**: Supabase Auth with role-based access
+- **Styling**: Tailwind CSS v4 + Shadcn UI
+- **Forms**: React Hook Form + Zod
+- **Testing**: Vitest (unit/integration) + Playwright (E2E)
+- **Deployment**: Vercel
+
+## User Roles
+- **Owner**: Full system access, all locations
+- **Manager**: Location management, staff oversight
+- **Doctor**: Patient treatment, medical records
+- **Psych**: Psychological doctor - mental health assessments
+- **Nurse**: Patient vitals, daily logs, visit forms
+- **Driver**: Patient transport, flight coordination
+- **Patient**: Personal dashboard, forms, schedule
+
+## Code Conventions
+
+### File Naming
+- Use kebab-case for files: `patient-form.tsx`, `auth.action.ts`
+- Use suffixes: `.test.ts`, `.hook.ts`, `.type.ts`, `.action.ts`, `.service.ts`
+
+### Component Structure
+```typescript
+// 1. Imports
+// 2. Types/Interfaces
+// 3. Component
+// 4. Subcomponents (if small)
+// 5. Helper functions
+// 6. Static content
+```
+
+### TypeScript
+- Use `interface` over `type` for objects
+- Always type function parameters and returns
+- Use strict mode
+- No `any` types - use `unknown` if needed
+
+### Functions
+- Use `function` keyword for components and pure functions
+- Use arrow functions for callbacks and inline functions
+- Use early returns for error handling
+
+### Error Handling
+- Handle errors at function start with guard clauses
+- Use try/catch only for unexpected errors
+- Throw user-friendly errors from services
+- Use error boundaries for UI errors
+
+## Project Structure
+```
+src/
+├── app/
+│   ├── (auth)/           # Auth pages (login, register) - no sidebar
+│   ├── (dashboard)/      # Main app with sidebar
+│   │   ├── owner/        # Owner-only pages
+│   │   ├── manager/      # Manager-only pages
+│   │   ├── doctor/       # Doctor-only pages
+│   │   ├── psych/        # Psych doctor pages
+│   │   ├── nurse/        # Nurse-only pages
+│   │   ├── driver/       # Driver-only pages
+│   │   ├── patient/      # Patient-only pages
+│   │   └── (shared)/     # Pages all roles can access
+│   └── api/              # API routes
+├── components/
+│   ├── ui/               # Shadcn components
+│   ├── layout/           # Navbar, sidebar, etc.
+│   ├── forms/            # Form components
+│   └── dashboard/        # Dashboard-specific components
+├── lib/
+│   ├── supabase/         # Supabase client config
+│   ├── validations/      # Zod schemas
+│   └── utils.ts
+├── services/             # Business logic
+├── hooks/                # Custom React hooks
+├── actions/              # Server actions
+├── config/               # App configuration
+└── types/                # TypeScript interfaces
+```
+
+## Testing Requirements
+
+### IMPORTANT: Every feature MUST have tests
+
+### Unit Tests (Vitest)
+- Test all utility functions
+- Test all hooks
+- Test business logic in services
+- File: `*.test.ts` next to source file
+
+### Component Tests (Vitest + Testing Library)
+- Test component rendering
+- Test user interactions
+- Test form validation
+- File: `*.test.tsx` next to component
+
+### E2E Tests (Playwright)
+- Test critical user flows
+- Test authentication flows
+- Test role-based access
+- File: `tests/e2e/*.spec.ts`
+
+### Test Coverage Requirements
+- Minimum 80% coverage for services
+- All forms must have validation tests
+- All auth flows must have E2E tests
+
+## Database Tables (Supabase)
+- organizations (branches/locations)
+- profiles (user profiles with roles)
+- patients
+- appointments
+- treatments
+- medications
+- health_records
+- forms
+- form_submissions
+- flights
+- daily_logs
+- diet_plans
+- audit_logs
+
+## Security Requirements
+- Log all authentication attempts to audit_logs
+- Log all patient data access
+- Implement rate limiting on auth endpoints
+- Validate all inputs with Zod
+- Use parameterized queries (Supabase handles this)
+- Implement RLS (Row Level Security) on all tables
+
+## Server Actions
+- Use next-safe-action for all server actions
+- Always validate input with Zod
+- Return typed responses
+- Handle errors gracefully
+
+```typescript
+// Example server action pattern
+'use server'
+import { actionClient } from '@/lib/safe-action'
+import { z } from 'zod'
+
+const schema = z.object({
+  name: z.string().min(1),
+})
+
+export const createPatient = actionClient
+  .schema(schema)
+  .action(async ({ parsedInput }) => {
+    // Implementation
+  })
+```
+
+## API Response Format
+```typescript
+// Success response
+{ success: true, data: {...} }
+
+// Error response
+{ success: false, error: "User-friendly message" }
+```
+
+## Styling Guidelines
+- Use Tailwind CSS utilities
+- Use Shadcn UI components
+- Use CSS variables for theming (defined in globals.css)
+- Mobile-first responsive design
+- Support dark mode with next-themes
+
+## When Creating New Features
+1. Create types/interfaces first
+2. Write failing tests
+3. Implement the feature
+4. Make tests pass
+5. Add E2E test for critical flows
+
+## Git Commits
+- Use conventional commits: feat:, fix:, test:, docs:, refactor:
+- Include ticket/issue number if applicable
+
+## Environment Variables
+- `NEXT_PUBLIC_*` for client-side
+- No `NEXT_PUBLIC_*` prefix for secrets
+- Document all env vars in `.env.example`
+
+## Important Reminders
+- NEVER skip tests
+- ALWAYS use TypeScript strict mode
+- ALWAYS implement proper error handling
+- ALWAYS validate user inputs
+- ALWAYS use RLS on database tables
+- ALWAYS log security-relevant events
+
+

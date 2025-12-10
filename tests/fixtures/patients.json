@@ -1,0 +1,45 @@
+{
+  "patients": [
+    {
+      "id": "patient-001",
+      "first_name": "Alice",
+      "last_name": "Johnson",
+      "email": "alice@example.com",
+      "phone": "+1234567890",
+      "date_of_birth": "1985-03-15",
+      "status": "active",
+      "organization_id": "org-1",
+      "assigned_doctor_id": "doctor-123",
+      "arrival_date": "2024-01-15",
+      "departure_date": "2024-01-30"
+    },
+    {
+      "id": "patient-002",
+      "first_name": "Bob",
+      "last_name": "Smith",
+      "email": "bob@example.com",
+      "phone": "+0987654321",
+      "date_of_birth": "1990-07-22",
+      "status": "in_treatment",
+      "organization_id": "org-1",
+      "assigned_doctor_id": "doctor-123",
+      "arrival_date": "2024-01-10",
+      "departure_date": "2024-01-25"
+    },
+    {
+      "id": "patient-003",
+      "first_name": "Carol",
+      "last_name": "Williams",
+      "email": "carol@example.com",
+      "phone": "+1122334455",
+      "date_of_birth": "1978-11-08",
+      "status": "completed",
+      "organization_id": "org-1",
+      "assigned_doctor_id": "doctor-123",
+      "arrival_date": "2024-01-01",
+      "departure_date": "2024-01-15"
+    }
+  ]
+}
+
+

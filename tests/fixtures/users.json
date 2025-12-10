@@ -1,0 +1,53 @@
+{
+  "owner": {
+    "id": "owner-123",
+    "email": "owner@iboga.com",
+    "role": "owner",
+    "name": "John Owner",
+    "organization_id": "org-1"
+  },
+  "manager": {
+    "id": "manager-123",
+    "email": "manager@iboga.com",
+    "role": "manager",
+    "name": "Jane Manager",
+    "organization_id": "org-1"
+  },
+  "doctor": {
+    "id": "doctor-123",
+    "email": "doctor@iboga.com",
+    "role": "doctor",
+    "name": "Dr. Smith",
+    "organization_id": "org-1"
+  },
+  "psych": {
+    "id": "psych-123",
+    "email": "psych@iboga.com",
+    "role": "psych",
+    "name": "Dr. Mind",
+    "organization_id": "org-1"
+  },
+  "nurse": {
+    "id": "nurse-123",
+    "email": "nurse@iboga.com",
+    "role": "nurse",
+    "name": "Nancy Nurse",
+    "organization_id": "org-1"
+  },
+  "driver": {
+    "id": "driver-123",
+    "email": "driver@iboga.com",
+    "role": "driver",
+    "name": "Dave Driver",
+    "organization_id": "org-1"
+  },
+  "patient": {
+    "id": "patient-123",
+    "email": "patient@example.com",
+    "role": "patient",
+    "name": "Pat Patient",
+    "organization_id": "org-1"
+  }
+}
+
+
