@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -21,6 +21,7 @@ type LoginFormData = z.infer<typeof loginSchema>
 
 export function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   
   const {
@@ -48,7 +49,11 @@ export function LoginForm() {
       }
 
       toast.success('Signed in successfully')
-      router.push('/dashboard')
+      
+      // Redirect to dashboard (which will redirect to role-specific dashboard)
+      // or to the redirectTo path if provided
+      const redirectTo = searchParams.get('redirectTo') || '/dashboard'
+      router.push(redirectTo)
       router.refresh()
     } catch {
       toast.error('An unexpected error occurred')

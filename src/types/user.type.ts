@@ -11,11 +11,13 @@ export interface User {
   id: string
   email: string
   role: UserRole
-  first_name: string
-  last_name: string
-  avatar_url?: string
-  phone?: string
-  organization_id: string
+  first_name: string | null
+  last_name: string | null
+  name?: string // Generated column (first_name + last_name)
+  designation?: string | null
+  avatar_url?: string | null
+  phone?: string | null
+  is_active: boolean
   created_at: string
   updated_at: string
 }

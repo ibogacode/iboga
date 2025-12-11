@@ -2,29 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { User } from '@supabase/supabase-js'
-import { UserRole } from '@/types'
-
-interface UserProfile {
-  id: string
-  email: string
-  role: UserRole
-  first_name: string
-  last_name: string
-  avatar_url?: string
-  organization_id: string
-}
+import { User as SupabaseUser } from '@supabase/supabase-js'
+import { User } from '@/types'
 
 interface UseUserReturn {
-  user: User | null
-  profile: UserProfile | null
+  user: SupabaseUser | null
+  profile: User | null
   isLoading: boolean
   error: Error | null
 }
 
 export function useUser(): UseUserReturn {
-  const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [user, setUser] = useState<SupabaseUser | null>(null)
+  const [profile, setProfile] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 

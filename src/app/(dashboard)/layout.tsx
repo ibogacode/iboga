@@ -13,7 +13,6 @@ export default async function DashboardLayout({
   const { data: { user } } = await supabase.auth.getUser()
   
   // Default to patient role if not found
-  // In production, you'd fetch this from the profiles table
   let userRole: UserRole = 'patient'
   
   if (user) {
@@ -29,16 +28,17 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar role={userRole} />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Navbar />
-        <main className="flex-1 overflow-y-auto bg-muted/30 p-4 md:p-6">
+    <div className="flex h-screen flex-col overflow-hidden">
+      {/* Navbar - Full width at top */}
+      <Navbar />
+      
+      {/* Sidebar and Content - Below navbar */}
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar role={userRole} />
+        <main className="flex-1 overflow-y-auto bg-[#F5F4F0] p-4 md:p-6">
           {children}
         </main>
       </div>
     </div>
   )
 }
-
-
