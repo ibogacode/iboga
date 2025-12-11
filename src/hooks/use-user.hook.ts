@@ -56,15 +56,33 @@ export function useUser(): UseUserReturn {
         setUser(session?.user ?? null)
         
         if (session?.user) {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
-          
-          setProfile(profileData)
+          setIsLoading(true)
+          try {
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single()
+            
+            if (profileError) {
+              console.error('Error fetching profile:', profileError)
+              setError(profileError)
+              setProfile(null)
+            } else {
+              setProfile(profileData)
+              setError(null)
+            }
+          } catch (err) {
+            console.error('Error in auth state change:', err)
+            setError(err instanceof Error ? err : new Error('Failed to fetch profile'))
+            setProfile(null)
+          } finally {
+            setIsLoading(false)
+          }
         } else {
           setProfile(null)
+          setError(null)
+          setIsLoading(false)
         }
       }
     )
