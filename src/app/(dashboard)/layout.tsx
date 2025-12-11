@@ -1,6 +1,6 @@
 import { Navbar } from '@/components/layout/navbar'
 import { Sidebar } from '@/components/layout/sidebar'
-import { createClient } from '@/lib/supabase/server'
+import { getCachedUserWithProfile } from '@/lib/supabase/cached'
 import { UserRole } from '@/types'
 
 export default async function DashboardLayout({
@@ -8,34 +8,21 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Get user and their role from Supabase
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // Get user and profile using cached function (deduplicates within request)
+  const { user, profile } = await getCachedUserWithProfile()
   
-  // Default to patient role if not found
-  let userRole: UserRole = 'patient'
-  
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-    
-    if (profile?.role) {
-      userRole = profile.role as UserRole
-    }
-  }
+  // Get role from profile or default to patient
+  const userRole: UserRole = (profile?.role as UserRole) || 'patient'
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      {/* Navbar - Full width at top */}
-      <Navbar />
+      {/* Navbar - Full width at top, pass user data to avoid duplicate fetching */}
+      <Navbar user={user} profile={profile} />
       
       {/* Sidebar and Content - Below navbar */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden pt-[52px] md:pt-[68px] min-h-0">
         <Sidebar role={userRole} />
-        <main className="flex-1 overflow-y-auto bg-[#F5F4F0] p-4 md:p-6">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[#F5F4F0] pt-2 pl-2 pr-4 pb-4 md:pt-3 md:pl-3 md:pr-6 md:pb-6 min-h-0">
           {children}
         </main>
       </div>
