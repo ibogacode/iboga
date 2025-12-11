@@ -1,3 +1,3 @@
 export * from './use-user.hook'
-export * from './use-sidebar.hook.tsx'
+export * from './use-sidebar.hook'
 
