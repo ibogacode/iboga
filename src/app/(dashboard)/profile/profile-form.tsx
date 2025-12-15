@@ -408,7 +408,7 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
                         color: 'white',
                         fontFamily: designTokens.typography.navItem.fontFamily,
                       }}
-                      className="hover:opacity-90 disabled:opacity-50"
+                      className="hover:opacity-90 disabled:opacity-50 rounded-full"
                     >
                       <Upload className="h-4 w-4 mr-2" />
                       {isUploading ? 'Uploading...' : 'Upload Photo'}
@@ -422,7 +422,7 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
                         borderColor: '#E5E5E5',
                         color: '#666'
                       }}
-                      className="disabled:opacity-50"
+                      className="disabled:opacity-50 rounded-full"
                     >
                       {isRemoving ? 'Removing...' : 'Remove'}
                     </Button>
@@ -724,7 +724,7 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
                         color: 'white',
                         fontFamily: designTokens.typography.navItem.fontFamily,
                       }}
-                      className="hover:opacity-90 disabled:opacity-50"
+                      className="hover:opacity-90 disabled:opacity-50 rounded-full"
                     >
                       {form.formState.isSubmitting ? 'Saving...' : 'Save Changes'}
                     </Button>
