@@ -41,6 +41,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Locations', href: '/owner/locations', icon: Building2 },
       { title: 'Staff', href: '/owner/staff', icon: UserCog },
       { title: 'Patients', href: '/owner/patients', icon: Users },
+      { title: 'Opportunities', href: '/owner/opportunities', icon: ClipboardList },
       { title: 'Calendar', href: '/owner/calendar', icon: Calendar },
       { title: 'Reports', href: '/owner/reports', icon: BarChart3 },
     ],
