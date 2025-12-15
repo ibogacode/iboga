@@ -63,40 +63,83 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+        <Label 
+          htmlFor="email"
+          style={{
+            fontFamily: 'var(--font-sans), sans-serif',
+            fontSize: '14px',
+            fontWeight: 500,
+            color: '#111111',
+          }}
+        >
+          Email
+        </Label>
         <Input
           id="email"
           type="email"
-          placeholder="name@example.com"
+          placeholder="Enter your email"
           autoComplete="email"
           disabled={isLoading}
+          className="h-12 rounded-full"
+          style={{
+            fontFamily: 'var(--font-sans), sans-serif',
+          }}
           {...register('email')}
         />
         {errors.email && (
-          <p className="text-sm text-destructive">{errors.email.message}</p>
+          <p className="text-sm text-red-500 mt-1">{errors.email.message}</p>
         )}
       </div>
       
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+        <Label 
+          htmlFor="password"
+          style={{
+            fontFamily: 'var(--font-sans), sans-serif',
+            fontSize: '14px',
+            fontWeight: 500,
+            color: '#111111',
+          }}
+        >
+          Password
+        </Label>
         <Input
           id="password"
           type="password"
-          placeholder="••••••••"
+          placeholder="Enter your password"
           autoComplete="current-password"
           disabled={isLoading}
+          className="h-12 rounded-full"
+          style={{
+            fontFamily: 'var(--font-sans), sans-serif',
+          }}
           {...register('password')}
         />
         {errors.password && (
-          <p className="text-sm text-destructive">{errors.password.message}</p>
+          <p className="text-sm text-red-500 mt-1">{errors.password.message}</p>
         )}
       </div>
 
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        Sign in
+      <Button 
+        type="submit" 
+        className="w-full h-12 text-base font-medium rounded-full" 
+        disabled={isLoading}
+        style={{
+          background: 'linear-gradient(180deg, #565656 0%, #1C1C1C 61%, #111111 100%)',
+          color: 'white',
+          fontFamily: 'var(--font-sans), sans-serif',
+        }}
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            Signing in...
+          </>
+        ) : (
+          'Sign in'
+        )}
       </Button>
     </form>
   )
