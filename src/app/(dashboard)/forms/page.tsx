@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { MoreVertical } from 'lucide-react'
+import { MoreHorizontal, FilePlus } from 'lucide-react'
+import { designTokens } from '@/config/design-system'
 
 export default function FormsPage() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('all')
@@ -21,17 +22,17 @@ export default function FormsPage() {
   ]
 
   const servicesForms = [
-    'Treatment Plan',
-    'Medical History',
-    'Medication Log',
-    'Therapy Session Notes',
+    'Intake Form (For Parkinson\'s)',
+    'Intake Report',
+    'Outtake Form',
+    'Daily Medical Update',
+    'Daily Psychological Update',
+    'Parkinson\'s Mortality Scales',
   ]
 
   const onboardingForms = [
-    'Intake Form',
-    'Health Assessment',
-    'Emergency Contact',
-    'Insurance Information',
+    'Medical Health History',
+    'Letter of Informed Dissent',
   ]
 
   interface FormBoxProps {
@@ -41,13 +42,12 @@ export default function FormsPage() {
 
   function FormBox({ title, forms }: FormBoxProps) {
     return (
-      <div className="flex flex-col gap-5 p-5 md:p-6 rounded-2xl bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
+      <div className="flex flex-col gap-4 sm:gap-5 p-4 sm:p-5 md:p-6 rounded-2xl bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] w-full">
         <h3 
-          className="text-center"
+          className="text-center text-base sm:text-lg md:text-xl"
           style={{
             color: 'black',
-            fontSize: 20,
-            fontFamily: 'SF Pro Text',
+            fontFamily: designTokens.typography.navItem.fontFamily,
             fontWeight: '500',
             wordWrap: 'break-word'
           }}
@@ -61,16 +61,16 @@ export default function FormsPage() {
             backgroundColor: '#F5F4F0'
           }}
         />
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-3 sm:gap-4 md:gap-5">
           {forms.map((formName) => (
             <div
               key={formName}
-              className="flex items-center justify-between gap-2.5 px-2.5 py-2.5 rounded-[50px] bg-[#F5F4F0] hover:bg-[#F5F4F0]/80 transition-colors cursor-pointer"
+              className="flex items-center justify-between gap-2 sm:gap-2.5 px-2 sm:px-2.5 py-2 sm:py-2.5 rounded-[50px] bg-[#F5F4F0] hover:bg-[#F5F4F0]/80 transition-colors cursor-pointer"
             >
               <span
+                className="text-sm sm:text-base"
                 style={{
-                  fontFamily: 'SF Pro Text',
-                  fontSize: '16px',
+                  fontFamily: designTokens.typography.navItem.fontFamily,
                   fontWeight: 400,
                   lineHeight: '1.193em',
                   letterSpacing: '-0.04em',
@@ -81,8 +81,8 @@ export default function FormsPage() {
               >
                 {formName}
               </span>
-              <button className="flex items-center justify-center w-[30px] h-[31px] p-[11px_3px] rounded-full bg-white hover:bg-gray-50 transition-colors shrink-0">
-                <MoreVertical className="h-[18px] w-[18px] text-black" />
+              <button className="flex items-center justify-center w-[28px] h-[28px] sm:w-[30px] sm:h-[31px] p-[11px_3px] rounded-full bg-white hover:bg-gray-50 transition-colors shrink-0">
+                <MoreHorizontal className="h-4 w-4 sm:h-[18px] sm:w-[18px] text-black" />
               </button>
             </div>
           ))}
@@ -109,7 +109,7 @@ export default function FormsPage() {
           style={{
             color: 'black',
             fontSize: 16,
-            fontFamily: 'SF Pro Text',
+            fontFamily: designTokens.typography.navItem.fontFamily,
             fontWeight: '400',
             wordWrap: 'break-word',
             marginTop: '8px',
@@ -119,6 +119,8 @@ export default function FormsPage() {
           Access, manage, and distribute all standardized institute documents.
         </p>
         
+        {/* Filter buttons and New Form Template button */}
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
         {/* Filter buttons in rounded box */}
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-[36px] bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
           <button
@@ -129,7 +131,10 @@ export default function FormsPage() {
                 ? 'text-white'
                 : 'text-black hover:text-[#2D3A1F]'
             )}
-            style={activeFilter === 'all' ? { background: activeGradient } : undefined}
+              style={{
+                ...(activeFilter === 'all' ? { background: activeGradient } : {}),
+                fontFamily: designTokens.typography.navItem.fontFamily,
+              }}
           >
             All
           </button>
@@ -141,15 +146,31 @@ export default function FormsPage() {
                 ? 'text-white'
                 : 'text-black hover:text-[#2D3A1F]'
             )}
-            style={activeFilter === 'active' ? { background: activeGradient } : undefined}
+              style={{
+                ...(activeFilter === 'active' ? { background: activeGradient } : {}),
+                fontFamily: designTokens.typography.navItem.fontFamily,
+              }}
           >
             Active
+            </button>
+          </div>
+          
+          {/* New Form Template button */}
+          <button
+            className="inline-flex items-center justify-center gap-3 px-[22px] py-[10px] h-[32px] rounded-[42px] text-white text-sm md:text-base font-normal leading-[1.193em] tracking-[-0.04em] transition-colors whitespace-nowrap hover:opacity-90 ml-auto"
+            style={{
+              backgroundColor: '#6E7A46',
+              fontFamily: designTokens.typography.navItem.fontFamily,
+            }}
+          >
+            <span>New Form Template</span>
+            <FilePlus className="h-6 w-6 sm:h-[24px] sm:w-[24px]" />
           </button>
         </div>
       </div>
 
       {/* Three Form Boxes */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10 mt-8 max-w-[1400px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 xl:gap-10 mt-8 w-full">
         <FormBox title="Administration" forms={administrationForms} />
         <FormBox title="Services" forms={servicesForms} />
         <FormBox title="Onboarding" forms={onboardingForms} />
