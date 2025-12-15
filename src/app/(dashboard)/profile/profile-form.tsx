@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Calendar, Upload } from 'lucide-react'
+import { Calendar, Upload, User as UserIcon, Settings, Shield } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { uploadAvatarAction, removeAvatarAction, updateProfileAction } from '@/actions/profile.action'
 import { toast } from 'sonner'
@@ -123,6 +123,7 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [localAvatarUrl, setLocalAvatarUrl] = useState<string | null>(profile?.avatar_url || null)
   const [isEditing, setIsEditing] = useState(false)
+  const [activeTab, setActiveTab] = useState<'personal-info' | 'preferences' | 'security'>('personal-info')
   
   // Get avatar URL
   const userAvatar = localAvatarUrl
@@ -339,14 +340,145 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
         }}
       >
         <div className="flex gap-12 sm:gap-16 lg:gap-20">
-          {/* Left section */}
+          {/* Left section - Tabs */}
           <div 
-            className="rounded-2xl p-4 sm:p-5 md:p-6"
+            className="rounded-2xl p-4 sm:p-5 md:p-6 shrink-0"
             style={{
               width: '30%',
+              minWidth: '280px',
               backgroundColor: '#F5F4F0'
             }}
           >
+            <div className="space-y-3">
+              {/* Personal Info Tab */}
+              <button
+                onClick={() => setActiveTab('personal-info')}
+                type="button"
+                className={`w-full rounded-full p-4 text-left transition-all ${
+                  activeTab === 'personal-info'
+                    ? 'bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]'
+                    : 'bg-transparent hover:bg-white/50'
+                }`}
+                style={{
+                  fontFamily: designTokens.typography.navItem.fontFamily,
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+                    style={{
+                      background: 'linear-gradient(180deg, #565656 0%, #1C1C1C 61%, #111111 100%)',
+                    }}
+                  >
+                    <UserIcon 
+                      className="h-4 w-4 text-white"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div
+                      className={`font-medium mb-1 ${
+                        activeTab === 'personal-info' ? 'text-[#111111]' : 'text-[#111111]'
+                      }`}
+                      style={{ fontSize: '14px' }}
+                    >
+                      Personal Info
+                    </div>
+                    <div
+                      className="text-[#666666]"
+                      style={{ fontSize: '12px', lineHeight: '1.4' }}
+                    >
+                      Tell us who you are to get started.
+                    </div>
+                  </div>
+                </div>
+              </button>
+
+              {/* Preferences Tab */}
+              <button
+                onClick={() => setActiveTab('preferences')}
+                type="button"
+                className={`w-full rounded-full p-4 text-left transition-all ${
+                  activeTab === 'preferences'
+                    ? 'bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]'
+                    : 'bg-transparent hover:bg-white/50'
+                }`}
+                style={{
+                  fontFamily: designTokens.typography.navItem.fontFamily,
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+                    style={{
+                      background: 'linear-gradient(180deg, #565656 0%, #1C1C1C 61%, #111111 100%)',
+                    }}
+                  >
+                    <Settings 
+                      className="h-4 w-4 text-white"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div
+                      className={`font-medium mb-1 ${
+                        activeTab === 'preferences' ? 'text-[#111111]' : 'text-[#111111]'
+                      }`}
+                      style={{ fontSize: '14px' }}
+                    >
+                      Preferences
+                    </div>
+                    <div
+                      className="text-[#666666]"
+                      style={{ fontSize: '12px', lineHeight: '1.4' }}
+                    >
+                      Tell us who you are to get started.
+                    </div>
+                  </div>
+                </div>
+              </button>
+
+              {/* Security Tab */}
+              <button
+                onClick={() => setActiveTab('security')}
+                type="button"
+                className={`w-full rounded-full p-4 text-left transition-all ${
+                  activeTab === 'security'
+                    ? 'bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]'
+                    : 'bg-transparent hover:bg-white/50'
+                }`}
+                style={{
+                  fontFamily: designTokens.typography.navItem.fontFamily,
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+                    style={{
+                      background: 'linear-gradient(180deg, #565656 0%, #1C1C1C 61%, #111111 100%)',
+                    }}
+                  >
+                    <Shield 
+                      className="h-4 w-4 text-white"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div
+                      className={`font-medium mb-1 ${
+                        activeTab === 'security' ? 'text-[#111111]' : 'text-[#111111]'
+                      }`}
+                      style={{ fontSize: '14px' }}
+                    >
+                      Security
+                    </div>
+                    <div
+                      className="text-[#666666]"
+                      style={{ fontSize: '12px', lineHeight: '1.4' }}
+                    >
+                      Tell us who you are to get started.
+                    </div>
+                  </div>
+                </div>
+              </button>
+            </div>
           </div>
           
           {/* Right section */}
@@ -356,7 +488,9 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
               width: '70%'
             }}
           >
-            {/* Profile Photo Section */}
+            {activeTab === 'personal-info' && (
+              <>
+                {/* Profile Photo Section */}
             <div className="space-y-4">
               <div className="flex items-start gap-6">
                 <Avatar className="h-24 w-24 rounded-full bg-gray-200" key={userAvatar || 'no-avatar'}>
@@ -732,6 +866,56 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
                 </form>
               </Form>
             </div>
+              </>
+            )}
+
+            {activeTab === 'preferences' && (
+              <div className="space-y-6">
+                <h3 
+                  style={{
+                    fontFamily: designTokens.typography.navItem.fontFamily,
+                    fontSize: '18px',
+                    fontWeight: 500,
+                    color: 'black'
+                  }}
+                >
+                  Preferences
+                </h3>
+                <p
+                  style={{
+                    fontFamily: designTokens.typography.navItem.fontFamily,
+                    fontSize: '16px',
+                    color: '#666',
+                  }}
+                >
+                  Preferences settings coming soon...
+                </p>
+              </div>
+            )}
+
+            {activeTab === 'security' && (
+              <div className="space-y-6">
+                <h3 
+                  style={{
+                    fontFamily: designTokens.typography.navItem.fontFamily,
+                    fontSize: '18px',
+                    fontWeight: 500,
+                    color: 'black'
+                  }}
+                >
+                  Security
+                </h3>
+                <p
+                  style={{
+                    fontFamily: designTokens.typography.navItem.fontFamily,
+                    fontSize: '16px',
+                    color: '#666',
+                  }}
+                >
+                  Security settings coming soon...
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
