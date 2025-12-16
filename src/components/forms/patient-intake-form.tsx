@@ -802,10 +802,32 @@ function ReleaseConsentContent({ text }: { text: string }) {
 export function PatientIntakeForm() {
   const [currentStep, setCurrentStep] = useState(1)
   const [signature, setSignature] = useState('')
+  const [isSubmitted, setIsSubmitted] = useState(false)
   
   const form = useForm<PatientIntakeFormValues>({
     resolver: zodResolver(patientIntakeFormSchema),
+    mode: 'onChange', // Validate on change to show errors immediately
+    reValidateMode: 'onChange', // Re-validate on change
     defaultValues: {
+      // Personal Information
+      first_name: '',
+      last_name: '',
+      email: '',
+      phone_number: '',
+      date_of_birth: null,
+      gender: null,
+      address: '',
+      city: '',
+      state: '',
+      zip_code: '',
+      // Emergency Contact Information
+      emergency_contact_first_name: '',
+      emergency_contact_last_name: '',
+      emergency_contact_email: null,
+      emergency_contact_phone: '',
+      emergency_contact_address: null,
+      emergency_contact_relationship: null,
+      // Consent and Agreements
       privacy_policy_accepted: false,
       consent_for_treatment: false,
       risks_and_benefits: false,
@@ -819,6 +841,7 @@ export function PatientIntakeForm() {
       service_agreement_accepted: false,
       release_consent_accepted: false,
       final_acknowledgment_accepted: false,
+      // Signature
       signature_data: '',
       signature_date: '',
     },
@@ -838,10 +861,8 @@ export function PatientIntakeForm() {
       })
       
       if (result?.data?.success) {
+        setIsSubmitted(true)
         toast.success('Form submitted successfully!')
-        form.reset()
-        setCurrentStep(1)
-        setSignature('')
       } else if (result?.serverError) {
         toast.error(result.serverError)
       } else if (result?.data?.error) {
@@ -874,9 +895,38 @@ export function PatientIntakeForm() {
   return (
     <div className="min-h-screen bg-transparent">
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
-          Patient Opportunity Form
-        </h1>
+        {isSubmitted ? (
+          <div className="text-center py-12">
+            <div className="mb-6">
+              <svg
+                className="mx-auto h-16 w-16 text-green-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+              Thank You!
+            </h1>
+            <p className="text-lg text-gray-600 mb-2">
+              Your form has been submitted successfully.
+            </p>
+            <p className="text-base text-gray-500">
+              We will review your information and get back to you soon.
+            </p>
+          </div>
+        ) : (
+          <>
+            <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
+              Patient Opportunity Form
+            </h1>
 
         {/* Progress indicator */}
         <div className="mb-8">
@@ -1014,18 +1064,31 @@ export function PatientIntakeForm() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <Label htmlFor="city" className="text-base font-medium">
+                      City <span className="text-red-500">*</span>
+                    </Label>
                     <Input
+                      id="city"
                       placeholder="City"
                       {...form.register('city')}
-                      className="h-12"
+                      className="h-12 mt-2"
                     />
+                    {form.formState.errors.city && (
+                      <p className="text-sm text-red-500 mt-1">{form.formState.errors.city.message}</p>
+                    )}
                   </div>
                   <div>
+                    <Label htmlFor="state" className="text-base font-medium">
+                      State <span className="text-red-500">*</span>
+                    </Label>
                     <Select
                       value={form.watch('state') || ''}
-                      onValueChange={(value) => form.setValue('state', value)}
+                      onValueChange={(value) => {
+                        form.setValue('state', value)
+                        form.trigger('state')
+                      }}
                     >
-                      <SelectTrigger className="h-12">
+                      <SelectTrigger id="state" className="h-12 mt-2">
                         <SelectValue placeholder="Please Select" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1036,15 +1099,25 @@ export function PatientIntakeForm() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {form.formState.errors.state && (
+                      <p className="text-sm text-red-500 mt-1">{form.formState.errors.state.message}</p>
+                    )}
                   </div>
                 </div>
 
                 <div>
+                  <Label htmlFor="zip_code" className="text-base font-medium">
+                    Zip Code <span className="text-red-500">*</span>
+                  </Label>
                   <Input
+                    id="zip_code"
                     placeholder="Zip Code"
                     {...form.register('zip_code')}
-                    className="h-12"
+                    className="h-12 mt-2"
                   />
+                  {form.formState.errors.zip_code && (
+                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.zip_code.message}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -1365,14 +1438,24 @@ export function PatientIntakeForm() {
             {currentStep < totalSteps ? (
               <Button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   // Validate current step before proceeding
                   const fieldsToValidate = getFieldsForStep(currentStep)
-                  form.trigger(fieldsToValidate as any).then((isValid) => {
-                    if (isValid) {
-                      setCurrentStep(currentStep + 1)
+                  const isValid = await form.trigger(fieldsToValidate as any)
+                  if (isValid) {
+                    setCurrentStep(currentStep + 1)
+                  } else {
+                    // Scroll to first error
+                    const firstErrorField = fieldsToValidate.find(field => 
+                      form.formState.errors[field as keyof typeof form.formState.errors]
+                    )
+                    if (firstErrorField) {
+                      const element = document.querySelector(`[name="${firstErrorField}"], #${firstErrorField}`)
+                      if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      }
                     }
-                  })
+                  }
                 }}
               >
                 Next
@@ -1391,6 +1474,8 @@ export function PatientIntakeForm() {
             )}
           </div>
         </form>
+          </>
+        )}
       </div>
     </div>
   )
@@ -1399,13 +1484,26 @@ export function PatientIntakeForm() {
 function getFieldsForStep(step: number): string[] {
   switch (step) {
     case 1:
-      return ['first_name', 'last_name', 'email', 'phone_number', 'address']
+      // Validate all required fields in step 1, including all address fields
+      return ['first_name', 'last_name', 'email', 'phone_number', 'address', 'city', 'state', 'zip_code']
     case 2:
-      return ['emergency_contact_first_name', 'emergency_contact_last_name', 'emergency_contact_phone']
+      // Validate all required emergency contact fields
+      return ['emergency_contact_first_name', 'emergency_contact_last_name', 'emergency_contact_phone', 'emergency_contact_email']
     case 3:
       return ['privacy_policy_accepted']
     case 4:
-      return ['ibogaine_therapy_consent_accepted']
+      // Validate all individual ibogaine consent fields
+      return [
+        'consent_for_treatment',
+        'risks_and_benefits',
+        'pre_screening_health_assessment',
+        'voluntary_participation',
+        'confidentiality',
+        'liability_release',
+        'payment_collection_1',
+        'payment_collection_2',
+        'ibogaine_therapy_consent_accepted'
+      ]
     case 5:
       return ['service_agreement_accepted']
     case 6:
