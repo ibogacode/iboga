@@ -893,8 +893,8 @@ export function PatientIntakeForm() {
   const totalSteps = 7
 
   return (
-    <div className="min-h-screen bg-transparent">
-      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8">
+    <div className="min-h-screen bg-#EDE9E4">
+      <div className="max-w-4xl mx-auto bg-white  p-8">
         {isSubmitted ? (
           <div className="text-center py-12">
             <div className="mb-6">
@@ -1033,7 +1033,7 @@ export function PatientIntakeForm() {
                     <RadioGroup
                       value={form.watch('gender') || ''}
                       onValueChange={(value) => form.setValue('gender', value as any)}
-                      className="flex gap-6 mt-2"
+                      className="flex flex-col md:flex-row gap-4 md:gap-6 mt-2"
                     >
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="male" id="male" />
