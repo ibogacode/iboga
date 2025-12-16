@@ -2,14 +2,17 @@
 
 import { z } from 'zod'
 import { actionClient } from '@/lib/safe-action'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { patientIntakeFormSchema } from '@/lib/validations/patient-intake'
 import { headers } from 'next/headers'
 
 export const submitPatientIntakeForm = actionClient
   .schema(patientIntakeFormSchema)
   .action(async ({ parsedInput }) => {
-    const supabase = await createClient()
+    // Use admin client (service role) for public form submissions
+    // This bypasses RLS and allows inserts from both logged-in and anonymous users
+    // Safe because: server-side only, input validated by Zod, service key not exposed
+    const supabase = createAdminClient()
     
     // Get IP address and user agent for audit purposes
     const headersList = await headers()
