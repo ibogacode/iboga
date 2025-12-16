@@ -872,7 +872,7 @@ export function PatientIntakeForm() {
   const totalSteps = 7
 
   return (
-    <div className="min-h-screen bg-transparent py-8 px-4">
+    <div className="min-h-screen bg-transparent">
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
           Patient Opportunity Form
