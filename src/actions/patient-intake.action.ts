@@ -84,7 +84,7 @@ export const submitPatientIntakeForm = actionClient
 
 // Send confirmation email after form submission
 async function sendConfirmationEmail(email: string, firstName: string) {
-  const schedulingLink = 'https://calendly.com/ibogawellnesscenters' // Replace with your actual scheduling link
+  const schedulingLink = 'https://calendar.app.google/8oZsS2sTMrM9pVov7' // Replace with your actual scheduling link
   
   const htmlBody = `
     <!DOCTYPE html>
