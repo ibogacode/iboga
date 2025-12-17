@@ -1,6 +1,6 @@
 export const siteConfig = {
   name: 'Iboga',
-  description: 'Patient Management System for Treatment Facilities',
+  description: 'Iboga wellness institute',
   url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
   ogImage: '/og-image.png',
   links: {
