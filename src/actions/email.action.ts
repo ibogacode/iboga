@@ -80,11 +80,11 @@ export async function sendInquiryConfirmationEmail(
           <p>We have received your inquiry and are excited to connect with you.</p>
           <p>Our team will review your information and reach out within 24-48 hours to discuss the next steps in your wellness journey.</p>
           <p>In the meantime, if you have any questions, feel free to reply to this email or call us at <strong>+1 (800) 604-7294</strong>.</p>
-          <p>Warm regards,<br>The Iboga Wellness Centers Team</p>
+          <p>Warm regards,<br>The Iboga Wellness Institute</p>
         </div>
         <div class="footer">
           <p>Iboga Wellness Centers | Cozumel, Mexico</p>
-          <p>www.ibogawellnesscenters.com</p>
+          <p>https://theibogainstitute.org</p>
         </div>
       </div>
     </body>

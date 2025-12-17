@@ -169,7 +169,7 @@ async function sendConfirmationEmail(email: string, firstName: string) {
     <body>
       <div class="container">
         <div class="header">
-          <h1>Iboga Wellness Centers</h1>
+          <h1>Iboga Wellness Institute</h1>
         </div>
         <div class="content">
           <h2>Thank You, ${firstName}!</h2>
@@ -193,15 +193,15 @@ async function sendConfirmationEmail(email: string, firstName: string) {
           <p>If you have any immediate questions, feel free to reach out:</p>
           <p>
             <strong>Phone:</strong> +1 (800) 604-7294<br>
-            <strong>Email:</strong> james@ibogawellnesscenters.com
+            <strong>Email:</strong> james@theibogainstitute.org
           </p>
           
           <p>We look forward to speaking with you soon!</p>
-          <p>Warm regards,<br><strong>The Iboga Wellness Centers Team</strong></p>
+          <p>Warm regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
         </div>
         <div class="footer">
-          <p>Iboga Wellness Centers | Cozumel, Mexico</p>
-          <p><a href="https://www.ibogawellnesscenters.com">www.ibogawellnesscenters.com</a></p>
+          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+          <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
         </div>
       </div>
     </body>
@@ -210,7 +210,7 @@ async function sendConfirmationEmail(email: string, firstName: string) {
 
   return sendEmail({
     to: email,
-    subject: 'Thank You for Your Application - Schedule Your Consultation | Iboga Wellness Centers',
+    subject: 'Thank You for Your Application - Schedule Your Consultation | Iboga Wellness Institute',
     body: htmlBody,
   })
 }
