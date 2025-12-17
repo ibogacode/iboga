@@ -24,6 +24,28 @@ export const metadata: Metadata = {
   icons: {
     icon: '/title_logo.jpg',
   },
+  openGraph: {
+    title: 'Iboga Wellness Institute',
+    description: 'Access your workspace, manage your profile, and continue your wellness journey with Iboga Wellness Institute.',
+    url: 'https://portal.theibogainstitute.org',
+    siteName: 'Iboga Wellness Institute',
+    images: [
+      {
+        url: 'https://portal.theibogainstitute.org/title_logo.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Iboga Wellness Institute',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Iboga Wellness Institute',
+    description: 'Access your workspace, manage your profile, and continue your wellness journey.',
+    images: ['https://portal.theibogainstitute.org/title_logo.jpg'],
+  },
 }
 
 export default function RootLayout({
