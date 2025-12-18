@@ -7,7 +7,7 @@ export const addEmployeeSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
   role: z.enum(['admin', 'manager', 'doctor', 'psych', 'nurse', 'driver'] as const, {
-    errorMap: () => ({ message: 'Please select a valid role' }),
+    error: 'Please select a valid role',
   }),
   phone: z.string().optional(),
   designation: z.string().optional(),

@@ -26,7 +26,8 @@ export function MedicalHistoryForm() {
   const [isUploading, setIsUploading] = useState(false)
   
   const form = useForm<MedicalHistoryFormValues>({
-    resolver: zodResolver(medicalHistoryFormSchema),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(medicalHistoryFormSchema) as any,
     mode: 'onChange',
     reValidateMode: 'onChange',
     defaultValues: {

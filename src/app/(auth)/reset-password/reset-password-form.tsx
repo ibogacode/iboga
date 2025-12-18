@@ -53,6 +53,7 @@ export function ResetPasswordForm() {
     try {
       const result = await resetPasswordAction({ 
         password: data.password,
+        confirmPassword: data.confirmPassword,
       })
 
       if (result?.serverError) {
