@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOpportunities } from '@/actions/opportunities.action'
-import { Loader2, TrendingUp, TrendingDown, Eye } from 'lucide-react'
+import { Loader2, TrendingUp, TrendingDown, Eye, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
 
@@ -14,6 +14,7 @@ interface Opportunity {
   email: string
   phone_number: string
   created_at: string
+  calendar_link_clicked_at: string | null
 }
 
 export default function PatientPipelinePage() {
@@ -183,6 +184,9 @@ export default function PatientPipelinePage() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Submitted
                   </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Calendar Link
+                  </th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Action
                   </th>
@@ -204,6 +208,16 @@ export default function PatientPipelinePage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">{formatDate(opportunity.created_at)}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {opportunity.calendar_link_clicked_at ? (
+                        <div className="flex items-center gap-1.5 text-sm text-emerald-600">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span>Clicked</span>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-400">Not clicked</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <Button
