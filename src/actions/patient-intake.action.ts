@@ -77,14 +77,58 @@ export const submitPatientIntakeForm = actionClient
     }
     
     // Send confirmation email to the user (don't await - fire and forget)
-    sendConfirmationEmail(parsedInput.email, parsedInput.first_name).catch(console.error)
+    sendConfirmationEmail(
+      parsedInput.email, 
+      parsedInput.first_name,
+      parsedInput.last_name,
+      data.id
+    ).catch(console.error)
     
     return { success: true, data: { id: data.id } }
   })
 
 // Send confirmation email after form submission
-async function sendConfirmationEmail(email: string, firstName: string) {
-  const schedulingLink = 'https://calendar.app.google/8oZsS2sTMrM9pVov7' // Replace with your actual scheduling link
+async function sendConfirmationEmail(
+  email: string, 
+  firstName: string,
+  lastName: string,
+  formId: string
+) {
+  const supabase = createAdminClient()
+  
+  // Generate unique tracking token
+  const trackingToken = crypto.randomUUID()
+  
+  // Base calendar link
+  const baseCalendarLink = 'https://calendar.app.google/jkPEGqcQcf82W6aMA'
+  
+  // Prepopulate name and email in calendar link
+  const fullName = `${encodeURIComponent(firstName)}%20${encodeURIComponent(lastName)}`
+  const encodedEmail = encodeURIComponent(email)
+  const prepopulatedCalendarLink = `${baseCalendarLink}?name=${fullName}&email=${encodedEmail}`
+  
+  // Create tracking link that redirects to prepopulated calendar
+  // For localhost testing, use localhost:3000, otherwise use production URL
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+    (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
+  const trackingLink = `${baseUrl}/api/track-calendar-click/${trackingToken}?redirect=${encodeURIComponent(prepopulatedCalendarLink)}`
+  
+  // Log for debugging (remove in production)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('📧 Email tracking link generated:', trackingLink)
+    console.log('🔗 Prepopulated calendar link:', prepopulatedCalendarLink)
+  }
+  
+  // Update form with tracking token and email sent timestamp
+  await supabase
+    .from('patient_intake_forms')
+    .update({
+      tracking_token: trackingToken,
+      email_sent_at: new Date().toISOString(),
+    })
+    .eq('id', formId)
+  
+  const schedulingLink = trackingLink
   
   const htmlBody = `
     <!DOCTYPE html>
@@ -174,8 +218,7 @@ async function sendConfirmationEmail(email: string, firstName: string) {
         <div class="content">
           <h2>Thank You, ${firstName}!</h2>
           <p>We have received your application and are excited to connect with you on your wellness journey.</p>
-          <p>Our team will review your information carefully. In the meantime, we invite you to <strong>schedule a consultation call</strong> with us at your earliest convenience.</p>
-          
+          <p>Our team will carefully review your information and will let you know soon if you are eligible to move forward. Thank you for your interest and patience.</p>          
           <div class="cta-container">
             <a href="${schedulingLink}" class="cta-button">Schedule Your Call</a>
           </div>
