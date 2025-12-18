@@ -55,7 +55,7 @@ export async function updateSession(request: NextRequest) {
   )
 
   // Auth pages
-  const authPaths = ['/login', '/register', '/forgot-password']
+  const authPaths = ['/login', '/register', '/forgot-password', '/reset-password']
   const isAuthPath = authPaths.some(path => 
     request.nextUrl.pathname.startsWith(path)
   )
@@ -76,7 +76,8 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Redirect authenticated users away from auth pages
-    if (user && isAuthPath) {
+    // Exception: allow authenticated users on /reset-password (they need to set new password)
+    if (user && isAuthPath && request.nextUrl.pathname !== '/reset-password') {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)

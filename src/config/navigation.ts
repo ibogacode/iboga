@@ -35,6 +35,20 @@ export interface NavigationConfig {
 
 // Navigation items for each role
 export const navigationByRole: Record<UserRole, NavigationConfig> = {
+  admin: {
+    mainNav: [
+      { title: 'Dashboard', href: '/owner', icon: LayoutDashboard },
+      { title: 'Locations', href: '/owner/locations', icon: Building2 },
+      { title: 'Staff', href: '/owner/staff', icon: UserCog },
+      { title: 'Patients', href: '/owner/patients', icon: Users },
+      { title: 'Opportunities', href: '/owner/opportunities', icon: ClipboardList },
+      { title: 'Calendar', href: '/owner/calendar', icon: Calendar },
+      { title: 'Reports', href: '/owner/reports', icon: BarChart3 },
+    ],
+    secondaryNav: [
+      { title: 'Settings', href: '/settings', icon: Settings },
+    ],
+  },
   owner: {
     mainNav: [
       { title: 'Dashboard', href: '/owner', icon: LayoutDashboard },
@@ -132,6 +146,7 @@ export function getNavigationForRole(role: UserRole): NavigationConfig {
 // Role display names and colors
 export const roleConfig: Record<UserRole, { label: string; color: string }> = {
   owner: { label: 'Owner', color: 'bg-purple-500' },
+  admin: { label: 'Admin', color: 'bg-indigo-500' },
   manager: { label: 'Manager', color: 'bg-blue-500' },
   doctor: { label: 'Doctor', color: 'bg-green-500' },
   psych: { label: 'Psychologist', color: 'bg-teal-500' },
