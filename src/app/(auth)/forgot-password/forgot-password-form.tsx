@@ -29,13 +29,28 @@ export function ForgotPasswordForm() {
     try {
       const result = await forgotPasswordAction({ email: data.email })
 
-      if (!result.success) {
-        toast.error(result.error || 'Failed to send password reset email')
+      if (result?.serverError) {
+        toast.error(result.serverError)
         return
       }
 
-      setEmailSent(true)
-      toast.success('Password reset email sent! Please check your inbox.')
+      if (result?.validationErrors) {
+        const errors = Object.values(result.validationErrors)
+        const firstError = errors.length > 0 ? String(errors[0]) : null
+        toast.error(firstError || 'Validation failed')
+        return
+      }
+
+      if (result?.data) {
+        if (result.data.success) {
+          setEmailSent(true)
+          toast.success('Password reset email sent! Please check your inbox.')
+        } else if (result.data.error) {
+          toast.error(result.data.error)
+        } else {
+          toast.error('Failed to send password reset email')
+        }
+      }
     } catch {
       toast.error('An unexpected error occurred')
     } finally {

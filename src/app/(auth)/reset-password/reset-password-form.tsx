@@ -55,17 +55,32 @@ export function ResetPasswordForm() {
         password: data.password,
       })
 
-      if (!result.success) {
-        toast.error(result.error || 'Failed to reset password')
+      if (result?.serverError) {
+        toast.error(result.serverError)
         return
       }
 
-      toast.success('Password reset successfully! Redirecting to login...')
-      
-      // Redirect to login after a short delay
-      setTimeout(() => {
-        router.push('/login')
-      }, 2000)
+      if (result?.validationErrors) {
+        const errors = Object.values(result.validationErrors)
+        const firstError = errors.length > 0 ? String(errors[0]) : null
+        toast.error(firstError || 'Validation failed')
+        return
+      }
+
+      if (result?.data) {
+        if (result.data.success) {
+          toast.success('Password reset successfully! Redirecting to login...')
+          
+          // Redirect to login after a short delay
+          setTimeout(() => {
+            router.push('/login')
+          }, 2000)
+        } else if (result.data.error) {
+          toast.error(result.data.error)
+        } else {
+          toast.error('Failed to reset password')
+        }
+      }
     } catch {
       toast.error('An unexpected error occurred')
     } finally {
