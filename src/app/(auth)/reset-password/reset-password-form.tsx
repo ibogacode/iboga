@@ -11,12 +11,14 @@ import { Label } from '@/components/ui/label'
 import { resetPasswordAction } from '@/actions/auth.action'
 import { toast } from 'sonner'
 import { resetPasswordSchema, type ResetPasswordFormData } from '@/lib/validations/auth'
+import { createClient } from '@/lib/supabase/client'
 
 export function ResetPasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [isValidToken, setIsValidToken] = useState<boolean | null>(null)
+  const [isExchangingToken, setIsExchangingToken] = useState(true)
 
   const {
     register,
@@ -27,20 +29,58 @@ export function ResetPasswordForm() {
   })
 
   useEffect(() => {
-    // Check if we have the required token/hash in URL
-    // Supabase password reset links include token and type=recovery
-    const token = searchParams.get('token')
-    const type = searchParams.get('type')
-    
-    // Also check for hash (alternative format)
-    const hash = searchParams.get('hash')
-    
-    if ((!token && !hash) || (type && type !== 'recovery')) {
-      // Still allow form to show - Supabase might handle token exchange server-side
-      setIsValidToken(true)
-    } else {
-      setIsValidToken(true)
+    async function handleTokenExchange() {
+      const supabase = createClient()
+      
+      // Check for PKCE code in URL params
+      const code = searchParams.get('code')
+      
+      if (code) {
+        // Exchange the code for a session
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        
+        if (error) {
+          console.error('Token exchange error:', error)
+          setIsValidToken(false)
+          setIsExchangingToken(false)
+          return
+        }
+        
+        setIsValidToken(true)
+        setIsExchangingToken(false)
+        return
+      }
+      
+      // Check for hash-based tokens (older Supabase format)
+      // These are handled automatically by Supabase client via onAuthStateChange
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (session) {
+        setIsValidToken(true)
+        setIsExchangingToken(false)
+        return
+      }
+      
+      // No code and no session - check URL hash for tokens
+      // Supabase may include tokens in the hash fragment
+      if (typeof window !== 'undefined' && window.location.hash) {
+        // Wait a moment for Supabase to process the hash
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const { data: { session: hashSession } } = await supabase.auth.getSession()
+        if (hashSession) {
+          setIsValidToken(true)
+          setIsExchangingToken(false)
+          return
+        }
+      }
+      
+      // No valid token found
+      setIsValidToken(false)
+      setIsExchangingToken(false)
     }
+    
+    handleTokenExchange()
   }, [searchParams])
 
   async function onSubmit(data: ResetPasswordFormData) {
@@ -89,7 +129,7 @@ export function ResetPasswordForm() {
     }
   }
 
-  if (isValidToken === null) {
+  if (isExchangingToken || isValidToken === null) {
     return (
       <div className="space-y-4 text-center">
         <Loader2 className="mx-auto h-8 w-8 animate-spin text-gray-400" />
