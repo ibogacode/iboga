@@ -1,13 +1,118 @@
 'use client'
 
-import { useState } from 'react'
-import { TrendingUp } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { TrendingUp, UserPlus, Loader2 } from 'lucide-react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { addEmployeeAction, getEmployees } from '@/actions/facility.action'
+import { addEmployeeSchema } from '@/lib/validations/facility'
+import { User } from '@/types'
+import { roleConfig } from '@/config/navigation'
+import { format } from 'date-fns'
+import type { z } from 'zod'
 
 const LOCATIONS = ['Cozumel', 'Baja', 'All'] as const
 type Location = typeof LOCATIONS[number]
 
+type AddEmployeeFormValues = z.infer<typeof addEmployeeSchema>
+
 export default function FacilityManagementPage() {
   const [selectedLocation, setSelectedLocation] = useState<Location>('Cozumel')
+  const [isEmployeeDialogOpen, setIsEmployeeDialogOpen] = useState(false)
+  const [isSubmittingEmployee, setIsSubmittingEmployee] = useState(false)
+  const [employees, setEmployees] = useState<User[]>([])
+  const [isLoadingEmployees, setIsLoadingEmployees] = useState(true)
+
+  const employeeForm = useForm<AddEmployeeFormValues>({
+    resolver: zodResolver(addEmployeeSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+      firstName: '',
+      lastName: '',
+      role: 'nurse',
+      phone: '',
+      designation: '',
+    },
+  })
+
+  async function onEmployeeSubmit(data: AddEmployeeFormValues) {
+    setIsSubmittingEmployee(true)
+    try {
+      const result = await addEmployeeAction(data)
+      
+      if (result?.serverError) {
+        toast.error(result.serverError)
+        return
+      }
+
+      if (result?.validationErrors) {
+        const errors = Object.values(result.validationErrors)
+        const firstError = errors.length > 0 ? String(errors[0]) : null
+        toast.error(firstError || 'Validation failed')
+        return
+      }
+
+      if (result?.data) {
+        if (result.data.success) {
+          toast.success('Employee added successfully')
+          setIsEmployeeDialogOpen(false)
+          employeeForm.reset()
+          // Reload employees list
+          loadEmployees()
+        } else if (result.data.error) {
+          toast.error(result.data.error)
+        } else {
+          toast.error('Failed to add employee')
+        }
+      } else {
+        toast.error('Failed to add employee')
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to add employee')
+    } finally {
+      setIsSubmittingEmployee(false)
+    }
+  }
+
+  const loadEmployees = useCallback(async () => {
+    setIsLoadingEmployees(true)
+    try {
+      const result = await getEmployees({})
+      if (result?.data?.success && result.data.data) {
+        setEmployees(result.data.data.employees)
+      } else if (result?.data?.error) {
+        toast.error(result.data.error)
+      }
+    } catch (error) {
+      toast.error('Failed to load employees')
+    } finally {
+      setIsLoadingEmployees(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadEmployees()
+  }, [loadEmployees])
+
+  function formatDate(dateString: string) {
+    try {
+      return format(new Date(dateString), 'MMM dd, yyyy')
+    } catch {
+      return dateString
+    }
+  }
+
+  function getRoleLabel(role: string) {
+    return roleConfig[role as keyof typeof roleConfig]?.label || role
+  }
+
 
   return (
     <div className="p-6">
@@ -30,26 +135,172 @@ export default function FacilityManagementPage() {
           </p>
         </div>
 
-        {/* Location Toggle */}
-        <div className="flex bg-gray-100 rounded-lg p-1">
-          {LOCATIONS.map((location) => (
-            <button
-              key={location}
-              onClick={() => setSelectedLocation(location)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                selectedLocation === location
-                  ? 'bg-[#5D7A5F] text-white'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {location}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          {/* Add Employee Dialog */}
+          <Dialog open={isEmployeeDialogOpen} onOpenChange={setIsEmployeeDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <UserPlus className="h-4 w-4" />
+                Add Employee
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Add New Employee</DialogTitle>
+                <DialogDescription>
+                  Create a new employee account with the specified role.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...employeeForm}>
+                <form onSubmit={employeeForm.handleSubmit(onEmployeeSubmit)} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={employeeForm.control}
+                      name="firstName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>First Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="John" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={employeeForm.control}
+                      name="lastName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Last Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Doe" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={employeeForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="john.doe@example.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={employeeForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" placeholder="••••••••" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={employeeForm.control}
+                      name="role"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Role</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select role" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="manager">Manager</SelectItem>
+                              <SelectItem value="doctor">Doctor</SelectItem>
+                              <SelectItem value="psych">Psych</SelectItem>
+                              <SelectItem value="nurse">Nurse</SelectItem>
+                              <SelectItem value="driver">Driver</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={employeeForm.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone (Optional)</FormLabel>
+                          <FormControl>
+                            <Input type="tel" placeholder="(555) 123-4567" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={employeeForm.control}
+                      name="designation"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Designation (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Senior Nurse" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsEmployeeDialogOpen(false)}
+                      disabled={isSubmittingEmployee}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isSubmittingEmployee}>
+                      {isSubmittingEmployee ? 'Adding...' : 'Add Employee'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Location Toggle */}
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            {LOCATIONS.map((location) => (
+              <button
+                key={location}
+                onClick={() => setSelectedLocation(location)}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  selectedLocation === location
+                    ? 'bg-[#5D7A5F] text-white'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {location}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {/* Occupancy */}
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <p className="text-gray-500 text-sm font-medium mb-2">Occupancy (this month)</p>
@@ -101,6 +352,82 @@ export default function FacilityManagementPage() {
             <span className="text-gray-400 text-sm">High-monitor overtime</span>
           </div>
         </div>
+      </div>
+
+      {/* Employees List */}
+      <div className="mt-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Employees</h2>
+          <span className="text-sm text-gray-500">{employees.length} total</span>
+        </div>
+        
+        {isLoadingEmployees ? (
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100 text-center">
+            <Loader2 className="h-6 w-6 animate-spin text-gray-400 mx-auto" />
+            <p className="text-gray-500 mt-2">Loading employees...</p>
+          </div>
+        ) : employees.length === 0 ? (
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100 text-center">
+            <p className="text-gray-500">No employees found. Add your first employee using the button above.</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Role
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Phone
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Designation
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Added
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {employees.map((employee) => (
+                  <tr key={employee.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {employee.first_name} {employee.last_name}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{employee.email}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        roleConfig[employee.role as keyof typeof roleConfig]?.color || 'bg-gray-100'
+                      } text-white`}>
+                        {getRoleLabel(employee.role)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{employee.phone || '—'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{employee.designation || '—'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{formatDate(employee.created_at)}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

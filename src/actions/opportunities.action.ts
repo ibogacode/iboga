@@ -2,6 +2,7 @@
 
 import { authActionClient } from '@/lib/safe-action'
 import { createClient } from '@/lib/supabase/server'
+import { hasOwnerAccess } from '@/lib/utils'
 import { z } from 'zod'
 
 // Schema for fetching opportunities
@@ -32,8 +33,8 @@ export const getOpportunities = authActionClient
       .eq('id', user.id)
       .single()
     
-    if (!profile || profile.role !== 'owner') {
-      return { success: false, error: 'Unauthorized - Owner access required' }
+    if (!profile || !hasOwnerAccess(profile.role)) {
+      return { success: false, error: 'Unauthorized - Owner or Admin access required' }
     }
     
     // Fetch opportunities
@@ -73,8 +74,8 @@ export const getOpportunity = authActionClient
       .eq('id', user.id)
       .single()
     
-    if (!profile || profile.role !== 'owner') {
-      return { success: false, error: 'Unauthorized - Owner access required' }
+    if (!profile || !hasOwnerAccess(profile.role)) {
+      return { success: false, error: 'Unauthorized - Owner or Admin access required' }
     }
     
     // Fetch single opportunity

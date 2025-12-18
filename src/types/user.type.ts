@@ -1,5 +1,6 @@
 export type UserRole = 
   | 'owner' 
+  | 'admin'
   | 'manager' 
   | 'doctor' 
   | 'psych' 
