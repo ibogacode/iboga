@@ -5,9 +5,9 @@ const DEFAULT_CALENDAR_LINK = 'https://calendar.app.google/jkPEGqcQcf82W6aMA'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
-  const { token } = params
+  const { token } = await params
   const { searchParams } = new URL(request.url)
   const redirectUrl = searchParams.get('redirect')
   
