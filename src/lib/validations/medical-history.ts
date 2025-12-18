@@ -6,7 +6,7 @@ export const medicalHistoryFormSchema = z.object({
   last_name: z.string().min(1, 'Last name is required'),
   date_of_birth: z.string().min(1, 'Date of birth is required'),
   gender: z.enum(['M', 'F', 'other'], {
-    errorMap: () => ({ message: 'Please select a gender' }),
+    error: 'Please select a gender',
   }),
   weight: z.string().min(1, 'Weight is required'),
   height: z.string().min(1, 'Height is required'),
