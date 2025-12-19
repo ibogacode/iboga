@@ -88,7 +88,59 @@ export function ResetPasswordForm() {
         return
       }
       
-      // Check for hash fragment containing recovery tokens
+      // Check for PKCE code in URL query params (Supabase PKCE flow)
+      const code = searchParams.get('code')
+      if (code) {
+        console.log('====== PKCE CODE FOUND ======')
+        console.log('9. Code:', code)
+        console.log('Attempting to exchange code for session...')
+        
+        try {
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+          
+          console.log('10. Exchange result:')
+          console.log('    - Session:', !!data?.session)
+          console.log('    - User:', data?.session?.user?.email)
+          console.log('    - Error:', exchangeError)
+          
+          if (exchangeError) {
+            console.log('❌ Code exchange failed:', exchangeError.message)
+            // The code might have already been used - check if we have a session anyway
+            const { data: { session: retrySession } } = await supabase.auth.getSession()
+            if (retrySession) {
+              console.log('✅ Found session on retry!')
+              if (isSubscribed) {
+                setIsValidToken(true)
+                setIsExchangingToken(false)
+              }
+              return
+            }
+            if (isSubscribed) {
+              setIsValidToken(false)
+              setIsExchangingToken(false)
+            }
+            return
+          }
+          
+          if (data?.session) {
+            console.log('✅ Code exchanged successfully!')
+            if (isSubscribed) {
+              setIsValidToken(true)
+              setIsExchangingToken(false)
+            }
+            return
+          }
+        } catch (err) {
+          console.log('❌ Code exchange exception:', err)
+          if (isSubscribed) {
+            setIsValidToken(false)
+            setIsExchangingToken(false)
+          }
+          return
+        }
+      }
+      
+      // Check for hash fragment containing recovery tokens (implicit flow)
       if (typeof window !== 'undefined' && window.location.hash) {
         console.log('====== PARSING HASH FRAGMENT ======')
         const hash = window.location.hash.substring(1)
@@ -121,7 +173,6 @@ export function ResetPasswordForm() {
         
         if (type === 'recovery' && accessToken) {
           console.log('✅ Recovery token found! Waiting for Supabase to process...')
-          // Wait for Supabase to process the hash and establish session
           setTimeout(async () => {
             console.log('====== AFTER TIMEOUT: CHECKING SESSION AGAIN ======')
             const { data: { session: newSession }, error: newError } = await supabase.auth.getSession()
@@ -138,7 +189,7 @@ export function ResetPasswordForm() {
               }
               setIsExchangingToken(false)
             }
-          }, 2000) // Increased timeout to 2 seconds
+          }, 2000)
           return
         } else {
           console.log('❌ Hash present but no valid recovery token')
