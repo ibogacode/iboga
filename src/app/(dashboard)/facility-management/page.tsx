@@ -129,12 +129,17 @@ export default function FacilityManagementPage() {
 
   function handleEditClick(employee: User) {
     setEditingEmployee(employee)
+    // Filter out 'owner' and 'patient' roles as they're not editable through this form
+    const editableRole = (employee.role === 'owner' || employee.role === 'patient') 
+      ? 'admin' as const 
+      : employee.role as 'admin' | 'manager' | 'doctor' | 'psych' | 'nurse' | 'driver'
+    
     editEmployeeForm.reset({
       userId: employee.id,
       email: employee.email,
       firstName: employee.first_name || '',
       lastName: employee.last_name || '',
-      role: employee.role,
+      role: editableRole,
       phone: employee.phone || '',
       designation: employee.designation || '',
       payRatePerHour: employee.pay_rate_per_hour ? employee.pay_rate_per_hour.toString() : '',
