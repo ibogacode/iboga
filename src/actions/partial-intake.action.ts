@@ -83,8 +83,8 @@ export const createPartialIntakeForm = authActionClient
       (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
     const formLink = `${baseUrl}/intake?token=${token}`
     
-    // Send email with form link based on scenario
-    const emailResult = await sendPartialIntakeFormEmail(
+    // Send email with form link based on scenario (fire and forget - don't await)
+    sendPartialIntakeFormEmail(
       recipientEmail,
       recipientName || `${parsedInput.first_name} ${parsedInput.last_name}`,
       parsedInput.first_name,
@@ -95,17 +95,23 @@ export const createPartialIntakeForm = authActionClient
       parsedInput.filler_first_name || null,
       parsedInput.filler_last_name || null
     )
-    
-    if (!emailResult.success) {
+    .then(async (emailResult) => {
+      // Check if email was sent successfully and update email_sent_at
+      // sendEmail returns SafeActionResult, so check data.success
+      if (!emailResult?.serverError && emailResult?.data) {
+        const result = emailResult.data as { success?: boolean; error?: string; messageId?: string }
+        if (result.success) {
+          await supabase
+            .from('partial_intake_forms')
+            .update({ email_sent_at: new Date().toISOString() })
+            .eq('id', data.id)
+        }
+      }
+    })
+    .catch((error) => {
       // Log error but don't fail the action
-      console.error('Failed to send email:', emailResult.error)
-    } else {
-      // Update email_sent_at
-      await supabase
-        .from('partial_intake_forms')
-        .update({ email_sent_at: new Date().toISOString() })
-        .eq('id', data.id)
-    }
+      console.error('Failed to send email:', error)
+    })
     
     return { 
       success: true, 
