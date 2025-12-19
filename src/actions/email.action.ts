@@ -73,7 +73,7 @@ export async function sendInquiryConfirmationEmail(
     <body>
       <div class="container">
         <div class="header">
-          <h1>Iboga Wellness Centers</h1>
+          <h1>Iboga Wellness Institute</h1>
         </div>
         <div class="content">
           <h2>Thank you, ${firstName}!</h2>
@@ -83,7 +83,7 @@ export async function sendInquiryConfirmationEmail(
           <p>Warm regards,<br>The Iboga Wellness Institute</p>
         </div>
         <div class="footer">
-          <p>Iboga Wellness Centers | Cozumel, Mexico</p>
+          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
           <p>https://theibogainstitute.org</p>
         </div>
       </div>
@@ -93,7 +93,7 @@ export async function sendInquiryConfirmationEmail(
 
   return sendEmail({
     to: email,
-    subject: 'Thank you for your inquiry - Iboga Wellness Centers',
+    subject: 'Thank you for your inquiry - Iboga Wellness Institute',
     body: htmlBody,
   })
 }
@@ -240,7 +240,7 @@ export async function sendEmployeeWelcomeEmail(
           <p>Welcome aboard!<br>The Iboga Wellness Institute Team</p>
         </div>
         <div class="footer">
-          <p>Iboga Wellness Centers | Cozumel, Mexico</p>
+          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
           <p>https://theibogainstitute.org</p>
         </div>
       </div>

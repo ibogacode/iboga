@@ -17,8 +17,8 @@ export default function TestEmailPage() {
   
   // Email test state
   const [to, setTo] = useState('')
-  const [subject, setSubject] = useState('Test Email from Iboga Wellness Centers')
-  const [body, setBody] = useState('<h1>Hello!</h1><p>This is a test email from Iboga Wellness Centers.</p>')
+  const [subject, setSubject] = useState('Test Email from Iboga Wellness Institute')
+  const [body, setBody] = useState('<h1>Hello!</h1><p>This is a test email from Iboga Wellness Institute.</p>')
   const [isLoadingEmail, setIsLoadingEmail] = useState(false)
   const [emailResult, setEmailResult] = useState<{ success: boolean; message: string } | null>(null)
   
