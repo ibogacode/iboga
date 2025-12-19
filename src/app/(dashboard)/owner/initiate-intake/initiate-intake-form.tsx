@@ -105,23 +105,13 @@ export default function InitiateIntakeForm() {
             </Label>
             <RadioGroup
               value={mode}
-              onValueChange={(value) => {
-                setMode(value as 'minimal' | 'partial')
-                form.setValue('mode', value as 'minimal' | 'partial')
-                // Reset form when mode changes
-                form.reset({
-                  mode: value as 'minimal' | 'partial',
-                  filled_by: form.getValues('filled_by'),
-                  filler_relationship: form.getValues('filler_relationship'),
-                  filler_first_name: form.getValues('filler_first_name'),
-                  filler_last_name: form.getValues('filler_last_name'),
-                  filler_email: form.getValues('filler_email'),
-                  filler_phone: form.getValues('filler_phone'),
-                  first_name: form.getValues('first_name'),
-                  last_name: form.getValues('last_name'),
-                  email: form.getValues('email'),
-                })
-              }}
+            onValueChange={(value) => {
+              const newMode = value as 'minimal' | 'partial'
+              setMode(newMode)
+              form.setValue('mode', newMode)
+              // Just update the mode, don't reset the entire form
+              // The form will handle validation based on the mode
+            }}
               className="flex gap-6"
             >
               <div className="flex items-center space-x-2">
