@@ -30,77 +30,95 @@ export function ResetPasswordForm() {
 
   useEffect(() => {
     const supabase = createClient()
+    let isSubscribed = true
     
-    // Listen for auth state changes - Supabase will automatically process URL hash tokens
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session?.user?.email)
+    // Listen for auth state changes - Supabase automatically processes URL hash tokens
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isSubscribed) return
+      
+      console.log('Auth state change:', event)
       
       if (event === 'PASSWORD_RECOVERY') {
-        // User clicked the password reset link and Supabase processed the token
+        // User clicked the password reset link - Supabase processed the token
         setIsValidToken(true)
         setIsExchangingToken(false)
       } else if (event === 'SIGNED_IN' && session) {
-        // User is signed in (might be from the recovery token)
-        setIsValidToken(true)
-        setIsExchangingToken(false)
-      } else if (event === 'TOKEN_REFRESHED' && session) {
+        // Session established from recovery token
         setIsValidToken(true)
         setIsExchangingToken(false)
       }
     })
     
-    // Also check for existing session or PKCE code
-    async function checkInitialState() {
-      // Check for PKCE code in URL params
-      const code = searchParams.get('code')
+    // Check initial state
+    async function checkSession() {
+      // First check if there's already a session
+      const { data: { session } } = await supabase.auth.getSession()
       
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code)
-        if (error) {
-          console.error('Token exchange error:', error)
-          setIsValidToken(false)
+      if (session) {
+        if (isSubscribed) {
+          setIsValidToken(true)
           setIsExchangingToken(false)
+        }
+        return
+      }
+      
+      // Check for hash fragment containing recovery tokens
+      // Supabase password reset uses implicit flow: /reset-password#access_token=xxx&type=recovery
+      if (typeof window !== 'undefined' && window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const type = hashParams.get('type')
+        const accessToken = hashParams.get('access_token')
+        const error = hashParams.get('error')
+        
+        if (error) {
+          console.error('Auth error from URL:', error, hashParams.get('error_description'))
+          if (isSubscribed) {
+            setIsValidToken(false)
+            setIsExchangingToken(false)
+          }
           return
         }
-        setIsValidToken(true)
-        setIsExchangingToken(false)
-        return
-      }
-      
-      // Check if already has session
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        setIsValidToken(true)
-        setIsExchangingToken(false)
-        return
-      }
-      
-      // Check for hash fragment (Supabase recovery tokens)
-      if (typeof window !== 'undefined' && window.location.hash) {
-        // Give Supabase time to process the hash
-        // The onAuthStateChange will handle the PASSWORD_RECOVERY event
-        setTimeout(() => {
-          // If still exchanging after timeout, check session again
-          supabase.auth.getSession().then(({ data: { session: hashSession } }) => {
-            if (hashSession) {
-              setIsValidToken(true)
-            } else {
-              setIsValidToken(false)
+        
+        if (type === 'recovery' && accessToken) {
+          // Wait for Supabase to process the hash and establish session
+          // The onAuthStateChange will fire PASSWORD_RECOVERY event
+          setTimeout(async () => {
+            const { data: { session: newSession } } = await supabase.auth.getSession()
+            if (isSubscribed) {
+              if (newSession) {
+                setIsValidToken(true)
+              } else {
+                setIsValidToken(false)
+              }
+              setIsExchangingToken(false)
             }
-            setIsExchangingToken(false)
-          })
-        }, 1500)
+          }, 1000)
+          return
+        }
+      }
+      
+      // Check for error in query params (from failed callback)
+      const error = searchParams.get('error')
+      if (error) {
+        console.error('Auth error from params:', error)
+        if (isSubscribed) {
+          setIsValidToken(false)
+          setIsExchangingToken(false)
+        }
         return
       }
       
-      // No token found at all
-      setIsValidToken(false)
-      setIsExchangingToken(false)
+      // No session and no recovery tokens - invalid access
+      if (isSubscribed) {
+        setIsValidToken(false)
+        setIsExchangingToken(false)
+      }
     }
     
-    checkInitialState()
+    checkSession()
     
     return () => {
+      isSubscribed = false
       subscription.unsubscribe()
     }
   }, [searchParams])
