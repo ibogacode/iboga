@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useSearchParams } from 'next/navigation'
 import { Calendar, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,9 +12,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { SignaturePad } from '@/components/forms/signature-pad'
 import { patientIntakeFormSchema, type PatientIntakeFormValues } from '@/lib/validations/patient-intake'
 import { submitPatientIntakeForm } from '@/actions/patient-intake.action'
+import { getPartialIntakeForm } from '@/actions/partial-intake.action'
 import { toast } from 'sonner'
 
 // Privacy Policy text
@@ -37,7 +38,7 @@ Comply with legal and medical obligations.
 3. Confidentiality of Medical Records
 All medical and personal information is strictly confidential.
 
-Records are stored securely, accessible only to authorized Iboga Wellness Centers staff.
+Records are stored securely, accessible only to authorized Iboga Wellness Institute staff.
 Information will never be shared with third parties without your consent, unless required by law or in cases of medical emergency.
 
 4. Data Security
@@ -72,7 +73,7 @@ Non-medical information may be securely deleted upon request after your treatmen
 
 9. Contact Information
 For questions about this Privacy Policy or to exercise your rights, please contact:
-Iboga Wellness Centers
+Iboga Wellness Institute
 
 Email: james@ibogawellnesscenters.com
 Phone: +1 (800) 604-7294
@@ -85,7 +86,7 @@ We may update this Privacy Policy periodically to reflect best practices or chan
 const IBOGAINE_THERAPY_CONSENT_SECTIONS = [
   {
     heading: 'Consent for Treatment',
-    text: `I, hereby referred to as "the Patient", voluntarily consent to participate in the Ibogaine therapy monitored by Iboga Wellness Centers. I understand that this therapy involves Ibogaine, a psychoactive substance derived from the Tabernanthe iboga plant, used in the treatment of substance dependency, PTSD, depression, anxiety, and for personal growth.`,
+    text: `I, hereby referred to as "the Patient", voluntarily consent to participate in the Ibogaine therapy monitored by Iboga Wellness Institute. I understand that this therapy involves Ibogaine, a psychoactive substance derived from the Tabernanthe iboga plant, used in the treatment of substance dependency, PTSD, depression, anxiety, and for personal growth.`,
     field: 'consent_for_treatment'
   },
   {
@@ -95,7 +96,7 @@ const IBOGAINE_THERAPY_CONSENT_SECTIONS = [
   },
   {
     heading: 'Pre-Screening and Health Assessment',
-    text: `I confirm that I have undergone a comprehensive pre-screening and health assessment, including an EKG, blood work, and liver panel, conducted by Iboga Wellness Centers' onsite medical doctor. I have disclosed all relevant medical history, current medications, and substance use to ensure my suitability for Ibogaine therapy.`,
+    text: `I confirm that I have undergone a comprehensive pre-screening and health assessment, including an EKG, blood work, and liver panel, conducted by Iboga Wellness Institute' onsite medical doctor. I have disclosed all relevant medical history, current medications, and substance use to ensure my suitability for Ibogaine therapy.`,
     field: 'pre_screening_health_assessment'
   },
   {
@@ -105,134 +106,40 @@ const IBOGAINE_THERAPY_CONSENT_SECTIONS = [
   },
   {
     heading: 'Confidentiality',
-    text: `I understand that my privacy will be respected, and all personal and medical information will be handled in accordance with Iboga Wellness Centers' privacy policy and applicable laws regarding patient confidentiality.`,
+    text: `I understand that my privacy will be respected, and all personal and medical information will be handled in accordance with Iboga Wellness Institute' privacy policy and applicable laws regarding patient confidentiality.`,
     field: 'confidentiality'
   },
   {
     heading: 'Liability Release',
-    text: `I, the undersigned, formally absolve Iboga Wellness Centers, along with its employees and associated entities, from any claims, liabilities, or damages that may result from my engagement in the Ibogaine therapy program. I acknowledge that Iboga Wellness Centers assumes a supplementary role, offering professional and medical support in the event of an emergency.`,
+    text: `I, the undersigned, formally absolve Iboga Wellness Institute, along with its employees and associated entities, from any claims, liabilities, or damages that may result from my engagement in the Ibogaine therapy program. I acknowledge that Iboga Wellness Institute assumes a supplementary role, offering professional and medical support in the event of an emergency.`,
     field: 'liability_release'
   },
   {
-    heading: 'Payment Collection by Iboga Wellness Centers LLC',
-    text: `Iboga Wellness Centers LLC oversees payment collection. We handle fees for all aspects of your stay, including medical supervision, program costs, food, accommodations, and any non-medical expenses related to your visit.`,
+    heading: 'Payment Collection by Iboga Wellness Institute LLC',
+    text: `Iboga Wellness Institute LLC oversees payment collection. We handle fees for all aspects of your stay, including medical supervision, program costs, food, accommodations, and any non-medical expenses related to your visit.`,
     field: 'payment_collection_1'
   },
   {
-    heading: 'Payment Collection by Iboga Wellness Centers LLC',
-    text: `I have read this consent form (or have had it read to me) in its entirety. I have had the opportunity to ask questions, and all my questions have been answered to my satisfaction. I hereby acknowledge my understanding that during the Ibogaine therapy process, Iboga Wellness Centers' role is exclusively to monitor participants to ensure their safety. I agree to adhere to all terms and conditions specified in this consent form.`,
+    heading: 'Payment Collection by Iboga Wellness Institute LLC',
+    text: `I have read this consent form (or have had it read to me) in its entirety. I have had the opportunity to ask questions, and all my questions have been answered to my satisfaction. I hereby acknowledge my understanding that during the Ibogaine therapy process, Iboga Wellness Institute' role is exclusively to monitor participants to ensure their safety. I agree to adhere to all terms and conditions specified in this consent form.`,
     field: 'payment_collection_2'
   }
 ]
 
-// Service Agreement text
-const SERVICE_AGREEMENT_TEXT = `Between: Iboga Wellness Centers, LLC("Provider") and ("Patient")
-
-1. Purpose of Agreement
-This Agreement sets forth the terms and conditions under which Iboga Wellness Centers, LLC will provide wellness and therapeutic services to the Patient. The services are focused on supporting patients' health and well-being while addressing symptoms associated with Parkinson's disease.
-
-2a. Pre-Treatment Services Provided
-Provider agrees to deliver the following services prior to the Patient's arrival for Onsite Treatment Services:
-
-Identification of medical screening processes and tests which Provider requires to be administered to the Patient in order for the Provider to Qualify/Approve the Patient for treatment.
-Provider to issue a written, electronically signed Treatment Qualification/Approval letter.
-
-2b. Onsite Treatment Services Provided
-Provider agrees to deliver the following services for a 14-day period from 10/27-11/10 2025 at clinic in Cozumel Mexico:
-
-Wellness support and therapeutic care.
-Administration of ibogaine-based microdosing protocols in accordance with Dr. Omar Calderon's clinical guidelines.
-Medical monitoring during treatment, including regular EKG and heart monitoring, vital sign checks, any medicines needed and observation of overall physical condition to ensure safety.
-Education, preparation, and integration sessions designed to maximize treatment benefit.
-Daily Physical Therapy or Aqua Sessions.
-Daily Yoga sessions.
-Weekly Massage sessions.
-Weekly boat excursion to a sandbar for lunch or dinner if the patient is able.
-Daily meals (breakfast, lunch, dinner and meals) provided by our personal Chef and staff.
-Transportation to and from the Airport in private transportation and private transportation around the island.
-Concierge services available to ensure a 5 star experience for each patient.
-Psychologist available to each patient if needed.
-
-2c. Post-Treatment Services Provided
-The provider agrees to provide the following services remotely.
-Once a week Zoom calls with patients for 3 months following Treatment to assess Post-Treatment condition and collect data needed to assess effectiveness of Treatment over time.
-Once a month Zoom calls a Patient for months 4-12 following Treatment to assess Post-Treatment condition and collect data needed to assess effectiveness of Treatment over time.
-Assistance with obtaining ibogaine for Patient assuming Provider deems that to be appropriate.
-
-3. Acknowledgment of Treatment Purpose
-Patient acknowledges that:
-
-Treatment is being sought for Parkinson's disease and related symptoms.
-The services provided are considered alternative and experimental therapy, and outcomes may vary.
-No guarantee of improvement or cure is made or implied.
-
-4. Fees and Payment
-Payment Schedule:
-
-50% of the total program fee (USD) is due upon issuance of the electronically signed Treatment Qualification/Approval letter.
-The remaining 50% (USD) is due no later than three (3) days prior to the patient's scheduled arrival at the clinic.
-If paying by card, a 3% processing fee applies to the amount paid by card.
-
-5a. Cancellation & Refund Policy
-Cancellations made at least 30 days before your scheduled treatment date are eligible for a full refund of the program fee (minus any transfer or processing costs).
-Cancellations made less than 21 days before your scheduled treatment may result in forfeiture of ½ your deposit.
-Cancellations made less than 14 days before your scheduled treatment may result in forfeiture of ¾ your deposit.
-Cancellations made less than 7 days before your scheduled treatment may result in forfeiture of your full deposit.
-Postponements can be arranged at our discretion and based on availability.
-
-5b. Disclaimer Of Liability
-I release Iboga Wellness Centers, its medical team, therapists, administrative, and operational staff from all medical, legal, and administrative responsibility for any consequences arising from my decision not to undergo the recommended treatment.
-I understand that my decision to refuse services today will not result in a refund, as long as reschedule to commence services with 90 days.
-I declare that my decision has been made without coercion, external pressure, or undue influence and that I have fully understood the explanations provided.
-I agree not to take legal action against Iboga Wellness Centers, its medical staff, therapists, or administrative team in relation to my decision not to accept the proposed treatment.
-
-6. Risks and Limitations
-Patient understands and accepts that:
-
-Ibogaine carries potential physical and psychological risks, including but not limited to: changes in blood pressure, heart rhythm irregularities, nausea, dizziness, emotional distress, and other medical complications.
-No guarantee of improvement or cure is provided.
-Patients must disclose all relevant medical history, medications, and conditions to the Provider prior to treatment.
-Emergency medical care may be required in rare cases, and the patient consents to such care if deemed necessary by the provider.
-
-7. Patient Responsibilities
-Patient agrees to:
-
-1 -  Provide full and accurate medical history.
-2 - Follow all instructions before, during, and after treatment.
-3 - Refrain from alcohol, recreational drugs, and any medications contraindicated with ibogaine, as directed by the Provider.
-4 - Immediately report any concerning symptoms to the Provider.
-
-
-8. Confidentiality
-All medical and personal information will be kept confidential in accordance with applicable privacy laws in Mexico.
-
-9. Consent to Treatment
-By signing this Agreement, Patient acknowledges and consents to the following:
-
-I voluntarily choose to receive treatment at Iboga Wellness Center in Cozumel Mexico.
-I understand the treatment involves ibogaine microdosing following Dr. Omar Calderón’s protocol.
-I have been informed of potential risks, benefits, and alternatives.
-I understand this treatment is alternative and experimental and not guaranteed to improve my condition.
-I release Iboga Wellness Centers, LLC, its staff, contractors, and affiliates from liability for outcomes reasonably associated with treatment, except in cases of gross negligence or willful misconduct.
-
-10. Governing Law
-This Agreement shall be governed by and construed in accordance with the laws of Mexico.
-
-
-11. Entire Agreement
-This Agreement contains the entire understanding between Provider and Patient regarding the subject matter and supersedes all prior discussions or agreements. `
+// Service Agreement text removed - no longer used in the form
 
 // Release Consent text
 const RELEASE_CONSENT_TEXT = `Acknowledgment and Consent
+
 I, the undersigned, acknowledge and agree to the following:
 
 
 Voluntary Participation:
 
-I understand that my participation in Iboga Wellness Centers is entirely voluntary and that I can withdraw at any time.
+I understand that my participation in Iboga Wellness Institute is entirely voluntary and that I can withdraw at any time.
 Medical Conditions:
 
-I have disclosed all known medical conditions, including physical and mental health issues, to the Iboga Wellness Centers staff.
+I have disclosed all known medical conditions, including physical and mental health issues, to the Iboga Wellness Institute staff.
 I understand that ibogaine and psilocybin treatments can have significant physiological and psychological effects and may interact with other medications.
 Risks:
 
@@ -240,17 +147,17 @@ I am aware of the potential risks associated with ibogaine and psilocybin therap
 I acknowledge that these treatments should be conducted under medical supervision and in a controlled environment.
 Medical Supervision:
 
-I agree to follow all guidelines and instructions provided by the medical and support staff at Iboga Wellness Centers.
+I agree to follow all guidelines and instructions provided by the medical and support staff at Iboga Wellness Institute.
 I consent to any necessary medical intervention should an emergency arise during my participation in the retreat.
 Confidentiality:
 
 I understand that my personal information and any data collected during the retreat will be kept confidential and used only for the purposes of providing care and treatment.
 Waiver of Liability:
 
-I release Iboga Wellness Centers, its owners, staff, and affiliates from any liability, claims, or demands that may arise from my participation in the retreat, including but not limited to personal injury, psychological trauma, or death.
+I release Iboga Wellness Institute, its owners, staff, and affiliates from any liability, claims, or demands that may arise from my participation in the retreat, including but not limited to personal injury, psychological trauma, or death.
 Compliance:
 
-I agree to adhere to the rules and guidelines set forth by Iboga Wellness Centers to ensure a safe and conducive environment for all participants.`
+I agree to adhere to the rules and guidelines set forth by Iboga Wellness Institute to ensure a safe and conducive environment for all participants.`
 
 // US States list
 const US_STATES = [
@@ -499,8 +406,8 @@ function PrivacyPolicyContent({ text }: { text: string }) {
   return <div>{elements}</div>
 }
 
-// Component to format Service Agreement with styled headings
-function ServiceAgreementContent({ text }: { text: string }) {
+// Component to format Service Agreement with styled headings (removed - no longer used)
+/* function ServiceAgreementContent({ text }: { text: string }) {
   const lines = text.split('\n')
   const elements: React.ReactNode[] = []
   let bulletItems: string[] = []
@@ -676,7 +583,7 @@ function ServiceAgreementContent({ text }: { text: string }) {
   flushNumberedList()
   
   return <div>{elements}</div>
-}
+} */
 
 // Component to format Release Consent with styled headings
 function ReleaseConsentContent({ text }: { text: string }) {
@@ -729,8 +636,8 @@ function ReleaseConsentContent({ text }: { text: string }) {
       return ''
     })()
     
-    // Check if line is main heading (Iboga Wellness Centers Release Consent)
-    if (line === 'Iboga Wellness Centers Release Consent') {
+    // Check if line is main heading (Iboga Wellness Institute Release Consent)
+    if (line === 'Iboga Wellness Institute Release Consent') {
       flushBulletList()
       elements.push(
         <h2 key={i} className="text-xl font-bold text-gray-900 mb-4">
@@ -799,16 +706,30 @@ function ReleaseConsentContent({ text }: { text: string }) {
   return <div>{elements}</div>
 }
 
-export function PatientIntakeForm() {
+function PatientIntakeFormContent() {
+  const searchParams = useSearchParams()
+  const token = searchParams.get('token')
   const [currentStep, setCurrentStep] = useState(1)
-  const [signature, setSignature] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isLoadingPartial, setIsLoadingPartial] = useState(!!token)
+  const [partialFormId, setPartialFormId] = useState<string | null>(null)
   
   const form = useForm<PatientIntakeFormValues>({
     resolver: zodResolver(patientIntakeFormSchema),
     mode: 'onChange', // Validate on change to show errors immediately
     reValidateMode: 'onChange', // Re-validate on change
     defaultValues: {
+      // Form Filler Information
+      filled_by: 'self',
+      filler_relationship: null,
+      filler_first_name: null,
+      filler_last_name: null,
+      filler_email: null,
+      filler_phone: null,
+      
+      // Program Type
+      program_type: undefined,
+      
       // Personal Information
       first_name: '',
       last_name: '',
@@ -838,26 +759,73 @@ export function PatientIntakeForm() {
       payment_collection_1: false,
       payment_collection_2: false,
       ibogaine_therapy_consent_accepted: false,
-      service_agreement_accepted: false,
       release_consent_accepted: false,
       final_acknowledgment_accepted: false,
-      // Signature
-      signature_data: '',
-      signature_date: '',
     },
   })
 
   const [isLoading, setIsLoading] = useState(false)
 
+  // Load partial form data if token is present
+  useEffect(() => {
+    async function loadPartialForm() {
+      if (!token) {
+        setIsLoadingPartial(false)
+        return
+      }
+
+      try {
+        const result = await getPartialIntakeForm({ token })
+        
+        if (result?.data?.success && result.data.data) {
+          const partialData = result.data.data
+          setPartialFormId(partialData.id)
+          
+          // Pre-fill form with partial data
+          form.setValue('first_name', partialData.first_name || '')
+          form.setValue('last_name', partialData.last_name || '')
+          form.setValue('email', partialData.email || '')
+          
+          if (partialData.mode === 'partial') {
+            form.setValue('phone_number', partialData.phone_number || '')
+            if (partialData.date_of_birth) {
+              const dob = new Date(partialData.date_of_birth)
+              form.setValue('date_of_birth', dob.toISOString().split('T')[0])
+            }
+            form.setValue('gender', partialData.gender as any)
+            form.setValue('address', partialData.address || '')
+            form.setValue('city', partialData.city || '')
+            form.setValue('state', partialData.state || '')
+            form.setValue('zip_code', partialData.zip_code || '')
+            form.setValue('program_type', partialData.program_type as any)
+            form.setValue('emergency_contact_first_name', partialData.emergency_contact_first_name || '')
+            form.setValue('emergency_contact_last_name', partialData.emergency_contact_last_name || '')
+            form.setValue('emergency_contact_email', partialData.emergency_contact_email || null)
+            form.setValue('emergency_contact_phone', partialData.emergency_contact_phone || '')
+            form.setValue('emergency_contact_address', partialData.emergency_contact_address || null)
+            form.setValue('emergency_contact_relationship', partialData.emergency_contact_relationship || null)
+          }
+        } else {
+          toast.error(result?.serverError || 'Invalid or expired form link')
+        }
+      } catch (error) {
+        console.error('Error loading partial form:', error)
+        toast.error('Failed to load form data')
+      } finally {
+        setIsLoadingPartial(false)
+      }
+    }
+
+    loadPartialForm()
+  }, [token, form])
+
   async function onSubmit(data: PatientIntakeFormValues) {
     setIsLoading(true)
     
     try {
-      // Format signature date
-      const today = new Date().toISOString().split('T')[0]
       const result = await submitPatientIntakeForm({
         ...data,
-        signature_date: today,
+        partialFormId: partialFormId || undefined, // Pass partial form ID to link completed form
       })
       
       if (result?.data?.success) {
@@ -884,17 +852,39 @@ export function PatientIntakeForm() {
     return `(${numbers.slice(0, 3)}) ${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`
   }
 
-  function handlePhoneChange(field: 'phone_number' | 'emergency_contact_phone', value: string) {
+  function handlePhoneChange(field: 'phone_number' | 'emergency_contact_phone' | 'filler_phone', value: string) {
     const formatted = formatPhoneNumber(value)
     form.setValue(field, formatted)
   }
 
 
-  const totalSteps = 7
+  const totalSteps = 6
+
+  if (isLoadingPartial) {
+    return (
+      <div className="min-h-screen bg-#EDE9E4 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-600">Loading form...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-#EDE9E4">
       <div className="max-w-4xl mx-auto bg-white  p-8">
+        {token && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800 font-medium mb-2">
+              ✓ Pre-filled Information Detected
+            </p>
+            <p className="text-sm text-blue-700">
+              Some information has been pre-filled for you. Please review all fields and complete any missing sections. 
+              You can still choose whether you're filling this out for yourself or someone else.
+            </p>
+          </div>
+        )}
         {isSubmitted ? (
           <div className="text-center py-12">
             <div className="mb-6">
@@ -949,9 +939,186 @@ export function PatientIntakeForm() {
               <h2 className="text-2xl font-semibold text-gray-900">Personal Information</h2>
               
               <div className="space-y-4">
+                {/* Form Filler Section */}
+                <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+                  <Label className="text-base font-medium">
+                    Are you filling out this form yourself, or is someone else filling it out for you? <span className="text-red-500">*</span>
+                  </Label>
+                  {token && (
+                    <p className="text-xs text-gray-600 italic">
+                      Note: Even though some information was pre-filled, please select who is actually completing this form.
+                    </p>
+                  )}
+                  <RadioGroup
+                    value={form.watch('filled_by')}
+                    onValueChange={(value) => {
+                      form.setValue('filled_by', value as 'self' | 'someone_else')
+                      if (value === 'self') {
+                        // Clear filler fields when switching to self
+                        form.setValue('filler_relationship', null)
+                        form.setValue('filler_first_name', null)
+                        form.setValue('filler_last_name', null)
+                        form.setValue('filler_email', null)
+                        form.setValue('filler_phone', null)
+                      }
+                    }}
+                    className="flex gap-6"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="self" id="filled_by_self" />
+                      <Label htmlFor="filled_by_self" className="font-normal cursor-pointer">
+                        I am filling this out myself
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="someone_else" id="filled_by_other" />
+                      <Label htmlFor="filled_by_other" className="font-normal cursor-pointer">
+                        Someone else is filling this out for me
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                  {form.formState.errors.filled_by && (
+                    <p className="text-sm text-red-500">{form.formState.errors.filled_by.message}</p>
+                  )}
+
+                  {/* Show filler information fields if someone else is filling */}
+                  {form.watch('filled_by') === 'someone_else' && (
+                    <div className="mt-4 space-y-4 pt-4 border-t border-gray-200">
+                      <div>
+                        <Label htmlFor="filler_relationship" className="text-base font-medium">
+                          What is your relationship to the patient? <span className="text-red-500">*</span>
+                        </Label>
+                        <Select
+                          value={form.watch('filler_relationship') || ''}
+                          onValueChange={(value) => form.setValue('filler_relationship', value)}
+                        >
+                          <SelectTrigger className="h-12 mt-2">
+                            <SelectValue placeholder="Select relationship" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="family_member">Family Member</SelectItem>
+                            <SelectItem value="spouse">Spouse/Partner</SelectItem>
+                            <SelectItem value="parent">Parent</SelectItem>
+                            <SelectItem value="guardian">Guardian</SelectItem>
+                            <SelectItem value="caregiver">Caregiver</SelectItem>
+                            <SelectItem value="friend">Friend</SelectItem>
+                            <SelectItem value="legal_representative">Legal Representative</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {form.formState.errors.filler_relationship && (
+                          <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_relationship.message}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label className="text-base font-medium">
+                          Your Information (Person Filling Out Form) <span className="text-red-500">*</span>
+                        </Label>
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                          <div>
+                            <Input
+                              id="filler_first_name"
+                              placeholder="First Name"
+                              {...form.register('filler_first_name')}
+                              className="h-12"
+                            />
+                            {form.formState.errors.filler_first_name && (
+                              <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_first_name.message}</p>
+                            )}
+                          </div>
+                          <div>
+                            <Input
+                              id="filler_last_name"
+                              placeholder="Last Name"
+                              {...form.register('filler_last_name')}
+                              className="h-12"
+                            />
+                            {form.formState.errors.filler_last_name && (
+                              <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_last_name.message}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="filler_email" className="text-base font-medium">
+                          Your Email <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="filler_email"
+                          type="email"
+                          placeholder="your.email@example.com"
+                          {...form.register('filler_email')}
+                          className="h-12 mt-2"
+                        />
+                        {form.formState.errors.filler_email && (
+                          <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_email.message}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label htmlFor="filler_phone" className="text-base font-medium">
+                          Your Phone Number <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="filler_phone"
+                          type="tel"
+                          placeholder="(000) 000-0000"
+                          {...form.register('filler_phone')}
+                          onChange={(e) => handlePhoneChange('filler_phone', e.target.value)}
+                          className="h-12 mt-2"
+                        />
+                        {form.formState.errors.filler_phone && (
+                          <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_phone.message}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Program Type Section */}
+                <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+                  <Label className="text-base font-medium">
+                    What program are you applying for? <span className="text-red-500">*</span>
+                  </Label>
+                  <RadioGroup
+                    value={form.watch('program_type')}
+                    onValueChange={(value) => {
+                      form.setValue('program_type', value as 'neurological' | 'mental_health' | 'addiction')
+                    }}
+                    className="flex flex-col gap-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="neurological" id="program_neurological" />
+                      <Label htmlFor="program_neurological" className="font-normal cursor-pointer">
+                        Neurological
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="mental_health" id="program_mental_health" />
+                      <Label htmlFor="program_mental_health" className="font-normal cursor-pointer">
+                        Mental Health
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="addiction" id="program_addiction" />
+                      <Label htmlFor="program_addiction" className="font-normal cursor-pointer">
+                        Addiction
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                  {form.formState.errors.program_type && (
+                    <p className="text-sm text-red-500">{form.formState.errors.program_type.message}</p>
+                  )}
+                </div>
+
                 <div>
                   <Label htmlFor="first_name" className="text-base font-medium">
                     Patient Name <span className="text-red-500">*</span>
+                    {token && form.watch('first_name') && (
+                      <span className="ml-2 text-xs text-blue-600 font-normal">(Pre-filled)</span>
+                    )}
                   </Label>
                   <div className="grid grid-cols-2 gap-4 mt-2">
                     <div>
@@ -959,7 +1126,7 @@ export function PatientIntakeForm() {
                         id="first_name"
                         placeholder="First Name"
                         {...form.register('first_name')}
-                        className="h-12"
+                        className={`h-12 ${token && form.watch('first_name') ? 'bg-blue-50 border-blue-200' : ''}`}
                       />
                       {form.formState.errors.first_name && (
                         <p className="text-sm text-red-500 mt-1">{form.formState.errors.first_name.message}</p>
@@ -970,7 +1137,7 @@ export function PatientIntakeForm() {
                         id="last_name"
                         placeholder="Last Name"
                         {...form.register('last_name')}
-                        className="h-12"
+                        className={`h-12 ${token && form.watch('last_name') ? 'bg-blue-50 border-blue-200' : ''}`}
                       />
                       {form.formState.errors.last_name && (
                         <p className="text-sm text-red-500 mt-1">{form.formState.errors.last_name.message}</p>
@@ -982,13 +1149,16 @@ export function PatientIntakeForm() {
                 <div>
                   <Label htmlFor="email" className="text-base font-medium">
                     Email <span className="text-red-500">*</span>
+                    {token && form.watch('email') && (
+                      <span className="ml-2 text-xs text-blue-600 font-normal">(Pre-filled)</span>
+                    )}
                   </Label>
                   <Input
                     id="email"
                     type="email"
                     placeholder="Email"
                     {...form.register('email')}
-                    className="h-12 mt-2"
+                    className={`h-12 mt-2 ${token && form.watch('email') ? 'bg-blue-50 border-blue-200' : ''}`}
                   />
                   {form.formState.errors.email && (
                     <p className="text-sm text-red-500 mt-1">{form.formState.errors.email.message}</p>
@@ -1232,7 +1402,7 @@ export function PatientIntakeForm() {
                     onCheckedChange={(checked) => form.setValue('privacy_policy_accepted', checked === true)}
                   />
                   <Label htmlFor="privacy_policy" className="text-base text-gray-700 leading-relaxed cursor-pointer">
-                    I confirm that I have read and agree to the Iboga Wellness Centers Privacy Policy, and consent to the collection and use of my information as described.
+                    I confirm that I have read and agree to the Iboga Wellness Institute Privacy Policy, and consent to the collection and use of my information as described.
                   </Label>
                 </div>
                 {form.formState.errors.privacy_policy_accepted && (
@@ -1292,42 +1462,10 @@ export function PatientIntakeForm() {
             </div>
           )}
 
-          {/* Step 5: Service Agreement */}
+          {/* Step 5: Release Consent */}
           {currentStep === 5 && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Service Agreement</h2>
-              
-              <div className="bg-gray-50 p-8 rounded-lg">
-                <div className="prose prose-sm max-w-none">
-                  <ServiceAgreementContent text={SERVICE_AGREEMENT_TEXT} />
-                </div>
-              </div>
-
-              <div className="space-y-3 pt-4">
-                <Label className="text-base font-semibold text-gray-900">
-                  Service Agreement Acceptance <span className="text-red-500">*</span>
-                </Label>
-                <div className="flex items-start space-x-3">
-                  <Checkbox
-                    id="service_agreement"
-                    checked={form.watch('service_agreement_accepted')}
-                    onCheckedChange={(checked) => form.setValue('service_agreement_accepted', checked === true)}
-                  />
-                  <Label htmlFor="service_agreement" className="text-base text-gray-700 leading-relaxed cursor-pointer">
-                    I confirm that I have read, understood, and agree to the terms outlined in the Service Agreement between Iboga Wellness Centers, LLC ("Provider") and myself ("Patient"), and consent to receive the described wellness and therapeutic services under these conditions.
-                  </Label>
-                </div>
-                {form.formState.errors.service_agreement_accepted && (
-                  <p className="text-sm text-red-500">{form.formState.errors.service_agreement_accepted.message}</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Step 6: Release Consent */}
-          {currentStep === 6 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Iboga Wellness Centers Release Consent</h2>
+              <h2 className="text-2xl font-semibold text-gray-900">Iboga Wellness Institute Release Consent</h2>
               
               <div className="bg-gray-50 p-8 rounded-lg">
                 <div className="prose prose-sm max-w-none">
@@ -1346,7 +1484,7 @@ export function PatientIntakeForm() {
                     onCheckedChange={(checked) => form.setValue('release_consent_accepted', checked === true)}
                   />
                   <Label htmlFor="release_consent" className="text-base text-gray-700 leading-relaxed cursor-pointer">
-                    I have read and understood the above information. I acknowledge that I have had the opportunity to ask questions and that my questions have been answered to my satisfaction. I voluntarily agree to participate in Iboga Wellness Centers and consent to the administration of ibogaine and/or psilocybin therapies as outlined.
+                    I have read and understood the above information. I acknowledge that I have had the opportunity to ask questions and that my questions have been answered to my satisfaction. I voluntarily agree to participate in Iboga Wellness Institute and consent to the administration of ibogaine and/or psilocybin therapies as outlined.
                   </Label>
                 </div>
                 {form.formState.errors.release_consent_accepted && (
@@ -1356,10 +1494,10 @@ export function PatientIntakeForm() {
             </div>
           )}
 
-          {/* Step 7: Patient Acknowledgment & Signature */}
-          {currentStep === 7 && (
+          {/* Step 6: Patient Acknowledgment */}
+          {currentStep === 6 && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Patient Acknowledgment & Signature</h2>
+              <h2 className="text-2xl font-semibold text-gray-900">Patient Acknowledgment</h2>
               
               <div className="space-y-4">
                 <div className="flex items-start space-x-3">
@@ -1373,54 +1511,12 @@ export function PatientIntakeForm() {
                   </Label>
                 </div>
                 <p className="text-sm text-gray-600 ml-7">
-                  I confirm that all the information I have provided in this form is true and complete to the best of my knowledge, and that I have read, understood, and accepted all sections, including the Privacy Policy, Ibogaine Therapy Consent, Service Agreement, and Release Consent of Iboga Wellness Centers.
+                  I confirm that all the information I have provided in this form is true and complete to the best of my knowledge, and that I have read, understood, and accepted all sections, including the Privacy Policy, Ibogaine Therapy Consent, and Release Consent of Iboga Wellness Institute.
                 </p>
                 {form.formState.errors.final_acknowledgment_accepted && (
                   <p className="text-sm text-red-500 ml-7">{form.formState.errors.final_acknowledgment_accepted.message}</p>
                 )}
-
-                <div className="grid grid-cols-2 gap-6 mt-6">
-                  <div>
-                    <Label htmlFor="signature" className="text-base font-medium">
-                      Signature <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="mt-2">
-                      <SignaturePad
-                        value={signature}
-                        onChange={(signatureData) => {
-                          setSignature(signatureData)
-                          form.setValue('signature_data', signatureData)
-                        }}
-                        onClear={() => {
-                          setSignature('')
-                          form.setValue('signature_data', '')
-                        }}
-                      />
                     </div>
-                    {form.formState.errors.signature_data && (
-                      <p className="text-sm text-red-500 mt-1">{form.formState.errors.signature_data.message}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label htmlFor="signature_date" className="text-base font-medium">
-                      Date <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="relative mt-2">
-                      <Input
-                        id="signature_date"
-                        type="date"
-                        {...form.register('signature_date')}
-                        className="h-12"
-                      />
-                      <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                    </div>
-                    {form.formState.errors.signature_date && (
-                      <p className="text-sm text-red-500 mt-1">{form.formState.errors.signature_date.message}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
@@ -1440,7 +1536,7 @@ export function PatientIntakeForm() {
                 type="button"
                 onClick={async () => {
                   // Validate current step before proceeding
-                  const fieldsToValidate = getFieldsForStep(currentStep)
+                  const fieldsToValidate = getFieldsForStep(currentStep, form.watch('filled_by'))
                   const isValid = await form.trigger(fieldsToValidate as any)
                   if (isValid) {
                     setCurrentStep(currentStep + 1)
@@ -1481,11 +1577,15 @@ export function PatientIntakeForm() {
   )
 }
 
-function getFieldsForStep(step: number): string[] {
+function getFieldsForStep(step: number, filledBy?: string): string[] {
   switch (step) {
     case 1:
-      // Validate all required fields in step 1, including all address fields
-      return ['first_name', 'last_name', 'email', 'phone_number', 'address', 'city', 'state', 'zip_code']
+      // Validate all required fields in step 1, including all address fields and filler info if applicable
+      const fields: string[] = ['filled_by', 'program_type', 'first_name', 'last_name', 'email', 'phone_number', 'address', 'city', 'state', 'zip_code']
+      if (filledBy === 'someone_else') {
+        fields.push('filler_relationship', 'filler_first_name', 'filler_last_name', 'filler_email', 'filler_phone')
+      }
+      return fields
     case 2:
       // Validate all required emergency contact fields
       return ['emergency_contact_first_name', 'emergency_contact_last_name', 'emergency_contact_phone', 'emergency_contact_email']
@@ -1505,13 +1605,27 @@ function getFieldsForStep(step: number): string[] {
         'ibogaine_therapy_consent_accepted'
       ]
     case 5:
-      return ['service_agreement_accepted']
-    case 6:
       return ['release_consent_accepted']
-    case 7:
-      return ['final_acknowledgment_accepted', 'signature_data', 'signature_date']
+    case 6:
+      return ['final_acknowledgment_accepted']
     default:
       return []
   }
+}
+
+// Wrapper component with Suspense for useSearchParams
+export function PatientIntakeForm() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-#EDE9E4 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-600">Loading form...</p>
+        </div>
+      </div>
+    }>
+      <PatientIntakeFormContent />
+    </Suspense>
+  )
 }
 

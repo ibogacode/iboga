@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { TrendingUp, UserPlus, Loader2 } from 'lucide-react'
+import { TrendingUp, UserPlus, Loader2, Pencil } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -10,24 +10,26 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { addEmployeeAction, getEmployees } from '@/actions/facility.action'
-import { addEmployeeSchema } from '@/lib/validations/facility'
-import { User } from '@/types'
+import { addEmployeeAction, getEmployees, updateEmployeeAction } from '@/actions/facility.action'
+import { addEmployeeSchema, updateEmployeeSchema } from '@/lib/validations/facility'
+import { User, UserRole } from '@/types'
 import { roleConfig } from '@/config/navigation'
 import { format } from 'date-fns'
+import { createClient } from '@/lib/supabase/client'
 import type { z } from 'zod'
 
-const LOCATIONS = ['Cozumel', 'Baja', 'All'] as const
-type Location = typeof LOCATIONS[number]
-
 type AddEmployeeFormValues = z.infer<typeof addEmployeeSchema>
+type UpdateEmployeeFormValues = z.infer<typeof updateEmployeeSchema>
 
 export default function FacilityManagementPage() {
-  const [selectedLocation, setSelectedLocation] = useState<Location>('Cozumel')
   const [isEmployeeDialogOpen, setIsEmployeeDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingEmployee, setEditingEmployee] = useState<User | null>(null)
   const [isSubmittingEmployee, setIsSubmittingEmployee] = useState(false)
+  const [isSubmittingUpdate, setIsSubmittingUpdate] = useState(false)
   const [employees, setEmployees] = useState<User[]>([])
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true)
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null)
 
   const employeeForm = useForm<AddEmployeeFormValues>({
     resolver: zodResolver(addEmployeeSchema),
@@ -39,8 +41,32 @@ export default function FacilityManagementPage() {
       role: 'nurse',
       phone: '',
       designation: '',
+      payRatePerHour: '',
     },
   })
+
+  const editEmployeeForm = useForm<UpdateEmployeeFormValues>({
+    resolver: zodResolver(updateEmployeeSchema),
+  })
+
+  // Get current user role
+  useEffect(() => {
+    async function getCurrentUserRole() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+        if (profile) {
+          setCurrentUserRole(profile.role as UserRole)
+        }
+      }
+    }
+    getCurrentUserRole()
+  }, [])
 
   async function onEmployeeSubmit(data: AddEmployeeFormValues) {
     setIsSubmittingEmployee(true)
@@ -100,6 +126,60 @@ export default function FacilityManagementPage() {
   useEffect(() => {
     loadEmployees()
   }, [loadEmployees])
+
+  function handleEditClick(employee: User) {
+    setEditingEmployee(employee)
+    editEmployeeForm.reset({
+      userId: employee.id,
+      email: employee.email,
+      firstName: employee.first_name || '',
+      lastName: employee.last_name || '',
+      role: employee.role,
+      phone: employee.phone || '',
+      designation: employee.designation || '',
+      payRatePerHour: employee.pay_rate_per_hour ? employee.pay_rate_per_hour.toString() : '',
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  async function onEmployeeUpdateSubmit(data: UpdateEmployeeFormValues) {
+    setIsSubmittingUpdate(true)
+    try {
+      const result = await updateEmployeeAction(data)
+      
+      if (result?.serverError) {
+        toast.error(result.serverError)
+        return
+      }
+
+      if (result?.validationErrors) {
+        const errors = Object.values(result.validationErrors)
+        const firstError = errors.length > 0 ? String(errors[0]) : null
+        toast.error(firstError || 'Validation failed')
+        return
+      }
+
+      if (result?.data) {
+        if (result.data.success) {
+          toast.success('Employee updated successfully')
+          setIsEditDialogOpen(false)
+          setEditingEmployee(null)
+          editEmployeeForm.reset()
+          loadEmployees()
+        } else if (result.data.error) {
+          toast.error(result.data.error)
+        } else {
+          toast.error('Failed to update employee')
+        }
+      } else {
+        toast.error('Failed to update employee')
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update employee')
+    } finally {
+      setIsSubmittingUpdate(false)
+    }
+  }
 
   function formatDate(dateString: string) {
     try {
@@ -262,6 +342,28 @@ export default function FacilityManagementPage() {
                       )}
                     />
                   </div>
+                  <FormField
+                    control={employeeForm.control}
+                    name="payRatePerHour"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Pay Rate Per Hour (Optional)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            step="0.01" 
+                            min="0"
+                            placeholder="25.00" 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Enter the hourly pay rate for future calculations
+                        </p>
+                      </FormItem>
+                    )}
+                  />
                   <DialogFooter>
                     <Button
                       type="button"
@@ -280,22 +382,6 @@ export default function FacilityManagementPage() {
             </DialogContent>
           </Dialog>
 
-          {/* Location Toggle */}
-          <div className="flex bg-gray-100 rounded-lg p-1">
-            {LOCATIONS.map((location) => (
-              <button
-                key={location}
-                onClick={() => setSelectedLocation(location)}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  selectedLocation === location
-                    ? 'bg-[#5D7A5F] text-white'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {location}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -391,8 +477,16 @@ export default function FacilityManagementPage() {
                     Designation
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Pay Rate/Hour
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Added
                   </th>
+                  {(currentUserRole === 'admin' || currentUserRole === 'owner') && (
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -420,8 +514,25 @@ export default function FacilityManagementPage() {
                       <div className="text-sm text-gray-500">{employee.designation || '—'}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {employee.pay_rate_per_hour ? `$${parseFloat(employee.pay_rate_per_hour.toString()).toFixed(2)}` : '—'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">{formatDate(employee.created_at)}</div>
                     </td>
+                    {(currentUserRole === 'admin' || currentUserRole === 'owner') && (
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditClick(employee)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -429,6 +540,166 @@ export default function FacilityManagementPage() {
           </div>
         )}
       </div>
+
+      {/* Edit Employee Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+            <DialogDescription>
+              Update employee information. Note: Password cannot be changed here.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editEmployeeForm}>
+            <form onSubmit={editEmployeeForm.handleSubmit(onEmployeeUpdateSubmit)} className="space-y-4">
+              <FormField
+                control={editEmployeeForm.control}
+                name="userId"
+                render={({ field }) => (
+                  <FormItem className="hidden">
+                    <FormControl>
+                      <Input type="hidden" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editEmployeeForm.control}
+                  name="firstName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>First Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editEmployeeForm.control}
+                  name="lastName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Last Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={editEmployeeForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="john.doe@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editEmployeeForm.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="doctor">Doctor</SelectItem>
+                        <SelectItem value="psych">Psych</SelectItem>
+                        <SelectItem value="nurse">Nurse</SelectItem>
+                        <SelectItem value="driver">Driver</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editEmployeeForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone (Optional)</FormLabel>
+                      <FormControl>
+                        <Input type="tel" placeholder="(555) 123-4567" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editEmployeeForm.control}
+                  name="designation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Designation (Optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Senior Nurse" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={editEmployeeForm.control}
+                name="payRatePerHour"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pay Rate Per Hour (Optional)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        min="0"
+                        placeholder="25.00" 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Enter the hourly pay rate for future calculations
+                    </p>
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditDialogOpen(false)
+                    setEditingEmployee(null)
+                    editEmployeeForm.reset()
+                  }}
+                  disabled={isSubmittingUpdate}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmittingUpdate}>
+                  {isSubmittingUpdate ? 'Updating...' : 'Update Employee'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
