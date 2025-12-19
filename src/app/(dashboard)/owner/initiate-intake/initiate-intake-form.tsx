@@ -339,8 +339,8 @@ export default function InitiateIntakeForm() {
                 {...form.register('phone_number')}
                 className="h-12 mt-2"
               />
-              {form.formState.errors.phone_number && (
-                <p className="text-sm text-red-500 mt-1">{form.formState.errors.phone_number.message}</p>
+              {(form.formState.errors as any).phone_number && (
+                <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).phone_number.message}</p>
               )}
             </div>
 
@@ -382,8 +382,8 @@ export default function InitiateIntakeForm() {
                 {...form.register('address')}
                 className="h-12 mt-2"
               />
-              {form.formState.errors.address && (
-                <p className="text-sm text-red-500 mt-1">{form.formState.errors.address.message}</p>
+              {(form.formState.errors as any).address && (
+                <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).address.message}</p>
               )}
             </div>
 
@@ -397,8 +397,8 @@ export default function InitiateIntakeForm() {
                   {...form.register('city')}
                   className="h-12 mt-2"
                 />
-                {form.formState.errors.city && (
-                  <p className="text-sm text-red-500 mt-1">{form.formState.errors.city.message}</p>
+                {(form.formState.errors as any).city && (
+                  <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).city.message}</p>
                 )}
               </div>
               <div>
@@ -420,8 +420,8 @@ export default function InitiateIntakeForm() {
                     ))}
                   </SelectContent>
                 </Select>
-                {form.formState.errors.state && (
-                  <p className="text-sm text-red-500 mt-1">{form.formState.errors.state.message}</p>
+                {(form.formState.errors as any).state && (
+                  <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).state.message}</p>
                 )}
               </div>
               <div>
@@ -433,8 +433,8 @@ export default function InitiateIntakeForm() {
                   {...form.register('zip_code')}
                   className="h-12 mt-2"
                 />
-                {form.formState.errors.zip_code && (
-                  <p className="text-sm text-red-500 mt-1">{form.formState.errors.zip_code.message}</p>
+                {(form.formState.errors as any).zip_code && (
+                  <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).zip_code.message}</p>
                 )}
               </div>
             </div>
@@ -456,8 +456,8 @@ export default function InitiateIntakeForm() {
                   <SelectItem value="addiction">Addiction</SelectItem>
                 </SelectContent>
               </Select>
-              {form.formState.errors.program_type && (
-                <p className="text-sm text-red-500 mt-1">{form.formState.errors.program_type.message}</p>
+              {(form.formState.errors as any).program_type && (
+                <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).program_type.message}</p>
               )}
             </div>
 
@@ -475,8 +475,8 @@ export default function InitiateIntakeForm() {
                     {...form.register('emergency_contact_first_name')}
                     className="h-12 mt-2"
                   />
-                  {form.formState.errors.emergency_contact_first_name && (
-                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.emergency_contact_first_name.message}</p>
+                  {(form.formState.errors as any).emergency_contact_first_name && (
+                    <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).emergency_contact_first_name.message}</p>
                   )}
                 </div>
                 <div>
@@ -488,8 +488,8 @@ export default function InitiateIntakeForm() {
                     {...form.register('emergency_contact_last_name')}
                     className="h-12 mt-2"
                   />
-                  {form.formState.errors.emergency_contact_last_name && (
-                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.emergency_contact_last_name.message}</p>
+                  {(form.formState.errors as any).emergency_contact_last_name && (
+                    <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).emergency_contact_last_name.message}</p>
                   )}
                 </div>
               </div>
@@ -515,8 +515,8 @@ export default function InitiateIntakeForm() {
                     {...form.register('emergency_contact_phone')}
                     className="h-12 mt-2"
                   />
-                  {form.formState.errors.emergency_contact_phone && (
-                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.emergency_contact_phone.message}</p>
+                  {(form.formState.errors as any).emergency_contact_phone && (
+                    <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).emergency_contact_phone.message}</p>
                   )}
                 </div>
               </div>
