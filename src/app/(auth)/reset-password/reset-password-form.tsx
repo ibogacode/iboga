@@ -32,29 +32,55 @@ export function ResetPasswordForm() {
     const supabase = createClient()
     let isSubscribed = true
     
+    // ========== DETAILED LOGGING ==========
+    console.log('====== RESET PASSWORD DEBUG ======')
+    console.log('1. Full URL:', typeof window !== 'undefined' ? window.location.href : 'SSR')
+    console.log('2. Pathname:', typeof window !== 'undefined' ? window.location.pathname : 'SSR')
+    console.log('3. Search params:', typeof window !== 'undefined' ? window.location.search : 'SSR')
+    console.log('4. Hash fragment:', typeof window !== 'undefined' ? window.location.hash : 'SSR')
+    console.log('5. SearchParams object:', Object.fromEntries(searchParams.entries()))
+    
     // Listen for auth state changes - Supabase automatically processes URL hash tokens
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isSubscribed) return
       
-      console.log('Auth state change:', event)
+      console.log('====== AUTH STATE CHANGE ======')
+      console.log('Event:', event)
+      console.log('Session exists:', !!session)
+      console.log('User email:', session?.user?.email)
       
       if (event === 'PASSWORD_RECOVERY') {
-        // User clicked the password reset link - Supabase processed the token
+        console.log('✅ PASSWORD_RECOVERY event received!')
         setIsValidToken(true)
         setIsExchangingToken(false)
       } else if (event === 'SIGNED_IN' && session) {
-        // Session established from recovery token
+        console.log('✅ SIGNED_IN event with session!')
         setIsValidToken(true)
         setIsExchangingToken(false)
+      } else if (event === 'INITIAL_SESSION') {
+        console.log('📋 INITIAL_SESSION event, session:', !!session)
+        if (session) {
+          setIsValidToken(true)
+          setIsExchangingToken(false)
+        }
       }
     })
     
     // Check initial state
     async function checkSession() {
+      console.log('====== CHECKING SESSION ======')
+      
       // First check if there's already a session
-      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      console.log('6. Existing session:', !!session)
+      console.log('7. Session error:', sessionError)
+      if (session) {
+        console.log('8. Session user:', session.user?.email)
+      }
       
       if (session) {
+        console.log('✅ Found existing session!')
         if (isSubscribed) {
           setIsValidToken(true)
           setIsExchangingToken(false)
@@ -63,15 +89,29 @@ export function ResetPasswordForm() {
       }
       
       // Check for hash fragment containing recovery tokens
-      // Supabase password reset uses implicit flow: /reset-password#access_token=xxx&type=recovery
       if (typeof window !== 'undefined' && window.location.hash) {
-        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        console.log('====== PARSING HASH FRAGMENT ======')
+        const hash = window.location.hash.substring(1)
+        console.log('9. Raw hash (without #):', hash)
+        
+        const hashParams = new URLSearchParams(hash)
         const type = hashParams.get('type')
         const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
         const error = hashParams.get('error')
+        const errorCode = hashParams.get('error_code')
+        const errorDescription = hashParams.get('error_description')
+        
+        console.log('10. Parsed hash params:')
+        console.log('    - type:', type)
+        console.log('    - access_token:', accessToken ? `${accessToken.substring(0, 20)}...` : null)
+        console.log('    - refresh_token:', refreshToken ? 'present' : null)
+        console.log('    - error:', error)
+        console.log('    - error_code:', errorCode)
+        console.log('    - error_description:', errorDescription)
         
         if (error) {
-          console.error('Auth error from URL:', error, hashParams.get('error_description'))
+          console.log('❌ Error found in hash!')
           if (isSubscribed) {
             setIsValidToken(false)
             setIsExchangingToken(false)
@@ -80,27 +120,39 @@ export function ResetPasswordForm() {
         }
         
         if (type === 'recovery' && accessToken) {
+          console.log('✅ Recovery token found! Waiting for Supabase to process...')
           // Wait for Supabase to process the hash and establish session
-          // The onAuthStateChange will fire PASSWORD_RECOVERY event
           setTimeout(async () => {
-            const { data: { session: newSession } } = await supabase.auth.getSession()
+            console.log('====== AFTER TIMEOUT: CHECKING SESSION AGAIN ======')
+            const { data: { session: newSession }, error: newError } = await supabase.auth.getSession()
+            console.log('11. Session after wait:', !!newSession)
+            console.log('12. Error after wait:', newError)
+            
             if (isSubscribed) {
               if (newSession) {
+                console.log('✅ Session established!')
                 setIsValidToken(true)
               } else {
+                console.log('❌ No session after waiting')
                 setIsValidToken(false)
               }
               setIsExchangingToken(false)
             }
-          }, 1000)
+          }, 2000) // Increased timeout to 2 seconds
           return
+        } else {
+          console.log('❌ Hash present but no valid recovery token')
+          console.log('    Expected type=recovery, got:', type)
+          console.log('    Expected access_token, got:', accessToken ? 'present' : 'missing')
         }
+      } else {
+        console.log('9. No hash fragment in URL')
       }
       
       // Check for error in query params (from failed callback)
       const error = searchParams.get('error')
       if (error) {
-        console.error('Auth error from params:', error)
+        console.log('❌ Error in query params:', error)
         if (isSubscribed) {
           setIsValidToken(false)
           setIsExchangingToken(false)
@@ -109,6 +161,7 @@ export function ResetPasswordForm() {
       }
       
       // No session and no recovery tokens - invalid access
+      console.log('❌ No valid session or tokens found - showing error')
       if (isSubscribed) {
         setIsValidToken(false)
         setIsExchangingToken(false)
