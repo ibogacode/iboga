@@ -73,10 +73,10 @@ export const forgotPasswordAction = actionClient
   .action(async ({ parsedInput: { email } }) => {
     const supabase = await createClient()
 
-    // Get base URL for redirect - use auth callback for PKCE flow
+    // Get base URL for redirect - redirect directly to reset-password page
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
       (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
-    const redirectTo = `${baseUrl}/auth/callback?type=recovery`
+    const redirectTo = `${baseUrl}/reset-password`
 
     if (process.env.NODE_ENV === 'development') {
       console.log('Sending password reset email to:', email)
