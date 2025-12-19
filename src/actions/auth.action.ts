@@ -5,7 +5,7 @@ import { actionClient } from '@/lib/safe-action'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { forgotPasswordSchema, resetPasswordSchema } from '@/lib/validations/auth'
+import { forgotPasswordSchema, resetPasswordSchema, changePasswordSchema } from '@/lib/validations/auth'
 
 const signInSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -138,6 +138,50 @@ export const resetPasswordAction = actionClient
 
     if (error) {
       return { success: false, error: error.message }
+    }
+
+    revalidatePath('/', 'layout')
+    return { success: true }
+  })
+
+export const changePasswordAction = actionClient
+  .schema(changePasswordSchema)
+  .action(async ({ parsedInput: { currentPassword, newPassword } }) => {
+    const supabase = await createClient()
+
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+    if (userError || !user || !user.email) {
+      return { 
+        success: false, 
+        error: 'You must be logged in to change your password.' 
+      }
+    }
+
+    // Verify current password by attempting to sign in
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    })
+
+    if (verifyError) {
+      return { 
+        success: false, 
+        error: 'Current password is incorrect.' 
+      }
+    }
+
+    // Update to new password
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    })
+
+    if (updateError) {
+      return { 
+        success: false, 
+        error: updateError.message || 'Failed to update password. Please try again.' 
+      }
     }
 
     revalidatePath('/', 'layout')

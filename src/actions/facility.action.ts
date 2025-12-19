@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { actionClient, authActionClient } from '@/lib/safe-action'
 import { createAdminClient } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
-import { addEmployeeSchema, addPatientSchema } from '@/lib/validations/facility'
+import { addEmployeeSchema, addPatientSchema, updateEmployeeSchema } from '@/lib/validations/facility'
 import { revalidatePath } from 'next/cache'
 import { User } from '@/types'
 import { hasOwnerAccess } from '@/lib/utils'
@@ -64,6 +64,7 @@ export const addEmployeeAction = actionClient
           role: parsedInput.role,
           phone: parsedInput.phone || null,
           designation: parsedInput.designation || null,
+          pay_rate_per_hour: parsedInput.payRatePerHour ? parseFloat(parsedInput.payRatePerHour) : null,
           is_active: true,
         })
         .eq('id', authData.user.id)
@@ -84,6 +85,7 @@ export const addEmployeeAction = actionClient
           role: parsedInput.role,
           phone: parsedInput.phone || null,
           designation: parsedInput.designation || null,
+          pay_rate_per_hour: parsedInput.payRatePerHour ? parseFloat(parsedInput.payRatePerHour) : null,
           is_active: true,
         })
       
@@ -107,6 +109,106 @@ export const addEmployeeAction = actionClient
     
     revalidatePath('/facility-management')
     return { success: true, data: { userId: authData.user.id } }
+  })
+
+export const updateEmployeeAction = authActionClient
+  .schema(updateEmployeeSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const adminClient = createAdminClient()
+    
+    // Check if user has admin or owner role
+    if (!ctx.user) {
+      return { success: false, error: 'User not authenticated' }
+    }
+    
+    if (ctx.user.role !== 'admin' && ctx.user.role !== 'owner') {
+      return { 
+        success: false, 
+        error: `Only admins and owners can update employees. Your role: ${ctx.user.role}` 
+      }
+    }
+    
+    // Check if employee exists
+    const { data: existingProfile, error: checkError } = await adminClient
+      .from('profiles')
+      .select('id, email')
+      .eq('id', parsedInput.userId)
+      .maybeSingle()
+    
+    if (checkError || !existingProfile) {
+      return { success: false, error: 'Employee not found' }
+    }
+    
+    // Check if email is being changed and if new email already exists
+    if (parsedInput.email !== existingProfile.email) {
+      const { data: emailExists } = await adminClient
+        .from('profiles')
+        .select('id')
+        .eq('email', parsedInput.email)
+        .neq('id', parsedInput.userId)
+        .maybeSingle()
+      
+      if (emailExists) {
+        return { success: false, error: 'Email already in use by another user' }
+      }
+    }
+    
+    // Update profile
+    const { error: profileError } = await adminClient
+      .from('profiles')
+      .update({
+        email: parsedInput.email,
+        first_name: parsedInput.firstName,
+        last_name: parsedInput.lastName,
+        role: parsedInput.role,
+        phone: parsedInput.phone || null,
+        designation: parsedInput.designation || null,
+        pay_rate_per_hour: parsedInput.payRatePerHour ? parseFloat(parsedInput.payRatePerHour) : null,
+      })
+      .eq('id', parsedInput.userId)
+    
+    if (profileError) {
+      return { success: false, error: `Failed to update employee: ${profileError.message}` }
+    }
+    
+    // Update auth user email if changed
+    if (parsedInput.email !== existingProfile.email) {
+      const { error: authError } = await adminClient.auth.admin.updateUserById(
+        parsedInput.userId,
+        {
+          email: parsedInput.email,
+          user_metadata: {
+            first_name: parsedInput.firstName,
+            last_name: parsedInput.lastName,
+            role: parsedInput.role,
+          },
+        }
+      )
+      
+      if (authError) {
+        return { success: false, error: `Failed to update user email: ${authError.message}` }
+      }
+    } else {
+      // Just update metadata if email didn't change
+      const { error: authError } = await adminClient.auth.admin.updateUserById(
+        parsedInput.userId,
+        {
+          user_metadata: {
+            first_name: parsedInput.firstName,
+            last_name: parsedInput.lastName,
+            role: parsedInput.role,
+          },
+        }
+      )
+      
+      if (authError) {
+        console.error('Failed to update user metadata:', authError)
+        // Don't fail the whole operation if metadata update fails
+      }
+    }
+    
+    revalidatePath('/facility-management')
+    return { success: true }
   })
 
 export const addPatientAction = actionClient

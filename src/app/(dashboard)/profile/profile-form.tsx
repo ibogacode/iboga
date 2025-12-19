@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar, Upload, User as UserIcon, Settings, Shield } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { uploadAvatarAction, removeAvatarAction, updateProfileAction } from '@/actions/profile.action'
+import { ChangePasswordForm } from '@/components/forms/change-password-form'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -473,7 +474,7 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
                       className="text-[#666666]"
                       style={{ fontSize: '12px', lineHeight: '1.4' }}
                     >
-                      Tell us who you are to get started.
+                      Manage your password and security settings.
                     </div>
                   </div>
                 </div>
@@ -895,25 +896,30 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
 
             {activeTab === 'security' && (
               <div className="space-y-6">
+                <div>
                 <h3 
                   style={{
                     fontFamily: designTokens.typography.navItem.fontFamily,
                     fontSize: '18px',
                     fontWeight: 500,
-                    color: 'black'
+                      color: 'black',
+                      marginBottom: '8px',
                   }}
                 >
-                  Security
+                    Change Password
                 </h3>
                 <p
                   style={{
                     fontFamily: designTokens.typography.navItem.fontFamily,
-                    fontSize: '16px',
+                      fontSize: '14px',
                     color: '#666',
+                      lineHeight: '1.4',
                   }}
                 >
-                  Security settings coming soon...
+                    Update your password to keep your account secure. Make sure to use a strong password.
                 </p>
+                </div>
+                <ChangePasswordForm />
               </div>
             )}
           </div>

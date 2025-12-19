@@ -1,4 +1,6 @@
 import { createSafeActionClient } from 'next-safe-action'
+import { createClient } from '@/lib/supabase/server'
+import { UserRole } from '@/types'
 
 // Base action client
 export const actionClient = createSafeActionClient({
@@ -9,14 +11,35 @@ export const actionClient = createSafeActionClient({
 })
 
 // Action client with auth - requires user to be logged in
-// You can extend this to check for specific roles
+// Provides user context with role
 export const authActionClient = actionClient.use(async ({ next }) => {
-  // In a real app, you'd check the session here
-  // const supabase = await createClient()
-  // const { data: { user } } = await supabase.auth.getUser()
-  // if (!user) throw new Error('Unauthorized')
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
   
-  return next({ ctx: {} })
+  if (authError || !user) {
+    throw new Error('Unauthorized - Please log in')
+  }
+  
+  // Get user profile to get role
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  
+  if (profileError || !profile) {
+    throw new Error('User profile not found')
+  }
+  
+  return next({ 
+    ctx: { 
+      user: {
+        id: user.id,
+        email: user.email || '',
+        role: (profile.role as UserRole) || 'patient',
+      }
+    } 
+  })
 })
 
 
