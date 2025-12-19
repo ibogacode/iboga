@@ -29,58 +29,80 @@ export function ResetPasswordForm() {
   })
 
   useEffect(() => {
-    async function handleTokenExchange() {
-      const supabase = createClient()
+    const supabase = createClient()
+    
+    // Listen for auth state changes - Supabase will automatically process URL hash tokens
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session?.user?.email)
       
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked the password reset link and Supabase processed the token
+        setIsValidToken(true)
+        setIsExchangingToken(false)
+      } else if (event === 'SIGNED_IN' && session) {
+        // User is signed in (might be from the recovery token)
+        setIsValidToken(true)
+        setIsExchangingToken(false)
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        setIsValidToken(true)
+        setIsExchangingToken(false)
+      }
+    })
+    
+    // Also check for existing session or PKCE code
+    async function checkInitialState() {
       // Check for PKCE code in URL params
       const code = searchParams.get('code')
       
       if (code) {
-        // Exchange the code for a session
         const { error } = await supabase.auth.exchangeCodeForSession(code)
-        
         if (error) {
           console.error('Token exchange error:', error)
           setIsValidToken(false)
           setIsExchangingToken(false)
           return
         }
-        
         setIsValidToken(true)
         setIsExchangingToken(false)
         return
       }
       
-      // Check for hash-based tokens (older Supabase format)
-      // These are handled automatically by Supabase client via onAuthStateChange
+      // Check if already has session
       const { data: { session } } = await supabase.auth.getSession()
-      
       if (session) {
         setIsValidToken(true)
         setIsExchangingToken(false)
         return
       }
       
-      // No code and no session - check URL hash for tokens
-      // Supabase may include tokens in the hash fragment
+      // Check for hash fragment (Supabase recovery tokens)
       if (typeof window !== 'undefined' && window.location.hash) {
-        // Wait a moment for Supabase to process the hash
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        const { data: { session: hashSession } } = await supabase.auth.getSession()
-        if (hashSession) {
-          setIsValidToken(true)
-          setIsExchangingToken(false)
-          return
-        }
+        // Give Supabase time to process the hash
+        // The onAuthStateChange will handle the PASSWORD_RECOVERY event
+        setTimeout(() => {
+          // If still exchanging after timeout, check session again
+          supabase.auth.getSession().then(({ data: { session: hashSession } }) => {
+            if (hashSession) {
+              setIsValidToken(true)
+            } else {
+              setIsValidToken(false)
+            }
+            setIsExchangingToken(false)
+          })
+        }, 1500)
+        return
       }
       
-      // No valid token found
+      // No token found at all
       setIsValidToken(false)
       setIsExchangingToken(false)
     }
     
-    handleTokenExchange()
+    checkInitialState()
+    
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [searchParams])
 
   async function onSubmit(data: ResetPasswordFormData) {
@@ -177,6 +199,17 @@ export function ResetPasswordForm() {
             This password reset link is invalid or has expired. Please request a new password reset link.
           </p>
         </div>
+        <Button 
+          onClick={() => router.push('/forgot-password')}
+          className="w-full h-12 text-base font-medium rounded-full" 
+          style={{
+            background: 'linear-gradient(180deg, #565656 0%, #1C1C1C 61%, #111111 100%)',
+            color: 'white',
+            fontFamily: 'var(--font-sans), sans-serif',
+          }}
+        >
+          Request New Reset Link
+        </Button>
       </div>
     )
   }
