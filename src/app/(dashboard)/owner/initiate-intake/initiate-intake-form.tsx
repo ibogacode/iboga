@@ -53,8 +53,9 @@ export default function InitiateIntakeForm() {
       }
       
       if (result?.validationErrors) {
-        const firstError = Object.values(result.validationErrors)[0]?._errors?.[0]
-        toast.error(firstError || 'Validation error')
+        const errors = Object.values(result.validationErrors)
+        const firstError = errors.length > 0 ? String(errors[0]) : null
+        toast.error(firstError || 'Validation failed')
         return
       }
       
