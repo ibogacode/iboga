@@ -52,7 +52,7 @@ async function sendGmailEmail(accessToken: string, to: string, subject: string, 
   const fromEmail = Deno.env.get('GMAIL_FROM_EMAIL')
 
   const emailContent = [
-    `From: Iboga Wellness Centers <${fromEmail}>`,
+    `From: Iboga Wellness Institute <${fromEmail}>`,
     `To: ${to}`,
     `Subject: ${subject}`,
     'MIME-Version: 1.0',

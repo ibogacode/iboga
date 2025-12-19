@@ -5,7 +5,7 @@ import { actionClient } from '@/lib/safe-action'
 import { createAdminClient } from '@/lib/supabase/server'
 import { patientIntakeFormSchema } from '@/lib/validations/patient-intake'
 import { headers } from 'next/headers'
-import { sendEmail } from './email.action'
+import { sendEmail, sendPatientPasswordSetupEmail } from './email.action'
 
 export const submitPatientIntakeForm = actionClient
   .schema(patientIntakeFormSchema)
@@ -90,6 +90,98 @@ export const submitPatientIntakeForm = actionClient
       if (linkError) {
         console.error('Error linking partial form to completed form:', linkError)
         // Don't fail the submission if linking fails, but log it
+      }
+    }
+    
+    // Check if profile already exists for this patient email
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id, email, role')
+      .eq('email', parsedInput.email)
+      .eq('role', 'patient')
+      .maybeSingle()
+    
+    // Create patient profile if it doesn't exist
+    if (!existingProfile) {
+      // Generate a temporary password (will be reset via email)
+      const tempPassword = `Temp${Math.random().toString(36).slice(-8)}!${Math.random().toString(36).slice(-8)}`
+      
+      // Create auth user with patient email
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: parsedInput.email,
+        password: tempPassword,
+        email_confirm: false, // Patient needs to set password via reset link
+        user_metadata: {
+          first_name: parsedInput.first_name,
+          last_name: parsedInput.last_name,
+          role: 'patient',
+        },
+      })
+      
+      if (authError || !authData.user) {
+        console.error('Error creating patient auth user:', authError)
+        // Don't fail the form submission, but log the error
+      } else {
+        // Wait a moment for the trigger to create the profile
+        await new Promise(resolve => setTimeout(resolve, 200))
+        
+        // Check if profile was created by trigger, then update it
+        const { data: triggerCreatedProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', authData.user.id)
+          .maybeSingle()
+        
+        if (triggerCreatedProfile) {
+          // Profile exists (created by trigger), update it with patient info
+          await supabase
+            .from('profiles')
+            .update({
+              email: parsedInput.email,
+              first_name: parsedInput.first_name,
+              last_name: parsedInput.last_name,
+              role: 'patient',
+              phone: parsedInput.phone_number || null,
+              is_active: true,
+            })
+            .eq('id', authData.user.id)
+        } else {
+          // Profile doesn't exist (trigger didn't fire), create it manually
+          await supabase
+            .from('profiles')
+            .insert({
+              id: authData.user.id,
+              email: parsedInput.email,
+              first_name: parsedInput.first_name,
+              last_name: parsedInput.last_name,
+              role: 'patient',
+              phone: parsedInput.phone_number || null,
+              is_active: true,
+            })
+        }
+        
+        // Send password setup email based on who filled out the form
+        if (parsedInput.filled_by === 'self') {
+          // Patient filled out themselves - send password setup to patient email
+          sendPatientPasswordSetupEmail(
+            parsedInput.email,
+            parsedInput.first_name,
+            parsedInput.last_name,
+            false
+          ).catch(console.error)
+        } else if (parsedInput.filled_by === 'someone_else' && parsedInput.filler_email) {
+          // Someone else filled out - account is created with patient email
+          // Send password setup to patient email AND notification to filler
+          sendPatientPasswordSetupEmail(
+            parsedInput.email, // Patient email (account email)
+            parsedInput.first_name,
+            parsedInput.last_name,
+            true, // isFiller = true
+            parsedInput.filler_email, // Filler email for notification
+            parsedInput.filler_first_name || '',
+            parsedInput.filler_last_name || ''
+          ).catch(console.error)
+        }
       }
     }
     
