@@ -2,21 +2,11 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { toast } from 'sonner'
+import Link from 'next/link'
 import { getOpportunities } from '@/actions/opportunities.action'
 import { Loader2, TrendingUp, TrendingDown, Eye, CheckCircle2, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { addPatientAction } from '@/actions/facility.action'
-import { addPatientSchema } from '@/lib/validations/facility'
 import { format } from 'date-fns'
-import type { z } from 'zod'
 
 interface Opportunity {
   id: string
@@ -28,74 +18,12 @@ interface Opportunity {
   calendar_link_clicked_at: string | null
 }
 
-type AddPatientFormValues = z.infer<typeof addPatientSchema>
-
 export default function PatientPipelinePage() {
   const router = useRouter()
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [thisWeekCount, setThisWeekCount] = useState(0)
   const [lastWeekCount, setLastWeekCount] = useState(0)
-  const [isPatientDialogOpen, setIsPatientDialogOpen] = useState(false)
-  const [isSubmittingPatient, setIsSubmittingPatient] = useState(false)
-
-  const patientForm = useForm<AddPatientFormValues>({
-    resolver: zodResolver(addPatientSchema),
-    defaultValues: {
-      email: '',
-      firstName: '',
-      lastName: '',
-      phone: '',
-      dateOfBirth: '',
-      gender: undefined,
-      address: '',
-      city: '',
-      state: '',
-      postalCode: '',
-      emergencyContactName: '',
-      emergencyContactPhone: '',
-      emergencyContactRelationship: '',
-      notes: '',
-    },
-  })
-
-  async function onPatientSubmit(data: AddPatientFormValues) {
-    setIsSubmittingPatient(true)
-    try {
-      const result = await addPatientAction(data)
-      
-      if (result?.serverError) {
-        toast.error(result.serverError)
-        return
-      }
-
-      if (result?.validationErrors) {
-        const errors = Object.values(result.validationErrors)
-        const firstError = errors.length > 0 ? String(errors[0]) : null
-        toast.error(firstError || 'Validation failed')
-        return
-      }
-
-      if (result?.data) {
-        if (result.data.success) {
-          toast.success(result.data.data?.message || 'Patient added successfully')
-          setIsPatientDialogOpen(false)
-          patientForm.reset()
-          // Optionally reload opportunities to show new patient
-        } else if (result.data.error) {
-          toast.error(result.data.error)
-        } else {
-          toast.error('Failed to add patient')
-        }
-      } else {
-        toast.error('Failed to add patient')
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to add patient')
-    } finally {
-      setIsSubmittingPatient(false)
-    }
-  }
 
   function formatDate(dateString: string) {
     try {
@@ -176,242 +104,13 @@ export default function PatientPipelinePage() {
           </p>
         </div>
 
-        {/* Add Patient Dialog */}
-        <Dialog open={isPatientDialogOpen} onOpenChange={setIsPatientDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="gap-2">
-              <Users className="h-4 w-4" />
-              Add Patient
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Add New Patient</DialogTitle>
-              <DialogDescription>
-                Create a new patient record. They will receive an email to set their password.
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...patientForm}>
-              <form onSubmit={patientForm.handleSubmit(onPatientSubmit)} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={patientForm.control}
-                    name="firstName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>First Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Jane" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={patientForm.control}
-                    name="lastName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Last Name</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Smith" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={patientForm.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="jane.smith@example.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={patientForm.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Phone (Optional)</FormLabel>
-                        <FormControl>
-                          <Input type="tel" placeholder="(555) 123-4567" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={patientForm.control}
-                    name="dateOfBirth"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Date of Birth (Optional)</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={patientForm.control}
-                  name="gender"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Gender (Optional)</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select gender" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={patientForm.control}
-                  name="address"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Address (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="123 Main St" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-3 gap-4">
-                  <FormField
-                    control={patientForm.control}
-                    name="city"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>City (Optional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="City" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={patientForm.control}
-                    name="state"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>State (Optional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="State" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={patientForm.control}
-                    name="postalCode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Postal Code (Optional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="12345" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="border-t pt-4">
-                  <h4 className="text-sm font-medium mb-3">Emergency Contact (Optional)</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={patientForm.control}
-                      name="emergencyContactName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Contact Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="John Doe" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={patientForm.control}
-                      name="emergencyContactPhone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Contact Phone</FormLabel>
-                          <FormControl>
-                            <Input type="tel" placeholder="(555) 123-4567" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <FormField
-                    control={patientForm.control}
-                    name="emergencyContactRelationship"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Relationship</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Spouse, Parent, etc." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <FormField
-                  control={patientForm.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notes (Optional)</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Additional notes about the patient..." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setIsPatientDialogOpen(false)}
-                    disabled={isSubmittingPatient}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSubmittingPatient}>
-                    {isSubmittingPatient ? 'Adding...' : 'Add Patient'}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        {/* Add Patient Button - Links to Initiate Intake */}
+        <Link href="/owner/initiate-intake">
+          <Button variant="outline" className="gap-2">
+            <Users className="h-4 w-4" />
+            Add Patient
+          </Button>
+        </Link>
       </div>
 
       {/* Stats Cards */}
