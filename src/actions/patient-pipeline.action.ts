@@ -69,15 +69,6 @@ export const getPartialIntakeForms = authActionClient
       success: true, 
       data: data || []
     }
-    
-    if (error) {
-      return { success: false, error: error.message }
-    }
-    
-    return { 
-      success: true, 
-      data: data || []
-    }
   })
 
 // Get public intake forms (direct applications)
