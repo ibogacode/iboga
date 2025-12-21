@@ -9,48 +9,58 @@ const sendEmailSchema = z.object({
   body: z.string().min(1),
 })
 
+// Direct function to send email - can be called from server-side code
+// This is needed because server actions can't be called from within other server actions
+export async function sendEmailDirect(params: { to: string; subject: string; body: string }) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+  try {
+    const url = `${supabaseUrl}/functions/v1/send-email`
+    console.log('[sendEmailDirect] Calling edge function:', url, 'to:', params.to)
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({
+        to: params.to,
+        subject: params.subject,
+        body: params.body,
+      }),
+    })
+
+    const responseText = await response.text()
+    console.log('[sendEmailDirect] Edge function response:', response.status, responseText)
+
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch {
+      console.error('[sendEmailDirect] Invalid response:', responseText)
+      return { success: false, error: `Invalid response: ${responseText}` }
+    }
+
+    if (!result.success) {
+      console.error('[sendEmailDirect] Email failed:', result.error)
+      return { success: false, error: result.error || 'Failed to send email' }
+    }
+
+    console.log('[sendEmailDirect] Email sent successfully, messageId:', result.messageId)
+    return { success: true, messageId: result.messageId }
+  } catch (error) {
+    console.error('[sendEmailDirect] Email send error:', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to send email' }
+  }
+}
+
+// Server action for client-side use
 export const sendEmail = actionClient
   .schema(sendEmailSchema)
   .action(async ({ parsedInput }) => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-    try {
-      const url = `${supabaseUrl}/functions/v1/send-email`
-      console.log('Calling edge function:', url)
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify({
-          to: parsedInput.to,
-          subject: parsedInput.subject,
-          body: parsedInput.body,
-        }),
-      })
-
-      const responseText = await response.text()
-      console.log('Edge function response:', response.status, responseText)
-
-      let result
-      try {
-        result = JSON.parse(responseText)
-      } catch {
-        return { success: false, error: `Invalid response: ${responseText}` }
-      }
-
-      if (!result.success) {
-        return { success: false, error: result.error || 'Failed to send email' }
-      }
-
-      return { success: true, messageId: result.messageId }
-    } catch (error) {
-      console.error('Email send error:', error)
-      return { success: false, error: error instanceof Error ? error.message : 'Failed to send email' }
-    }
+    return sendEmailDirect(parsedInput)
   })
 
 // Helper function to send inquiry confirmation email
@@ -91,7 +101,7 @@ export async function sendInquiryConfirmationEmail(
     </html>
   `
 
-  return sendEmail({
+  return sendEmailDirect({
     to: email,
     subject: 'Thank you for your inquiry - Iboga Wellness Institute',
     body: htmlBody,
@@ -248,11 +258,20 @@ export async function sendEmployeeWelcomeEmail(
     </html>
   `
 
-  return sendEmail({
+  console.log('[sendEmployeeWelcomeEmail] Sending welcome email to:', email)
+  const result = await sendEmailDirect({
     to: email,
     subject: 'Welcome to Iboga Wellness Institute - Your Portal Access',
     body: htmlBody,
   })
+  
+  if (!result.success) {
+    console.error('[sendEmployeeWelcomeEmail] Failed to send email:', result.error)
+  } else {
+    console.log('[sendEmployeeWelcomeEmail] Email sent successfully')
+  }
+  
+  return result
 }
 
 // Helper function to send patient password setup email
@@ -265,6 +284,8 @@ export async function sendPatientPasswordSetupEmail(
   fillerFirstName?: string,
   fillerLastName?: string
 ) {
+  console.log('[sendPatientPasswordSetupEmail] Called with:', { patientEmail, firstName, lastName, isFiller, fillerEmail })
+  
   const { createAdminClient } = await import('@/lib/supabase/server')
   const adminClient = createAdminClient()
 
@@ -285,11 +306,12 @@ export async function sendPatientPasswordSetupEmail(
   })
 
   if (linkError || !linkData?.properties?.action_link) {
-    console.error('Failed to generate password reset link:', linkError)
+    console.error('[sendPatientPasswordSetupEmail] Failed to generate password reset link:', linkError)
     // Still continue to send welcome email without the reset link
   }
   
   const resetLink = linkData?.properties?.action_link || null
+  console.log('[sendPatientPasswordSetupEmail] Reset link generated:', resetLink ? 'YES' : 'NO')
   
   // If this is for a filler, also send notification email to filler with the reset link
   if (isFiller && fillerEmail) {
@@ -431,11 +453,17 @@ export async function sendPatientPasswordSetupEmail(
       </html>
     `
     
-    await sendEmail({
+    console.log('[sendPatientPasswordSetupEmail] Sending filler notification email to:', fillerEmail)
+    const fillerResult = await sendEmailDirect({
       to: fillerEmail,
       subject: `Patient Account Created for ${firstName} ${lastName} | Iboga Wellness Institute`,
       body: fillerHtmlBody,
-    }).catch(console.error)
+    })
+    if (!fillerResult.success) {
+      console.error('[sendPatientPasswordSetupEmail] Failed to send filler email:', fillerResult.error)
+    } else {
+      console.log('[sendPatientPasswordSetupEmail] Filler email sent successfully')
+    }
   }
 
   // Send a custom email to patient with the password reset link included
@@ -569,10 +597,19 @@ export async function sendPatientPasswordSetupEmail(
     </html>
   `
 
-  return sendEmail({
+  console.log('[sendPatientPasswordSetupEmail] Sending patient welcome email to:', patientEmail)
+  const result = await sendEmailDirect({
     to: patientEmail,
     subject: 'Welcome to Your Patient Portal - Set Up Your Password | Iboga Wellness Institute',
     body: htmlBody,
   })
+  
+  if (!result.success) {
+    console.error('[sendPatientPasswordSetupEmail] Failed to send patient email:', result.error)
+  } else {
+    console.log('[sendPatientPasswordSetupEmail] Patient email sent successfully')
+  }
+  
+  return result
 }
 

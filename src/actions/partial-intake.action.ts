@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { actionClient, authActionClient } from '@/lib/safe-action'
 import { createAdminClient } from '@/lib/supabase/server'
 import { partialIntakeFormSchema } from '@/lib/validations/partial-intake'
-import { sendEmail } from './email.action'
+import { sendEmailDirect } from './email.action'
 import crypto from 'crypto'
 
 // Action to create a partial intake form and send email
@@ -97,15 +97,15 @@ export const createPartialIntakeForm = authActionClient
     )
     .then(async (emailResult) => {
       // Check if email was sent successfully and update email_sent_at
-      // sendEmail returns SafeActionResult, so check data.success
-      if (!emailResult?.serverError && emailResult?.data) {
-        const result = emailResult.data as { success?: boolean; error?: string; messageId?: string }
-        if (result.success) {
-          await supabase
-            .from('partial_intake_forms')
-            .update({ email_sent_at: new Date().toISOString() })
-            .eq('id', data.id)
-        }
+      // sendEmailDirect returns { success, error?, messageId? }
+      if (emailResult?.success) {
+        await supabase
+          .from('partial_intake_forms')
+          .update({ email_sent_at: new Date().toISOString() })
+          .eq('id', data.id)
+        console.log('[createPartialIntakeForm] Email sent and email_sent_at updated')
+      } else {
+        console.error('[createPartialIntakeForm] Email send failed:', emailResult?.error)
       }
     })
     .catch((error) => {
@@ -357,7 +357,7 @@ async function sendPartialIntakeFormEmail(
     </html>
   `
 
-  return sendEmail({
+  return sendEmailDirect({
     to: recipientEmail,
     subject: subject,
     body: htmlBody,
