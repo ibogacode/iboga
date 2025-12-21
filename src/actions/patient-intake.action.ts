@@ -110,7 +110,7 @@ export const submitPatientIntakeForm = actionClient
       const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email: parsedInput.email,
         password: tempPassword,
-        email_confirm: false, // Patient needs to set password via reset link
+        email_confirm: true, // Auto-confirm email so password reset works immediately
         user_metadata: {
           first_name: parsedInput.first_name,
           last_name: parsedInput.last_name,
@@ -160,6 +160,9 @@ export const submitPatientIntakeForm = actionClient
             })
         }
         
+        // Wait a moment for user to be fully created in Supabase before sending password reset
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
         // Send password setup email based on who filled out the form
         if (parsedInput.filled_by === 'self') {
           // Patient filled out themselves - send password setup to patient email
@@ -168,7 +171,9 @@ export const submitPatientIntakeForm = actionClient
             parsedInput.first_name,
             parsedInput.last_name,
             false
-          ).catch(console.error)
+          ).catch((error) => {
+            console.error('Error sending password setup email to patient:', error)
+          })
         } else if (parsedInput.filled_by === 'someone_else' && parsedInput.filler_email) {
           // Someone else filled out - account is created with patient email
           // Send password setup to patient email AND notification to filler
@@ -180,7 +185,9 @@ export const submitPatientIntakeForm = actionClient
             parsedInput.filler_email, // Filler email for notification
             parsedInput.filler_first_name || '',
             parsedInput.filler_last_name || ''
-          ).catch(console.error)
+          ).catch((error) => {
+            console.error('Error sending password setup email:', error)
+          })
         }
       }
     }
@@ -197,12 +204,14 @@ export const submitPatientIntakeForm = actionClient
     } else if (parsedInput.filled_by === 'someone_else' && parsedInput.filler_email) {
       // If someone else filled out, send emails to both patient and filler
       // Send to patient
-    sendConfirmationEmail(
-      parsedInput.email, 
-      parsedInput.first_name,
-      parsedInput.last_name,
-      data.id
-    ).catch(console.error)
+      sendConfirmationEmail(
+        parsedInput.email, 
+        parsedInput.first_name,
+        parsedInput.last_name,
+        data.id
+      ).catch((error) => {
+        console.error('Error sending confirmation email to patient:', error)
+      })
       
       // Send to filler person
       sendFillerConfirmationEmail(
@@ -212,7 +221,9 @@ export const submitPatientIntakeForm = actionClient
         parsedInput.first_name,
         parsedInput.last_name,
         data.id
-      ).catch(console.error)
+      ).catch((error) => {
+        console.error('Error sending confirmation email to filler:', error)
+      })
     }
     
     return { success: true, data: { id: data.id } }
