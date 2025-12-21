@@ -279,8 +279,8 @@ export async function sendPatientPasswordSetupEmail(
   })
 
   if (error) {
-    console.error('Failed to send password setup email:', error)
-    return { success: false, error: error.message }
+    console.error('Failed to send password reset email:', error)
+    // Don't return early - still send the custom welcome email
   }
   
   // If this is for a filler, also send notification email to filler
