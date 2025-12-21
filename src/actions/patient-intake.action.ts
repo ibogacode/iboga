@@ -5,7 +5,7 @@ import { actionClient } from '@/lib/safe-action'
 import { createAdminClient } from '@/lib/supabase/server'
 import { patientIntakeFormSchema } from '@/lib/validations/patient-intake'
 import { headers } from 'next/headers'
-import { sendEmail, sendPatientPasswordSetupEmail } from './email.action'
+import { sendEmailDirect, sendPatientPasswordSetupEmail } from './email.action'
 
 export const submitPatientIntakeForm = actionClient
   .schema(patientIntakeFormSchema)
@@ -195,12 +195,12 @@ export const submitPatientIntakeForm = actionClient
     // Send confirmation emails based on who filled out the form
     if (parsedInput.filled_by === 'self') {
       // If patient filled out themselves, send email only to patient
-      sendConfirmationEmail(
-        parsedInput.email, 
-        parsedInput.first_name,
-        parsedInput.last_name,
-        data.id
-      ).catch(console.error)
+    sendConfirmationEmail(
+      parsedInput.email, 
+      parsedInput.first_name,
+      parsedInput.last_name,
+      data.id
+    ).catch(console.error)
     } else if (parsedInput.filled_by === 'someone_else' && parsedInput.filler_email) {
       // If someone else filled out, send emails to both patient and filler
       // Send to patient
@@ -393,7 +393,7 @@ async function sendConfirmationEmail(
     </html>
   `
 
-  return sendEmail({
+  return sendEmailDirect({
     to: email,
     subject: 'Thank You for Your Application - Schedule Your Consultation | Iboga Wellness Institute',
     body: htmlBody,
@@ -581,7 +581,7 @@ async function sendFillerConfirmationEmail(
     </html>
   `
 
-  return sendEmail({
+  return sendEmailDirect({
     to: fillerEmail,
     subject: `Intake Form Submitted - Confirmation for ${patientFirstName} ${patientLastName} | Iboga Wellness Institute`,
     body: htmlBody,

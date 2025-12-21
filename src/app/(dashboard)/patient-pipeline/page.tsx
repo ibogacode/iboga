@@ -119,10 +119,10 @@ export default function PatientPipelinePage() {
 
         {/* Add Patient Button - Links to Initiate Intake */}
         <Link href="/owner/initiate-intake">
-          <Button variant="outline" className="gap-2">
-            <Users className="h-4 w-4" />
-            Add Patient
-          </Button>
+            <Button variant="outline" className="gap-2">
+              <Users className="h-4 w-4" />
+              Add Patient
+            </Button>
         </Link>
       </div>
 
