@@ -12,48 +12,48 @@ const sendEmailSchema = z.object({
 // Direct function to send email - can be called from server-side code
 // This is needed because server actions can't be called from within other server actions
 export async function sendEmailDirect(params: { to: string; subject: string; body: string }) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-  try {
-    const url = `${supabaseUrl}/functions/v1/send-email`
+    try {
+      const url = `${supabaseUrl}/functions/v1/send-email`
     console.log('[sendEmailDirect] Calling edge function:', url, 'to:', params.to)
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
         to: params.to,
         subject: params.subject,
         body: params.body,
-      }),
-    })
+        }),
+      })
 
-    const responseText = await response.text()
+      const responseText = await response.text()
     console.log('[sendEmailDirect] Edge function response:', response.status, responseText)
 
-    let result
-    try {
-      result = JSON.parse(responseText)
-    } catch {
+      let result
+      try {
+        result = JSON.parse(responseText)
+      } catch {
       console.error('[sendEmailDirect] Invalid response:', responseText)
-      return { success: false, error: `Invalid response: ${responseText}` }
-    }
+        return { success: false, error: `Invalid response: ${responseText}` }
+      }
 
-    if (!result.success) {
+      if (!result.success) {
       console.error('[sendEmailDirect] Email failed:', result.error)
-      return { success: false, error: result.error || 'Failed to send email' }
-    }
+        return { success: false, error: result.error || 'Failed to send email' }
+      }
 
     console.log('[sendEmailDirect] Email sent successfully, messageId:', result.messageId)
-    return { success: true, messageId: result.messageId }
-  } catch (error) {
+      return { success: true, messageId: result.messageId }
+    } catch (error) {
     console.error('[sendEmailDirect] Email send error:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Failed to send email' }
-  }
+      return { success: false, error: error instanceof Error ? error.message : 'Failed to send email' }
+    }
 }
 
 // Server action for client-side use

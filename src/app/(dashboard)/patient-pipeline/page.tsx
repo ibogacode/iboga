@@ -27,6 +27,10 @@ interface PartialIntakeForm {
     last_name: string | null
     email: string | null
   }
+  formCompletion?: {
+    completed: number
+    total: number
+  }
 }
 
 interface PublicIntakeForm {
@@ -36,6 +40,10 @@ interface PublicIntakeForm {
   email: string
   phone_number: string
   created_at: string
+  formCompletion?: {
+    completed: number
+    total: number
+  }
 }
 
 export default function PatientPipelinePage() {
@@ -53,13 +61,13 @@ export default function PatientPipelinePage() {
   }
 
   function handleViewPartial(id: string) {
-    // Navigate to view partial form details
-    router.push(`/owner/opportunities?view=${id}&type=partial`)
+    // Navigate to patient profile page using partial form ID
+    router.push(`/patient-pipeline/patient-profile/${id}`)
   }
 
   function handleViewPublic(id: string) {
-    // Navigate to view public form details
-    router.push(`/owner/opportunities?view=${id}&type=public`)
+    // Navigate to patient profile page using intake form ID
+    router.push(`/patient-pipeline/patient-profile/${id}`)
   }
 
   const loadPipelineData = useCallback(async () => {
@@ -254,7 +262,11 @@ export default function PatientPipelinePage() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {form.completed_at ? (
+                      {form.formCompletion ? (
+                        <div className="text-sm font-medium text-gray-900">
+                          {form.formCompletion.completed}/{form.formCompletion.total}
+                        </div>
+                      ) : form.completed_at ? (
                         <div className="flex items-center gap-1.5 text-sm text-emerald-600">
                           <CheckCircle2 className="h-4 w-4" />
                           <span>Completed</span>
@@ -314,6 +326,9 @@ export default function PatientPipelinePage() {
                     Phone
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Submitted
                   </th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -334,6 +349,15 @@ export default function PatientPipelinePage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">{form.phone_number}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {form.formCompletion ? (
+                        <div className="text-sm font-medium text-gray-900">
+                          {form.formCompletion.completed}/{form.formCompletion.total}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-500">1/3</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">{formatDate(form.created_at)}</div>

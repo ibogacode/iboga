@@ -23,6 +23,8 @@ import { SignOutButton } from '@/components/auth/sign-out-button'
 import { cn } from '@/lib/utils'
 import { User } from '@/types'
 import { User as SupabaseUser } from '@supabase/supabase-js'
+import { UserRole } from '@/types'
+import { navigationByRole } from '@/config/navigation'
 
 function getInitials(name?: string | null, firstName?: string | null, lastName?: string | null): string {
   if (name) {
@@ -48,25 +50,21 @@ function getInitials(name?: string | null, firstName?: string | null, lastName?:
   return 'U'
 }
 
-// Navigation items - these will be role-based later
-const navItems = [
-  { label: 'Home', href: '/dashboard' },
-  { label: 'Forms', href: '/forms' },
-  { label: 'Patient Pipeline', href: '/patient-pipeline' },
-  { label: 'Facility Management', href: '/facility-management' },
-  { label: 'Onboarding', href: '/onboarding' },
-  { label: 'Patient Management', href: '/patient-management' },
-  { label: 'Research', href: '/research' },
-  { label: 'Marketing', href: '/marketing' },
-]
-
 interface NavbarProps {
   user?: SupabaseUser | null
   profile?: User | null
+  role?: UserRole
 }
 
-export function Navbar({ user, profile }: NavbarProps) {
+export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
   const pathname = usePathname()
+  
+  // Get navigation items based on role
+  const navConfig = navigationByRole[role] || navigationByRole.patient
+  const navItems = navConfig.mainNav.map(item => ({
+    label: item.title,
+    href: item.href,
+  }))
   
   // Get user name - prioritize generated name column, then construct from first/last, then fallback
   const userName = profile?.name || 
@@ -87,7 +85,7 @@ export function Navbar({ user, profile }: NavbarProps) {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 w-full bg-[#F5F4F0]">
       {/* Layer 1: Main Container */}
-      <div className="flex items-center justify-between gap-2 md:gap-6 px-2 md:px-4 lg:px-6 xl:px-8 py-1 bg-red-200/30">
+      <div className="flex items-center justify-between gap-2 md:gap-6 px-2 md:px-4 lg:px-6 xl:px-8 py-1">
         {/* Mobile Menu Button */}
         <Sheet>
           <SheetTrigger asChild>
@@ -104,7 +102,17 @@ export function Navbar({ user, profile }: NavbarProps) {
             <nav className="flex flex-col gap-4 mt-8">
               {navItems.map((item) => {
                 let isActive = false
-                if (item.href === '/dashboard') {
+                // For home/dashboard routes, check multiple possible paths
+                if (item.href === '/dashboard' || item.href === '/patient' || item.href === '/owner' || 
+                    item.href === '/doctor' || item.href === '/manager' || item.href === '/psych' || 
+                    item.href === '/nurse' || item.href === '/driver') {
+                  // Home is active ONLY on exact match (not on sub-pages)
+                  if (item.href === '/patient') {
+                    isActive = pathname === '/patient'
+                  } else if (item.href === '/owner') {
+                    // Dashboard for admin/owner - active on /owner or /dashboard
+                    isActive = pathname === '/owner' || pathname === '/dashboard'
+                  } else if (item.href === '/dashboard') {
                   isActive = pathname === '/dashboard' || 
                             pathname === '/owner' || 
                             pathname === '/doctor' || 
@@ -112,8 +120,10 @@ export function Navbar({ user, profile }: NavbarProps) {
                             pathname === '/psych' || 
                             pathname === '/nurse' || 
                             pathname === '/driver' || 
-                            pathname === '/patient' ||
                             pathname.startsWith('/dashboard/')
+                  } else {
+                    isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                  }
                 } else {
                   isActive = pathname === item.href || 
                             (item.href !== '/' && pathname.startsWith(item.href + '/'))
@@ -142,7 +152,7 @@ export function Navbar({ user, profile }: NavbarProps) {
         </Sheet>
 
         {/* Layer 2: Logo */}
-        <div className="flex items-center py-1 shrink-0 bg-yellow-200/30">
+        <div className="flex items-center py-1 shrink-0">
           <Link 
             href="/" 
             className="flex items-center justify-center gap-2.5 px-3 md:px-[19px] py-2 h-[44px] md:h-[52px] rounded-[36px] bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]"
@@ -159,15 +169,24 @@ export function Navbar({ user, profile }: NavbarProps) {
         </div>
 
         {/* Layer 3: Navigation Items - Responsive */}
-        <nav className="hidden md:flex items-center justify-center gap-2 lg:gap-[27px] flex-1 px-2 md:px-4 py-1 min-w-0 overflow-hidden bg-blue-200/30">
+        <nav className="hidden md:flex items-center justify-center gap-2 lg:gap-[27px] flex-1 px-2 md:px-4 py-1 min-w-0 overflow-hidden">
           {/* Layer 4: Navigation Items Container */}
           <div className="flex items-center justify-center gap-2 md:gap-4 lg:gap-[27px] pl-2 md:pl-3 pr-2 md:pr-3 h-[44px] md:h-[51px] rounded-[36px] bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] overflow-x-auto overflow-y-hidden scrollbar-hide">
-            {navItems.map((item, index) => {
+              {navItems.map((item, index) => {
               // Check if current path matches the nav item
               // For Home, also check if on dashboard or role-specific routes
               let isActive = false
-              if (item.href === '/dashboard') {
-                // Home is active on /dashboard or any role-specific route
+              // For home/dashboard routes, check multiple possible paths
+              if (item.href === '/dashboard' || item.href === '/patient' || item.href === '/owner' || 
+                  item.href === '/doctor' || item.href === '/manager' || item.href === '/psych' || 
+                  item.href === '/nurse' || item.href === '/driver') {
+                // Home is active ONLY on exact match (not on sub-pages)
+                if (item.href === '/patient') {
+                  isActive = pathname === '/patient'
+                } else if (item.href === '/owner') {
+                  // Dashboard for admin/owner - active on /owner or /dashboard
+                  isActive = pathname === '/owner' || pathname === '/dashboard'
+                } else if (item.href === '/dashboard') {
                 isActive = pathname === '/dashboard' || 
                           pathname === '/owner' || 
                           pathname === '/doctor' || 
@@ -175,8 +194,10 @@ export function Navbar({ user, profile }: NavbarProps) {
                           pathname === '/psych' || 
                           pathname === '/nurse' || 
                           pathname === '/driver' || 
-                          pathname === '/patient' ||
                           pathname.startsWith('/dashboard/')
+                } else {
+                  isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                }
               } else {
                 // For other items, exact match or starts with the href
                 isActive = pathname === item.href || 
@@ -209,7 +230,7 @@ export function Navbar({ user, profile }: NavbarProps) {
         </nav>
 
         {/* Layer 5: Right side: Search + Bell (in one box) + Avatar */}
-        <div className="flex items-center gap-2 md:gap-[21px] py-1 shrink-0 bg-green-200/30">
+        <div className="flex items-center gap-2 md:gap-[21px] py-1 shrink-0">
           {/* Layer 6: Search and Bell in one container - hidden on small mobile */}
           <div className="hidden sm:flex items-center gap-2 px-2 md:px-3 h-[44px] md:h-[51px] rounded-[36px] bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
             <Button

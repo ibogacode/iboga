@@ -1,8 +1,8 @@
 'use server'
 
 import { z } from 'zod'
-import { actionClient } from '@/lib/safe-action'
-import { createAdminClient } from '@/lib/supabase/server'
+import { actionClient, authActionClient } from '@/lib/safe-action'
+import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { medicalHistoryFormSchema } from '@/lib/validations/medical-history'
 import { headers } from 'next/headers'
 
@@ -181,3 +181,45 @@ export async function uploadMedicalHistoryDocument(formData: FormData) {
     } 
   }
 }
+
+// Get medical history form by ID for patient viewing
+export const getMedicalHistoryFormForPatient = authActionClient
+  .schema(z.object({ formId: z.string().uuid() }))
+  .action(async ({ parsedInput, ctx }) => {
+    const supabase = await createClient()
+    
+    // Get user profile to check email
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email, role')
+      .eq('id', ctx.user.id)
+      .single()
+    
+    if (!profile) {
+      return { success: false, error: 'Profile not found' }
+    }
+    
+    // Fetch the medical history form
+    const { data, error } = await supabase
+      .from('medical_history_forms')
+      .select('*')
+      .eq('id', parsedInput.formId)
+      .single()
+    
+    if (error || !data) {
+      return { success: false, error: 'Form not found' }
+    }
+    
+    // Verify the form belongs to the patient (check by email)
+    const patientEmail = (profile.email || '').trim().toLowerCase()
+    const formEmail = (data.email || '').trim().toLowerCase()
+    
+    if (patientEmail && formEmail && patientEmail !== formEmail) {
+      // Also check if patient is admin/owner (they can view any form)
+      if (profile.role !== 'admin' && profile.role !== 'owner') {
+        return { success: false, error: 'Unauthorized - You can only view your own forms' }
+      }
+    }
+    
+    return { success: true, data }
+  })

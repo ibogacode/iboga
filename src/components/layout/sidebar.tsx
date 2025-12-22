@@ -128,7 +128,7 @@ export function Sidebar({ role: _role = 'patient' }: SidebarProps) {
           }
         }}
         className={cn(
-          'fixed left-0 z-50 bg-black transition-all duration-300 ease-in-out',
+          'fixed left-0 z-50 bg-[#F5F4F0] transition-all duration-300 ease-in-out',
           // Responsive top position: mobile navbar is shorter
           'top-[52px] md:top-[68px]',
           // Responsive height

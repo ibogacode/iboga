@@ -16,6 +16,13 @@ import {
   Utensils,
   Stethoscope,
   Brain,
+  MessageSquare,
+  Home,
+  User,
+  UserPlus,
+  Search,
+  Megaphone,
+  UserCheck,
   type LucideIcon,
 } from 'lucide-react'
 import { UserRole } from '@/types'
@@ -38,13 +45,12 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   admin: {
     mainNav: [
       { title: 'Dashboard', href: '/owner', icon: LayoutDashboard },
-      { title: 'Locations', href: '/owner/locations', icon: Building2 },
-      { title: 'Staff', href: '/owner/staff', icon: UserCog },
-      { title: 'Patients', href: '/owner/patients', icon: Users },
-      { title: 'Opportunities', href: '/owner/opportunities', icon: ClipboardList },
-      { title: 'Initiate Intake', href: '/owner/initiate-intake', icon: FileText },
-      { title: 'Calendar', href: '/owner/calendar', icon: Calendar },
-      { title: 'Reports', href: '/owner/reports', icon: BarChart3 },
+      { title: 'Facility Management', href: '/facility-management', icon: UserCog },
+      { title: 'Patient Pipeline', href: '/patient-pipeline', icon: Users },
+      { title: 'Patient Management', href: '/owner/patient-management', icon: UserCheck },
+      { title: 'Onboarding', href: '/owner/onboarding', icon: UserPlus },
+      { title: 'Research', href: '/owner/research', icon: Search },
+      { title: 'Marketing', href: '/owner/marketing', icon: Megaphone },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
@@ -53,13 +59,12 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   owner: {
     mainNav: [
       { title: 'Dashboard', href: '/owner', icon: LayoutDashboard },
-      { title: 'Locations', href: '/owner/locations', icon: Building2 },
-      { title: 'Staff', href: '/owner/staff', icon: UserCog },
-      { title: 'Patients', href: '/owner/patients', icon: Users },
-      { title: 'Opportunities', href: '/owner/opportunities', icon: ClipboardList },
-      { title: 'Initiate Intake', href: '/owner/initiate-intake', icon: FileText },
-      { title: 'Calendar', href: '/owner/calendar', icon: Calendar },
-      { title: 'Reports', href: '/owner/reports', icon: BarChart3 },
+      { title: 'Facility Management', href: '/facility-management', icon: UserCog },
+      { title: 'Patient Pipeline', href: '/patient-pipeline', icon: Users },
+      { title: 'Patient Management', href: '/owner/patient-management', icon: UserCheck },
+      { title: 'Onboarding', href: '/owner/onboarding', icon: UserPlus },
+      { title: 'Research', href: '/owner/research', icon: Search },
+      { title: 'Marketing', href: '/owner/marketing', icon: Megaphone },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
@@ -127,16 +132,13 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   },
   patient: {
     mainNav: [
-      { title: 'My Dashboard', href: '/patient', icon: LayoutDashboard },
-      { title: 'My Health', href: '/patient/health', icon: Heart },
-      { title: 'My Schedule', href: '/patient/schedule', icon: Calendar },
-      { title: 'My Forms', href: '/patient/forms', icon: FileText },
-      { title: 'Diet Plan', href: '/patient/diet', icon: Utensils },
-      { title: 'Medications', href: '/patient/medications', icon: Pill },
+      { title: 'Home', href: '/patient', icon: Home },
+      { title: 'Tasks', href: '/patient/tasks', icon: ClipboardList },
+      { title: 'Documents', href: '/patient/documents', icon: FileText },
+      { title: 'Messages', href: '/patient/messages', icon: MessageSquare },
+      { title: 'Resources', href: '/patient/resources', icon: User },
     ],
-    secondaryNav: [
-      { title: 'Settings', href: '/settings', icon: Settings },
-    ],
+    secondaryNav: [],
   },
 }
 
