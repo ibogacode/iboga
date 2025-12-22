@@ -258,6 +258,11 @@ export const getPatientProfile = authActionClient
       }
     }
 
+    // Determine form statuses with proper types
+    const intakeStatus: 'completed' | 'pending' | 'not_started' = intakeForm ? 'completed' : partialForm ? 'pending' : 'not_started'
+    const medicalHistoryStatus: 'completed' | 'not_started' = medicalHistoryForm ? 'completed' : 'not_started'
+    const serviceAgreementStatus: 'completed' | 'not_started' = serviceAgreement ? 'completed' : 'not_started'
+
     return {
       success: true,
       data: {
@@ -267,9 +272,9 @@ export const getPatientProfile = authActionClient
         medicalHistoryForm,
         serviceAgreement,
         formStatuses: {
-          intake: intakeForm ? 'completed' : partialForm ? 'pending' : 'not_started',
-          medicalHistory: medicalHistoryForm ? 'completed' : 'not_started',
-          serviceAgreement: serviceAgreement ? 'completed' : 'not_started',
+          intake: intakeStatus,
+          medicalHistory: medicalHistoryStatus,
+          serviceAgreement: serviceAgreementStatus,
         },
       },
     }

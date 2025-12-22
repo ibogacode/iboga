@@ -75,7 +75,7 @@ export default function PatientProfilePage() {
       if (result?.data?.success && result.data.data) {
         const data = result.data.data
         console.log('[PatientProfile] Profile data:', data)
-        setProfileData(data)
+        setProfileData(data as PatientProfileData)
         
         // Set form data for editing
         setFormData({
@@ -113,9 +113,15 @@ export default function PatientProfilePage() {
 
     setIsSaving(true)
     try {
+      // Ensure gender is one of the valid values
+      const validGender = formData.gender === 'male' || formData.gender === 'female' || formData.gender === 'other' 
+        ? formData.gender 
+        : undefined
+
       const result = await updatePatientDetails({
         patientId: profileData.patient.id,
         ...formData,
+        gender: validGender,
       })
 
       if (result?.data?.success) {
