@@ -132,7 +132,13 @@ export default function PatientTasksPage() {
         
         if (result?.data?.success && result.data.data) {
           setViewFormData(result.data.data)
-          setViewingForm(task.type)
+          // Map task types to viewingForm types
+          const formTypeMap: Record<string, 'intake' | 'medical' | 'service'> = {
+            'intake': 'intake',
+            'medical_history': 'medical',
+            'service_agreement': 'service',
+          }
+          setViewingForm(formTypeMap[task.type] || null)
         } else {
           toast.error(result?.data?.error || 'Failed to load form data')
         }
