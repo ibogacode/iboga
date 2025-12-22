@@ -1,0 +1,241 @@
+'use server'
+
+import { z } from 'zod'
+import { authActionClient } from '@/lib/safe-action'
+import { createAdminClient, createClient } from '@/lib/supabase/server'
+import { serviceAgreementSchema } from '@/lib/validations/service-agreement'
+
+/**
+ * Get patient data for service agreement pre-population
+ * Fetches profile and latest intake form
+ */
+export async function getPatientDataForServiceAgreement() {
+  const supabase = await createClient()
+  
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  
+  if (authError || !user) {
+    return { success: false, error: 'Unauthorized - Please log in' }
+  }
+  
+  // Get user profile
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single()
+  
+  if (profileError || !profile) {
+    return { success: false, error: 'Profile not found' }
+  }
+  
+  // Get latest intake form for this patient (by email match)
+  const { data: intakeForms, error: intakeError } = await supabase
+    .from('patient_intake_forms')
+    .select('*')
+    .eq('email', profile.email || user.email || '')
+    .order('created_at', { ascending: false })
+    .limit(1)
+  
+  const latestIntakeForm = intakeForms && intakeForms.length > 0 ? intakeForms[0] : null
+  
+  return {
+    success: true,
+    data: {
+      profile: {
+        id: profile.id,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        email: profile.email || user.email,
+        phone: profile.phone,
+      },
+      intakeForm: latestIntakeForm ? {
+        id: latestIntakeForm.id,
+        first_name: latestIntakeForm.first_name,
+        last_name: latestIntakeForm.last_name,
+        email: latestIntakeForm.email,
+        phone_number: latestIntakeForm.phone_number,
+      } : null,
+    }
+  }
+}
+
+export const submitServiceAgreement = authActionClient
+  .schema(serviceAgreementSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    // Allow patients to submit their own service agreements, or admins/owners to create any
+    const isPatient = ctx.user.role === 'patient'
+    const isAdminOrOwner = ctx.user.role === 'admin' || ctx.user.role === 'owner'
+    
+    if (!isPatient && !isAdminOrOwner) {
+      return { success: false, error: 'Only patients, admins, and owners can create service agreements' }
+    }
+    
+    // If patient is submitting, auto-link to their profile
+    let patientId = parsedInput.patient_id
+    if (isPatient && !patientId) {
+      patientId = ctx.user.id
+    }
+
+    const supabase = createAdminClient()
+    
+    // Parse numeric values
+    const totalProgramFee = parseFloat(parsedInput.total_program_fee.replace(/[^0-9.]/g, ''))
+    const depositAmount = parseFloat(parsedInput.deposit_amount.replace(/[^0-9.]/g, ''))
+    const depositPercentage = parseFloat(parsedInput.deposit_percentage.replace(/[^0-9.]/g, ''))
+    const remainingBalance = parseFloat(parsedInput.remaining_balance.replace(/[^0-9.]/g, ''))
+    
+    // Parse dates
+    const patientSignatureDate = new Date(parsedInput.patient_signature_date)
+    const providerSignatureDate = new Date(parsedInput.provider_signature_date)
+    
+    // Insert service agreement
+    const { data, error } = await supabase
+      .from('service_agreements')
+      .insert({
+        patient_id: patientId || parsedInput.patient_id || null,
+        intake_form_id: parsedInput.intake_form_id || null,
+        patient_first_name: parsedInput.patient_first_name,
+        patient_last_name: parsedInput.patient_last_name,
+        patient_email: parsedInput.patient_email,
+        patient_phone_number: parsedInput.patient_phone_number,
+        total_program_fee: totalProgramFee,
+        deposit_amount: depositAmount,
+        deposit_percentage: depositPercentage,
+        remaining_balance: remainingBalance,
+        payment_method: parsedInput.payment_method,
+        patient_signature_name: parsedInput.patient_signature_name,
+        patient_signature_first_name: parsedInput.patient_signature_first_name,
+        patient_signature_last_name: parsedInput.patient_signature_last_name,
+        patient_signature_date: patientSignatureDate.toISOString().split('T')[0],
+        patient_signature_data: parsedInput.patient_signature_data || null,
+        provider_signature_name: parsedInput.provider_signature_name,
+        provider_signature_first_name: parsedInput.provider_signature_first_name,
+        provider_signature_last_name: parsedInput.provider_signature_last_name,
+        provider_signature_date: providerSignatureDate.toISOString().split('T')[0],
+        provider_signature_data: parsedInput.provider_signature_data || null,
+        uploaded_file_url: parsedInput.uploaded_file_url || null,
+        uploaded_file_name: parsedInput.uploaded_file_name || null,
+        created_by: ctx.user.id,
+      })
+      .select()
+      .single()
+
+    if (error || !data) {
+      console.error('Error creating service agreement:', error)
+      return { success: false, error: error?.message || 'Failed to create service agreement' }
+    }
+
+    return { success: true, data: { id: data.id } }
+  })
+
+/**
+ * Upload service agreement document
+ */
+export async function uploadServiceAgreementDocument(formData: FormData) {
+  const adminClient = createAdminClient()
+  
+  const file = formData.get('file') as File | null
+  
+  if (!file) {
+    return { success: false, error: 'No file provided' }
+  }
+  
+  // Validate file size (10MB limit)
+  const maxSize = 10 * 1024 * 1024 // 10MB
+  if (file.size > maxSize) {
+    return { success: false, error: 'File size exceeds 10MB limit.' }
+  }
+  
+  // Validate file type
+  const validTypes = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  ]
+  
+  if (!validTypes.includes(file.type)) {
+    return { success: false, error: 'Invalid file type. Only PDF, images, and Word documents are allowed.' }
+  }
+  
+  // Generate unique filename
+  const fileExt = file.name.split('.').pop()
+  const timestamp = Date.now()
+  const randomId = Math.random().toString(36).substring(2, 15)
+  const fileName = `service-agreements/${timestamp}-${randomId}.${fileExt}`
+  
+  // Upload file
+  const { error: uploadError, data: uploadData } = await adminClient.storage
+    .from('service-agreement-documents')
+    .upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: false,
+    })
+  
+  if (uploadError) {
+    return { success: false, error: `Failed to upload file: ${uploadError.message}` }
+  }
+  
+  // Get signed URL (since bucket is private)
+  const { data: signedUrlData } = await adminClient.storage
+    .from('service-agreement-documents')
+    .createSignedUrl(fileName, 31536000) // 1 year expiry
+  
+  if (!signedUrlData) {
+    return { success: false, error: 'Failed to generate file URL' }
+  }
+  
+  return { 
+    success: true, 
+    data: { 
+      fileUrl: signedUrlData.signedUrl,
+      fileName: file.name,
+      storagePath: fileName
+    } 
+  }
+}
+
+// Get service agreement by ID for patient viewing
+export const getServiceAgreementForPatient = authActionClient
+  .schema(z.object({ formId: z.string().uuid() }))
+  .action(async ({ parsedInput, ctx }) => {
+    const supabase = await createClient()
+    
+    // Get user profile to check patient_id
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, email, role')
+      .eq('id', ctx.user.id)
+      .single()
+    
+    if (!profile) {
+      return { success: false, error: 'Profile not found' }
+    }
+    
+    // Fetch the service agreement
+    const { data, error } = await supabase
+      .from('service_agreements')
+      .select('*')
+      .eq('id', parsedInput.formId)
+      .single()
+    
+    if (error || !data) {
+      return { success: false, error: 'Service agreement not found' }
+    }
+    
+    // Verify the form belongs to the patient (check by patient_id or email)
+    if (profile.role !== 'admin' && profile.role !== 'owner') {
+      const patientEmail = (profile.email || '').trim().toLowerCase()
+      const formEmail = (data.patient_email || '').trim().toLowerCase()
+      
+      if (data.patient_id !== profile.id && patientEmail !== formEmail) {
+        return { success: false, error: 'Unauthorized - You can only view your own forms' }
+      }
+    }
+    
+    return { success: true, data }
+  })

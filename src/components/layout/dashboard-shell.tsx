@@ -34,10 +34,11 @@ interface DashboardShellProps {
 }
 
 export function DashboardShell({ children, user, profile, userRole }: DashboardShellProps) {
+  // All roles use the same layout: navbar + sidebar + content
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       {/* Navbar - Full width at top */}
-      <Navbar user={user} profile={profile} />
+      <Navbar user={user} profile={profile} role={userRole} />
       
       {/* Sidebar and Content - Below navbar */}
       <div className="flex flex-1 overflow-hidden pt-[52px] md:pt-[68px] min-h-0">

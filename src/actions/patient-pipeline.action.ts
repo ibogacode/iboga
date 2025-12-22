@@ -1,7 +1,7 @@
 'use server'
 
 import { authActionClient } from '@/lib/safe-action'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { hasOwnerAccess } from '@/lib/utils'
 import { z } from 'zod'
 
@@ -56,14 +56,125 @@ export const getPartialIntakeForms = authActionClient
       creators = profilesData || []
     }
     
-    // Map creators to partial forms
-    const data = (partialForms || []).map((form: any) => {
+    // Map creators to partial forms and add form completion counts
+    const adminClient = createAdminClient()
+    const data = await Promise.all((partialForms || []).map(async (form: any) => {
       const creator = creators.find((c: any) => c.id === form.created_by)
+      
+      // Get form completion counts for this patient
+      const patientEmail = form.email?.toLowerCase().trim()
+      let completedCount = 0
+      let totalForms = 3 // Intake, Medical History, Service Agreement
+      
+      if (form.completed_form_id) {
+        // Intake form is completed
+        completedCount++
+        
+        // Check for medical history form
+        const { data: medicalData } = await adminClient
+          .from('medical_history_forms')
+          .select('id')
+          .eq('intake_form_id', form.completed_form_id)
+          .limit(1)
+        
+        if (medicalData && medicalData.length > 0) {
+          completedCount++
+        }
+        
+      // Check for service agreement (by intake_form_id or patient_email)
+      let serviceData = null
+      if (patientEmail) {
+        const { data: serviceByEmail } = await adminClient
+          .from('service_agreements')
+          .select('id')
+          .ilike('patient_email', patientEmail)
+          .limit(1)
+        
+        if (serviceByEmail && serviceByEmail.length > 0) {
+          serviceData = serviceByEmail
+        }
+      }
+      
+      if (!serviceData) {
+        const { data: serviceByIntake } = await adminClient
+          .from('service_agreements')
+          .select('id')
+          .eq('intake_form_id', form.completed_form_id)
+          .limit(1)
+        
+        if (serviceByIntake && serviceByIntake.length > 0) {
+          serviceData = serviceByIntake
+        }
+      }
+      
+      if (serviceData && serviceData.length > 0) {
+        completedCount++
+      }
+      } else if (patientEmail) {
+        // Intake form not completed yet, but check if patient has any forms
+        // Check for intake form by email
+        const { data: intakeData } = await adminClient
+          .from('patient_intake_forms')
+          .select('id')
+          .ilike('email', patientEmail)
+          .limit(1)
+        
+        if (intakeData && intakeData.length > 0) {
+          completedCount++
+          const intakeFormId = intakeData[0].id
+          
+          // Check for medical history
+          const { data: medicalData } = await adminClient
+            .from('medical_history_forms')
+            .select('id')
+            .eq('intake_form_id', intakeFormId)
+            .limit(1)
+          
+          if (medicalData && medicalData.length > 0) {
+            completedCount++
+          }
+          
+          // Check for service agreement (by intake_form_id or patient_email)
+          let serviceData = null
+          if (patientEmail) {
+            const { data: serviceByEmail } = await adminClient
+              .from('service_agreements')
+              .select('id')
+              .ilike('patient_email', patientEmail)
+              .limit(1)
+            
+            if (serviceByEmail && serviceByEmail.length > 0) {
+              serviceData = serviceByEmail
+            }
+          }
+          
+          if (!serviceData) {
+            const { data: serviceByIntake } = await adminClient
+              .from('service_agreements')
+              .select('id')
+              .eq('intake_form_id', intakeFormId)
+              .limit(1)
+            
+            if (serviceByIntake && serviceByIntake.length > 0) {
+              serviceData = serviceByIntake
+            }
+          }
+          
+          if (serviceData && serviceData.length > 0) {
+            completedCount++
+          }
+        }
+      }
+      
       return {
         ...form,
-        creator: creator || null
+        creator: creator || null,
+        formCompletion: {
+          completed: completedCount,
+          total: totalForms
+        }
       }
-    })
+    }))
     
     return { 
       success: true, 
@@ -120,8 +231,70 @@ export const getPublicIntakeForms = authActionClient
       (form: any) => !completedFormIds.has(form.id)
     )
     
+    // Add form completion counts for each public form
+    const adminClient = createAdminClient()
+    const dataWithCounts = await Promise.all(directApplications.map(async (form: any) => {
+      const patientEmail = form.email?.toLowerCase().trim()
+      let completedCount = 0
+      let totalForms = 3 // Intake, Medical History, Service Agreement
+      
+      // Intake form is completed (since this is a public intake form)
+      completedCount++
+      const intakeFormId = form.id
+      
+      // Check for medical history form
+      const { data: medicalData } = await adminClient
+        .from('medical_history_forms')
+        .select('id')
+        .eq('intake_form_id', intakeFormId)
+        .limit(1)
+      
+      if (medicalData && medicalData.length > 0) {
+        completedCount++
+      }
+      
+      // Check for service agreement (by intake_form_id or patient_email)
+      const patientEmailForService = form.email?.toLowerCase().trim()
+      let serviceData = null
+      if (patientEmailForService) {
+        const { data: serviceByEmail } = await adminClient
+          .from('service_agreements')
+          .select('id')
+          .ilike('patient_email', patientEmailForService)
+          .limit(1)
+        
+        if (serviceByEmail && serviceByEmail.length > 0) {
+          serviceData = serviceByEmail
+        }
+      }
+      
+      if (!serviceData) {
+        const { data: serviceByIntake } = await adminClient
+          .from('service_agreements')
+          .select('id')
+          .eq('intake_form_id', intakeFormId)
+          .limit(1)
+        
+        if (serviceByIntake && serviceByIntake.length > 0) {
+          serviceData = serviceByIntake
+        }
+      }
+      
+      if (serviceData && serviceData.length > 0) {
+        completedCount++
+      }
+      
+      return {
+        ...form,
+        formCompletion: {
+          completed: completedCount,
+          total: totalForms
+        }
+      }
+    }))
+    
     return { 
       success: true, 
-      data: directApplications
+      data: dataWithCounts
     }
   })

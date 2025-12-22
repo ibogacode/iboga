@@ -23,7 +23,7 @@ Comply with legal and medical obligations.
 3. Confidentiality of Medical Records
 All medical and personal information is strictly confidential.
 
-Records are stored securely, accessible only to authorized Iboga Wellness Centers staff.
+Records are stored securely, accessible only to authorized Iboga Wellness Institute staff.
 Information will never be shared with third parties without your consent, unless required by law or in cases of medical emergency.
 
 4. Data Security
@@ -58,7 +58,7 @@ Non-medical information may be securely deleted upon request after your treatmen
 
 9. Contact Information
 For questions about this Privacy Policy or to exercise your rights, please contact:
-Iboga Wellness Centers
+Iboga Wellness Institute
 
 Email: james@theibogainstitute.org
 Phone: +1 (800) 604-7294
@@ -71,7 +71,7 @@ We may update this Privacy Policy periodically to reflect best practices or chan
 export const IBOGAINE_THERAPY_CONSENT_SECTIONS = [
   {
     heading: 'Consent for Treatment',
-    text: `I, hereby referred to as "the Patient", voluntarily consent to participate in the Ibogaine therapy monitored by Iboga Wellness Centers. I understand that this therapy involves Ibogaine, a psychoactive substance derived from the Tabernanthe iboga plant, used in the treatment of substance dependency, PTSD, depression, anxiety, and for personal growth.`,
+    text: `I, hereby referred to as "the Patient", voluntarily consent to participate in the Ibogaine therapy monitored by Iboga Wellness Institute. I understand that this therapy involves Ibogaine, a psychoactive substance derived from the Tabernanthe iboga plant, used in the treatment of substance dependency, PTSD, depression, anxiety, and for personal growth.`,
     field: 'consent_for_treatment'
   },
   {
@@ -81,7 +81,7 @@ export const IBOGAINE_THERAPY_CONSENT_SECTIONS = [
   },
   {
     heading: 'Pre-Screening and Health Assessment',
-    text: `I confirm that I have undergone a comprehensive pre-screening and health assessment, including an EKG, blood work, and liver panel, conducted by Iboga Wellness Centers' onsite medical doctor. I have disclosed all relevant medical history, current medications, and substance use to ensure my suitability for Ibogaine therapy.`,
+    text: `I confirm that I have undergone a comprehensive pre-screening and health assessment, including an EKG, blood work, and liver panel, conducted by Iboga Wellness Institute's onsite medical doctor. I have disclosed all relevant medical history, current medications, and substance use to ensure my suitability for Ibogaine therapy.`,
     field: 'pre_screening_health_assessment'
   },
   {
@@ -91,31 +91,31 @@ export const IBOGAINE_THERAPY_CONSENT_SECTIONS = [
   },
   {
     heading: 'Confidentiality',
-    text: `I understand that my privacy will be respected, and all personal and medical information will be handled in accordance with Iboga Wellness Centers' privacy policy and applicable laws regarding patient confidentiality.`,
+    text: `I understand that my privacy will be respected, and all personal and medical information will be handled in accordance with Iboga Wellness Institute's privacy policy and applicable laws regarding patient confidentiality.`,
     field: 'confidentiality'
   },
   {
     heading: 'Liability Release',
-    text: `I, the undersigned, formally absolve Iboga Wellness Centers, along with its employees and associated entities, from any claims, liabilities, or damages that may result from my engagement in the Ibogaine therapy program. I acknowledge that Iboga Wellness Centers assumes a supplementary role, offering professional and medical support in the event of an emergency.`,
+    text: `I, the undersigned, formally absolve Iboga Wellness Institute, along with its employees and associated entities, from any claims, liabilities, or damages that may result from my engagement in the Ibogaine therapy program. I acknowledge that Iboga Wellness Institute assumes a supplementary role, offering professional and medical support in the event of an emergency.`,
     field: 'liability_release'
   },
   {
-    heading: 'Payment Collection by Iboga Wellness Centers LLC',
-    text: `Iboga Wellness Centers LLC oversees payment collection. We handle fees for all aspects of your stay, including medical supervision, program costs, food, accommodations, and any non-medical expenses related to your visit.`,
+    heading: 'Payment Collection by Iboga Wellness Institute LLC',
+    text: `Iboga Wellness Institute LLC oversees payment collection. We handle fees for all aspects of your stay, including medical supervision, program costs, food, accommodations, and any non-medical expenses related to your visit.`,
     field: 'payment_collection_1'
   },
   {
-    heading: 'Payment Collection by Iboga Wellness Centers LLC',
-    text: `I have read this consent form (or have had it read to me) in its entirety. I have had the opportunity to ask questions, and all my questions have been answered to my satisfaction. I hereby acknowledge my understanding that during the Ibogaine therapy process, Iboga Wellness Centers' role is exclusively to monitor participants to ensure their safety. I agree to adhere to all terms and conditions specified in this consent form.`,
+    heading: 'Payment Collection by Iboga Wellness Institute LLC',
+    text: `I have read this consent form (or have had it read to me) in its entirety. I have had the opportunity to ask questions, and all my questions have been answered to my satisfaction. I hereby acknowledge my understanding that during the Ibogaine therapy process, Iboga Wellness Institute's role is exclusively to monitor participants to ensure their safety. I agree to adhere to all terms and conditions specified in this consent form.`,
     field: 'payment_collection_2'
   }
 ]
 
 // Service Agreement text
-export const SERVICE_AGREEMENT_TEXT = `Between: Iboga Wellness Centers, LLC("Provider") and ("Patient")
+export const SERVICE_AGREEMENT_TEXT = `Between: Iboga Wellness Institute, LLC("Provider") and ("Patient")
 
 1. Purpose of Agreement
-This Agreement sets forth the terms and conditions under which Iboga Wellness Centers, LLC will provide wellness and therapeutic services to the Patient. The services are focused on supporting patients' health and well-being while addressing symptoms associated with Parkinson's disease.
+This Agreement sets forth the terms and conditions under which Iboga Wellness Institute, LLC will provide wellness and therapeutic services to the Patient. The services are focused on supporting patients' health and well-being while addressing symptoms associated with Parkinson's disease.
 
 2a. Pre-Treatment Services Provided
 Provider agrees to deliver the following services prior to the Patient's arrival for Onsite Treatment Services:
@@ -167,10 +167,10 @@ Cancellations made less than 7 days before your scheduled treatment may result i
 Postponements can be arranged at our discretion and based on availability.
 
 5b. Disclaimer Of Liability
-I release Iboga Wellness Centers, its medical team, therapists, administrative, and operational staff from all medical, legal, and administrative responsibility for any consequences arising from my decision not to undergo the recommended treatment.
+I release Iboga Wellness Institute, its medical team, therapists, administrative, and operational staff from all medical, legal, and administrative responsibility for any consequences arising from my decision not to undergo the recommended treatment.
 I understand that my decision to refuse services today will not result in a refund, as long as reschedule to commence services with 90 days.
 I declare that my decision has been made without coercion, external pressure, or undue influence and that I have fully understood the explanations provided.
-I agree not to take legal action against Iboga Wellness Centers, its medical staff, therapists, or administrative team in relation to my decision not to accept the proposed treatment.
+I agree not to take legal action against Iboga Wellness Institute, its medical staff, therapists, or administrative team in relation to my decision not to accept the proposed treatment.
 
 6. Risks and Limitations
 Patient understands and accepts that:
@@ -183,10 +183,10 @@ Emergency medical care may be required in rare cases, and the patient consents t
 7. Patient Responsibilities
 Patient agrees to:
 
-1 -  Provide full and accurate medical history.
-2 - Follow all instructions before, during, and after treatment.
-3 - Refrain from alcohol, recreational drugs, and any medications contraindicated with ibogaine, as directed by the Provider.
-4 - Immediately report any concerning symptoms to the Provider.
+Provide full and accurate medical history.
+Follow all instructions before, during, and after treatment.
+Refrain from alcohol, recreational drugs, and any medications contraindicated with ibogaine, as directed by the Provider.
+Immediately report any concerning symptoms to the Provider.
 
 
 8. Confidentiality
@@ -199,7 +199,7 @@ I voluntarily choose to receive treatment at Iboga Wellness Center in Cozumel Me
 I understand the treatment involves ibogaine microdosing following Dr. Omar Calderón's protocol.
 I have been informed of potential risks, benefits, and alternatives.
 I understand this treatment is alternative and experimental and not guaranteed to improve my condition.
-I release Iboga Wellness Centers, LLC, its staff, contractors, and affiliates from liability for outcomes reasonably associated with treatment, except in cases of gross negligence or willful misconduct.
+I release Iboga Wellness Institute, LLC, its staff, contractors, and affiliates from liability for outcomes reasonably associated with treatment, except in cases of gross negligence or willful misconduct.
 
 10. Governing Law
 This Agreement shall be governed by and construed in accordance with the laws of Mexico.
@@ -215,10 +215,10 @@ I, the undersigned, acknowledge and agree to the following:
 
 Voluntary Participation:
 
-I understand that my participation in Iboga Wellness Centers is entirely voluntary and that I can withdraw at any time.
+I understand that my participation in Iboga Wellness Institute is entirely voluntary and that I can withdraw at any time.
 Medical Conditions:
 
-I have disclosed all known medical conditions, including physical and mental health issues, to the Iboga Wellness Centers staff.
+I have disclosed all known medical conditions, including physical and mental health issues, to the Iboga Wellness Institute staff.
 I understand that ibogaine and psilocybin treatments can have significant physiological and psychological effects and may interact with other medications.
 Risks:
 
@@ -226,17 +226,17 @@ I am aware of the potential risks associated with ibogaine and psilocybin therap
 I acknowledge that these treatments should be conducted under medical supervision and in a controlled environment.
 Medical Supervision:
 
-I agree to follow all guidelines and instructions provided by the medical and support staff at Iboga Wellness Centers.
+I agree to follow all guidelines and instructions provided by the medical and support staff at Iboga Wellness Institute.
 I consent to any necessary medical intervention should an emergency arise during my participation in the retreat.
 Confidentiality:
 
 I understand that my personal information and any data collected during the retreat will be kept confidential and used only for the purposes of providing care and treatment.
 Waiver of Liability:
 
-I release Iboga Wellness Centers, its owners, staff, and affiliates from any liability, claims, or demands that may arise from my participation in the retreat, including but not limited to personal injury, psychological trauma, or death.
+I release Iboga Wellness Institute, its owners, staff, and affiliates from any liability, claims, or demands that may arise from my participation in the retreat, including but not limited to personal injury, psychological trauma, or death.
 Compliance:
 
-I agree to adhere to the rules and guidelines set forth by Iboga Wellness Centers to ensure a safe and conducive environment for all participants.`
+I agree to adhere to the rules and guidelines set forth by Iboga Wellness Institute to ensure a safe and conducive environment for all participants.`
 
 // Component to format Privacy Policy with styled headings
 export function PrivacyPolicyContent({ text }: { text: string }) {
