@@ -286,32 +286,26 @@ export async function sendPatientPasswordSetupEmail(
 ) {
   console.log('[sendPatientPasswordSetupEmail] Called with:', { patientEmail, firstName, lastName, isFiller, fillerEmail })
   
-  const { createAdminClient } = await import('@/lib/supabase/server')
-  const adminClient = createAdminClient()
+  const { createClient } = await import('@/lib/supabase/server')
+  const supabase = await createClient()
 
   // Get base URL for redirect
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
     (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
   const redirectTo = `${baseUrl}/reset-password`
 
-  // Use admin generateLink API instead of resetPasswordForEmail
-  // This gives us the link directly so we can include it in our own email
-  // This prevents email bots from consuming the one-time token before the user
-  const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
-    type: 'recovery',
-    email: patientEmail,
-    options: {
-      redirectTo,
-    }
+  // Use resetPasswordForEmail - same flow as forgot password
+  // This ensures PKCE flow is used properly and links work consistently
+  console.log('[sendPatientPasswordSetupEmail] Triggering password reset email via Supabase...')
+  const { error: resetError } = await supabase.auth.resetPasswordForEmail(patientEmail, {
+    redirectTo,
   })
 
-  if (linkError || !linkData?.properties?.action_link) {
-    console.error('[sendPatientPasswordSetupEmail] Failed to generate password reset link:', linkError)
-    // Still continue to send welcome email without the reset link
+  if (resetError) {
+    console.error('[sendPatientPasswordSetupEmail] Failed to trigger password reset email:', resetError)
+  } else {
+    console.log('[sendPatientPasswordSetupEmail] Password reset email triggered successfully via Supabase')
   }
-  
-  const resetLink = linkData?.properties?.action_link || null
-  console.log('[sendPatientPasswordSetupEmail] Reset link generated:', resetLink ? 'YES' : 'NO')
   
   // If this is for a filler, also send notification email to filler with the reset link
   if (isFiller && fillerEmail) {
@@ -421,20 +415,9 @@ export async function sendPatientPasswordSetupEmail(
               <p><strong>Account Email:</strong> ${patientEmail}</p>
             </div>
             
-            ${resetLink ? `
-              <p><strong>Important:</strong> Please share the following password setup link with ${firstName} so they can access their patient portal:</p>
-              <div class="cta-container">
-                <a href="${resetLink}" class="cta-button">Set Up Password for ${firstName}</a>
-              </div>
-              <p class="link-fallback">Or share this link: ${resetLink}</p>
-              <div class="security-note">
-                <strong>🔒 Note:</strong> This link will expire in 1 hour. If it expires, ${firstName} can use the "Forgot Password" feature on the login page.
-              </div>
-            ` : `
-              <div class="security-note">
-                <strong>⚠️ Note:</strong> ${firstName} will need to use the "Forgot Password" feature on the login page to set up their password.
-              </div>
-            `}
+            <div class="security-note">
+              <strong>📧 Password Setup:</strong> ${firstName} will receive a separate email with a link to set up their password. If they don't receive it within a few minutes, they can use the "Forgot Password" feature on the login page at <a href="${baseUrl}/login">${baseUrl}/login</a>.
+            </div>
             
             <p>If you have any questions, please contact us:</p>
             <p>
@@ -563,21 +546,14 @@ export async function sendPatientPasswordSetupEmail(
         <div class="content">
           <h2>Welcome to Your Patient Portal, ${firstName}!</h2>
           <p>We have created your patient portal account based on your intake form submission.</p>
-          <p>To get started, please click the button below to set up your password:</p>
           
-          ${resetLink ? `
-            <div class="cta-container">
-              <a href="${resetLink}" class="cta-button">Set Up Your Password</a>
-            </div>
-            <p class="link-fallback">If the button doesn't work, copy and paste this link into your browser:<br>${resetLink}</p>
-          ` : `
-            <div class="security-note">
-              <strong>⚠️ Note:</strong> There was an issue generating your password setup link. Please use the "Forgot Password" feature on the login page to set up your password.
-            </div>
-          `}
+          <div class="info-box">
+            <p><strong>📧 Next Step - Set Up Your Password:</strong></p>
+            <p>You will receive a separate email shortly with a link to set up your password. Please check your inbox (and spam folder) for an email with the subject "Reset Your Password".</p>
+          </div>
           
           <div class="security-note">
-            <strong>🔒 Security Note:</strong> This link will expire in 1 hour for your security. If it expires, you can request a new one using the "Forgot Password" link on the login page.
+            <strong>🔒 Didn't receive the password email?</strong> If you don't receive it within a few minutes, you can request a new one using the "Forgot Password" link on the login page at <a href="${baseUrl}/login">${baseUrl}/login</a>.
           </div>
 
           <p>If you have any questions or need assistance, please contact us:</p>
@@ -600,7 +576,7 @@ export async function sendPatientPasswordSetupEmail(
   console.log('[sendPatientPasswordSetupEmail] Sending patient welcome email to:', patientEmail)
   const result = await sendEmailDirect({
     to: patientEmail,
-    subject: 'Welcome to Your Patient Portal - Set Up Your Password | Iboga Wellness Institute',
+    subject: 'Welcome to Your Patient Portal | Iboga Wellness Institute',
     body: htmlBody,
   })
   
