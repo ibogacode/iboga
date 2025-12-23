@@ -370,9 +370,18 @@ export async function sendPatientLoginCredentialsEmail(
               <p><strong>Account Information:</strong></p>
               <p><strong>Patient Name:</strong> ${firstName} ${lastName}</p>
               <p><strong>Account Email:</strong> ${patientEmail}</p>
+              <p><strong>Temporary Password:</strong> ${password}</p>
             </div>
             
-            <p>${firstName} will receive a separate email with their login credentials. They will be required to change their password on first login for security.</p>
+            <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; font-size: 14px; color: #856404;">
+              <strong>🔒 Security Note:</strong> We've included the login credentials here in case you need to help ${firstName} access their account. Please share these credentials securely with them. ${firstName} will be required to change their password on first login for security.
+            </div>
+            
+            <p>${firstName} will also receive a separate email with their login credentials. They will be required to change their password on first login for security.</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${loginUrl}" style="display: inline-block; background: #5D7A5F; color: white !important; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600;">Login to Patient Portal</a>
+            </div>
             
             <p>If you have any questions, please contact us:</p>
             <p>
