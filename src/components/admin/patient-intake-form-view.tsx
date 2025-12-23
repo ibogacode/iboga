@@ -3,10 +3,7 @@
 import { format } from 'date-fns'
 import { 
   PRIVACY_POLICY_TEXT, 
-  IBOGAINE_THERAPY_CONSENT_SECTIONS,
-  RELEASE_CONSENT_TEXT,
   PrivacyPolicyContent,
-  ReleaseConsentContent
 } from '@/components/forms/form-content'
 
 interface PatientIntakeForm {
@@ -35,17 +32,6 @@ interface PatientIntakeForm {
   emergency_contact_address: string | null
   emergency_contact_relationship: string | null
   privacy_policy_accepted: boolean
-  consent_for_treatment: boolean
-  risks_and_benefits: boolean
-  pre_screening_health_assessment: boolean
-  voluntary_participation: boolean
-  confidentiality: boolean
-  liability_release: boolean
-  payment_collection_1: boolean
-  payment_collection_2: boolean
-  ibogaine_therapy_consent_accepted: boolean
-  release_consent_accepted: boolean
-  final_acknowledgment_accepted: boolean
   created_at: string
   updated_at: string
 }
@@ -286,79 +272,6 @@ export function PatientIntakeFormView({ form }: PatientIntakeFormViewProps) {
                 I confirm that I have read and agree to the Iboga Wellness Institute Privacy Policy, and consent to the collection and use of my information as described.
               </label>
             </div>
-          </div>
-        </div>
-
-        {/* Step 4: Ibogaine Therapy Consent */}
-        <div className="space-y-6 mb-8 print:mb-6 print:break-inside-avoid">
-          <h2 className="text-2xl font-semibold text-gray-900">Ibogaine Therapy Consent</h2>
-          
-          <div className="space-y-6">
-            {IBOGAINE_THERAPY_CONSENT_SECTIONS.map((section, index) => {
-              const fieldValue = form[section.field as keyof PatientIntakeForm] as boolean
-              return (
-                <div key={section.field} className="bg-gray-50 p-6 rounded-lg space-y-3 print:p-4">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {section.heading}
-                  </h3>
-                  <p className="text-base text-gray-700 leading-relaxed">
-                    {section.text}
-                  </p>
-                  <div className="flex items-start space-x-3 pt-2">
-                    <span className={fieldValue ? 'text-green-600 text-xl' : 'text-red-600 text-xl'}>
-                      {fieldValue ? '✓' : '✗'}
-                    </span>
-                    <label className="text-base font-medium text-gray-900">
-                      I acknowledge and accept
-                    </label>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Step 5: Release Consent */}
-        <div className="space-y-6 mb-8 print:mb-6 print:break-inside-avoid">
-          <h2 className="text-2xl font-semibold text-gray-900">Iboga Wellness Institute Release Consent</h2>
-          
-          <div className="bg-gray-50 p-8 rounded-lg print:p-4">
-            <div className="prose prose-sm max-w-none">
-              <ReleaseConsentContent text={RELEASE_CONSENT_TEXT} />
-            </div>
-          </div>
-
-          <div className="space-y-3 pt-4">
-            <label className="text-base font-semibold text-gray-900">
-              Consent to Treatment Acceptance
-            </label>
-            <div className="flex items-start space-x-3">
-              <span className={form.release_consent_accepted ? 'text-green-600 text-xl' : 'text-red-600 text-xl'}>
-                {form.release_consent_accepted ? '✓' : '✗'}
-              </span>
-              <label className="text-base text-gray-700 leading-relaxed">
-                I have read and understood the above information. I acknowledge that I have had the opportunity to ask questions and that my questions have been answered to my satisfaction. I voluntarily agree to participate in Iboga Wellness Institute and consent to the administration of ibogaine and/or psilocybin therapies as outlined.
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Step 6: Patient Acknowledgment */}
-        <div className="space-y-6 mb-8 print:mb-6 print:break-inside-avoid">
-          <h2 className="text-2xl font-semibold text-gray-900">Patient Acknowledgment</h2>
-          
-          <div className="space-y-4">
-            <div className="flex items-start space-x-3">
-              <span className={form.final_acknowledgment_accepted ? 'text-green-600 text-xl' : 'text-red-600 text-xl'}>
-                {form.final_acknowledgment_accepted ? '✓' : '✗'}
-              </span>
-              <label className="text-base font-medium">
-                Final Acknowledgment & Acceptance
-              </label>
-            </div>
-            <p className="text-sm text-gray-600 ml-7">
-              I confirm that all the information I have provided in this form is true and complete to the best of my knowledge, and that I have read, understood, and accepted all sections, including the Privacy Policy, Ibogaine Therapy Consent, and Release Consent of Iboga Wellness Institute.
-            </p>
           </div>
         </div>
 

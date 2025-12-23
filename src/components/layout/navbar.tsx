@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname } from 'next/navigation'
 import { Search, Bell, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,11 +19,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { SignOutButton } from '@/components/auth/sign-out-button'
-import { cn } from '@/lib/utils'
 import { User } from '@/types'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { UserRole } from '@/types'
-import { navigationByRole } from '@/config/navigation'
+import { Sidebar } from './sidebar'
 
 function getInitials(name?: string | null, firstName?: string | null, lastName?: string | null): string {
   if (name) {
@@ -57,15 +55,6 @@ interface NavbarProps {
 }
 
 export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
-  const pathname = usePathname()
-  
-  // Get navigation items based on role
-  const navConfig = navigationByRole[role] || navigationByRole.patient
-  const navItems = navConfig.mainNav.map(item => ({
-    label: item.title,
-    href: item.href,
-  }))
-  
   // Get user name - prioritize generated name column, then construct from first/last, then fallback
   const userName = profile?.name || 
     (profile?.first_name && profile?.last_name 
@@ -83,8 +72,8 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
     (userEmail ? userEmail[0]?.toUpperCase() : 'U')
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 w-full bg-[#F5F4F0]">
-      {/* Layer 1: Main Container */}
+    <header className="fixed top-0 left-0 right-0 z-50 w-full bg-[#F5F4F0] border-b border-gray-200/50">
+      {/* Main Container */}
       <div className="flex items-center justify-between gap-2 md:gap-6 px-2 md:px-4 lg:px-6 xl:px-8 py-1">
         {/* Mobile Menu Button */}
         <Sheet>
@@ -98,64 +87,16 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
               <span className="sr-only">Toggle menu</span>
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[280px] sm:w-[320px]">
-            <nav className="flex flex-col gap-4 mt-8">
-              {navItems.map((item) => {
-                let isActive = false
-                // For home/dashboard routes, check multiple possible paths
-                if (item.href === '/dashboard' || item.href === '/patient' || item.href === '/owner' || 
-                    item.href === '/doctor' || item.href === '/manager' || item.href === '/psych' || 
-                    item.href === '/nurse' || item.href === '/driver') {
-                  // Home is active ONLY on exact match (not on sub-pages)
-                  if (item.href === '/patient') {
-                    isActive = pathname === '/patient'
-                  } else if (item.href === '/owner') {
-                    // Dashboard for admin/owner - active on /owner or /dashboard
-                    isActive = pathname === '/owner' || pathname === '/dashboard'
-                  } else if (item.href === '/dashboard') {
-                  isActive = pathname === '/dashboard' || 
-                            pathname === '/owner' || 
-                            pathname === '/doctor' || 
-                            pathname === '/manager' || 
-                            pathname === '/psych' || 
-                            pathname === '/nurse' || 
-                            pathname === '/driver' || 
-                            pathname.startsWith('/dashboard/')
-                  } else {
-                    isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-                  }
-                } else {
-                  isActive = pathname === item.href || 
-                            (item.href !== '/' && pathname.startsWith(item.href + '/'))
-                }
-                
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'px-4 py-3 rounded-[26px] text-base font-normal transition-colors',
-                      isActive
-                        ? 'text-white'
-                        : 'text-black hover:bg-gray-50'
-                    )}
-                    style={isActive ? {
-                      background: 'linear-gradient(180deg, #565656 0%, #1C1C1C 61%), linear-gradient(180deg, #5F5F5F 0%, #262315 100%)'
-                    } : undefined}
-                  >
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </nav>
+          <SheetContent side="left" className="w-[280px] p-0">
+            <Sidebar role={role} user={user} profile={profile} isMobile />
           </SheetContent>
         </Sheet>
 
-        {/* Layer 2: Logo */}
+        {/* Logo */}
         <div className="flex items-center py-1 shrink-0">
           <Link 
             href="/" 
-            className="flex items-center justify-center gap-2.5 px-3 md:px-[19px] py-2 h-[44px] md:h-[52px] rounded-[36px] bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]"
+            className="flex items-center justify-center gap-2.5 px-3 md:px-4 py-2 h-[44px] md:h-[52px]"
           >
             <Image
               src="/logo.png"
@@ -168,70 +109,12 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
           </Link>
         </div>
 
-        {/* Layer 3: Navigation Items - Responsive */}
-        <nav className="hidden md:flex items-center justify-center gap-2 lg:gap-[27px] flex-1 px-2 md:px-4 py-1 min-w-0 overflow-hidden">
-          {/* Layer 4: Navigation Items Container */}
-          <div className="flex items-center justify-center gap-2 md:gap-4 lg:gap-[27px] pl-2 md:pl-3 pr-2 md:pr-3 h-[44px] md:h-[51px] rounded-[36px] bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] overflow-x-auto overflow-y-hidden scrollbar-hide">
-              {navItems.map((item, index) => {
-              // Check if current path matches the nav item
-              // For Home, also check if on dashboard or role-specific routes
-              let isActive = false
-              // For home/dashboard routes, check multiple possible paths
-              if (item.href === '/dashboard' || item.href === '/patient' || item.href === '/owner' || 
-                  item.href === '/doctor' || item.href === '/manager' || item.href === '/psych' || 
-                  item.href === '/nurse' || item.href === '/driver') {
-                // Home is active ONLY on exact match (not on sub-pages)
-                if (item.href === '/patient') {
-                  isActive = pathname === '/patient'
-                } else if (item.href === '/owner') {
-                  // Dashboard for admin/owner - active on /owner or /dashboard
-                  isActive = pathname === '/owner' || pathname === '/dashboard'
-                } else if (item.href === '/dashboard') {
-                isActive = pathname === '/dashboard' || 
-                          pathname === '/owner' || 
-                          pathname === '/doctor' || 
-                          pathname === '/manager' || 
-                          pathname === '/psych' || 
-                          pathname === '/nurse' || 
-                          pathname === '/driver' || 
-                          pathname.startsWith('/dashboard/')
-                } else {
-                  isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-                }
-              } else {
-                // For other items, exact match or starts with the href
-                isActive = pathname === item.href || 
-                          (item.href !== '/' && pathname.startsWith(item.href + '/'))
-              }
-              const isFirst = index === 0
-              const isLast = index === navItems.length - 1
-              
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center justify-center gap-2.5 py-0 text-xs md:text-sm lg:text-base font-normal leading-[1.193em] tracking-[-0.04em] transition-colors whitespace-nowrap shrink-0',
-                    isActive
-                      ? 'px-2 md:px-3 lg:px-4 h-[36px] md:h-[41px] rounded-[26px] text-white'
-                      : 'px-0 text-black hover:text-[#2D3A1F]',
-                    isFirst && 'ml-1 md:ml-2',
-                    isLast && 'mr-1 md:mr-2'
-                  )}
-                  style={isActive ? {
-                    background: 'linear-gradient(180deg, #565656 0%, #1C1C1C 61%), linear-gradient(180deg, #5F5F5F 0%, #262315 100%)'
-                  } : undefined}
-                >
-                  {item.label}
-                </Link>
-              )
-            })}
-          </div>
-        </nav>
+        {/* Spacer to push right content to the end */}
+        <div className="flex-1" />
 
-        {/* Layer 5: Right side: Search + Bell (in one box) + Avatar */}
+        {/* Right side: Search + Bell + Avatar */}
         <div className="flex items-center gap-2 md:gap-[21px] py-1 shrink-0">
-          {/* Layer 6: Search and Bell in one container - hidden on small mobile */}
+          {/* Search and Bell in one container */}
           <div className="hidden sm:flex items-center gap-2 px-2 md:px-3 h-[44px] md:h-[51px] rounded-[36px] bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
             <Button
               variant="ghost"
@@ -251,7 +134,7 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
             </Button>
           </div>
 
-          {/* Layer 7: User Avatar */}
+          {/* User Avatar */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

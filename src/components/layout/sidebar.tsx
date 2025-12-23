@@ -1,190 +1,282 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { useSidebarContext } from '@/hooks/use-sidebar.hook'
 import { UserRole } from '@/types'
-import { 
-  Sun, 
-  Moon,
-  FilePlus,
-  Lock,
-  FileText,
-  Archive,
-  BarChart3,
-  HelpCircle,
-  ArrowLeft,
-  LucideIcon
-} from 'lucide-react'
+import { navigationByRole } from '@/config/navigation'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { User } from '@/types'
+import { User as SupabaseUser } from '@supabase/supabase-js'
+import { ChevronRight, User as UserIcon, MessageSquare } from 'lucide-react'
 
 interface SidebarProps {
   role?: UserRole
+  user?: SupabaseUser | null
+  profile?: User | null
+  isMobile?: boolean
 }
 
-// Gradient style for active state (same as navbar)
-const activeGradient = 'linear-gradient(180deg, #565656 0%, #1C1C1C 61%), linear-gradient(180deg, #5F5F5F 0%, #262315 100%)'
-
-interface SidebarIconButtonProps {
-  Icon: LucideIcon
-  label: string
-  isActive: boolean
-  isExpanded: boolean
-  onClick: () => void
+function getInitials(name?: string | null, firstName?: string | null, lastName?: string | null): string {
+  if (name) {
+    const parts = name.trim().split(' ')
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    }
+    return name[0]?.toUpperCase() || 'U'
+  }
+  
+  if (firstName && lastName) {
+    return (firstName[0] + lastName[0]).toUpperCase()
+  }
+  
+  if (firstName) {
+    return firstName[0]?.toUpperCase() || 'U'
+  }
+  
+  if (lastName) {
+    return lastName[0]?.toUpperCase() || 'U'
+  }
+  
+  return 'U'
 }
 
-function SidebarIconButton({ Icon, label, isActive, isExpanded, onClick }: SidebarIconButtonProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'flex items-center h-10 rounded-full transition-all duration-300 shrink-0 relative',
-        // Button always starts at same position, expands to right when hovered
-        isExpanded ? 'w-full rounded-[26px]' : 'w-10',
-        isActive ? '' : 'bg-transparent hover:bg-gray-50'
-      )}
-      style={isActive ? { background: activeGradient } : undefined}
-      title={!isExpanded ? label : undefined}
-    >
-      {/* Icon - always in exact same position (centered in 10px width) */}
-      <div className="absolute left-0 w-10 h-full flex items-center justify-center">
-        <Icon className={cn('h-5 w-5 shrink-0', isActive ? 'text-white' : 'text-black')} />
-      </div>
-      
-      {/* Text label - appears to the right of icon when expanded */}
-      {isExpanded && (
-        <span 
-          className={cn(
-            'ml-10 mr-3 text-sm font-medium whitespace-nowrap transition-opacity duration-300',
-            isActive ? 'text-white' : 'text-black'
-          )}
-        >
-          {label}
-        </span>
-      )}
-    </button>
-  )
-}
+// Collapsed width: 72px (for icons + padding)
+// Expanded width: 280px
+const COLLAPSED_WIDTH = 72
+const EXPANDED_WIDTH = 280
 
-export function Sidebar({ role: _role = 'patient' }: SidebarProps) {
-  const { isOpen, close } = useSidebarContext()
-  const [activeIcon, setActiveIcon] = useState<string | null>(null)
-  const [isHovered, setIsHovered] = useState(false)
-  const [isTouchDevice, setIsTouchDevice] = useState(false)
+export function Sidebar({ role = 'patient', user, profile, isMobile = false }: SidebarProps) {
+  const pathname = usePathname()
+  const [isExpanded, setIsExpanded] = useState(false)
+  
+  // Get navigation items based on role
+  const navConfig = navigationByRole[role] || navigationByRole.patient
+  const mainNavItems = navConfig.mainNav
+  
+  // Get user info
+  const userName = profile?.name || 
+    (profile?.first_name && profile?.last_name 
+      ? `${profile.first_name} ${profile.last_name}` 
+      : profile?.first_name || profile?.last_name || user?.email?.split('@')[0] || 'User')
+  
+  const userAvatar = profile?.avatar_url || ''
+  const userInitials = getInitials(profile?.name, profile?.first_name, profile?.last_name) || 
+    (user?.email ? user.email[0]?.toUpperCase() : 'U')
 
-  useEffect(() => {
-    // Detect if device supports touch
-    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0)
-  }, [])
-
-  // First box: 2 icons (Theme toggles)
-  const firstBoxIcons = [
-    { Icon: Sun, label: 'Light Mode' },
-    { Icon: Moon, label: 'Dark Mode' },
-  ]
-
-  // Second box: 5 icons
-  const secondBoxIcons = [
-    { Icon: FilePlus, label: 'New Document' },
-    { Icon: Lock, label: 'Secure Documents' },
-    { Icon: FileText, label: 'Documents' },
-    { Icon: Archive, label: 'Archive' },
-    { Icon: BarChart3, label: 'Reports' },
-  ]
-
-  // Last box: 2 icons
-  const lastBoxIcons = [
-    { Icon: HelpCircle, label: 'Help' },
-    { Icon: ArrowLeft, label: 'Back' },
-  ]
-
-  const handleIconClick = (label: string) => {
-    setActiveIcon(activeIcon === label ? null : label)
+  // Check if a nav item is active
+  const isItemActive = (href: string) => {
+    if (href === '/dashboard' || href === '/patient' || href === '/owner' || 
+        href === '/doctor' || href === '/manager' || href === '/psych' || 
+        href === '/nurse' || href === '/driver') {
+      if (href === '/patient') {
+        return pathname === '/patient'
+      } else if (href === '/owner') {
+        return pathname === '/owner' || pathname === '/dashboard'
+      } else if (href === '/dashboard') {
+        return pathname === '/dashboard' || 
+               pathname === '/owner' || 
+               pathname === '/doctor' || 
+               pathname === '/manager' || 
+               pathname === '/psych' || 
+               pathname === '/nurse' || 
+               pathname === '/driver' || 
+               pathname.startsWith('/dashboard/')
+      } else {
+        return pathname === href || pathname.startsWith(href + '/')
+      }
+    }
+    return pathname === href || (href !== '/' && pathname.startsWith(href + '/'))
   }
 
+  // For mobile, always show expanded
+  const showExpanded = isMobile || isExpanded
+
   return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm md:hidden"
-          onClick={close}
-        />
+    <aside 
+      className={cn(
+        "bg-[#F5F4F0] border-r border-gray-200/50 flex flex-col transition-all duration-300 ease-in-out",
+        isMobile 
+          ? "h-full w-full" 
+          : "fixed left-0 top-[52px] md:top-[68px] z-40 h-[calc(100vh-52px)] md:h-[calc(100vh-68px)] border-t-0"
       )}
+      style={{ 
+        width: isMobile ? '100%' : (showExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH) 
+      }}
+      onMouseEnter={() => !isMobile && setIsExpanded(true)}
+      onMouseLeave={() => !isMobile && setIsExpanded(false)}
+    >
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden py-6">
+        {/* Dashboards Section */}
+        <div className="mb-6">
+          <h3 className={cn(
+            "px-4 mb-3 text-xs font-medium text-gray-500 uppercase tracking-wider transition-opacity duration-200 whitespace-nowrap",
+            showExpanded ? "opacity-100" : "opacity-0"
+          )}>
+            Dashboards
+          </h3>
+          <nav className="space-y-1 px-3">
+            {mainNavItems.map((item) => {
+              const isActive = isItemActive(item.href)
+              const Icon = item.icon
+              
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative',
+                    isActive
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-700 hover:bg-white hover:shadow-sm',
+                    !showExpanded && 'justify-center px-0'
+                  )}
+                  title={!showExpanded ? item.title : undefined}
+                >
+                  {/* Active indicator */}
+                  {isActive && showExpanded && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gray-900 rounded-r-full -ml-3" />
+                  )}
+                  
+                  <Icon className={cn(
+                    'h-5 w-5 shrink-0',
+                    isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
+                  )} />
+                  
+                  {showExpanded && (
+                    <>
+                      <span className="flex-1 whitespace-nowrap">{item.title}</span>
+                      <ChevronRight className={cn(
+                        'h-4 w-4 shrink-0 transition-transform',
+                        isActive ? 'text-white/70' : 'text-gray-400',
+                        isActive && 'rotate-90'
+                      )} />
+                    </>
+                  )}
+                </Link>
+              )
+            })}
+          </nav>
+        </div>
 
-      {/* Spacer - maintains layout space for collapsed sidebar */}
-      <div className="hidden md:block w-16 shrink-0" />
+        {/* Pages Section */}
+        <div className="mb-6">
+          <h3 className={cn(
+            "px-4 mb-3 text-xs font-medium text-gray-500 uppercase tracking-wider transition-opacity duration-200 whitespace-nowrap",
+            showExpanded ? "opacity-100" : "opacity-0"
+          )}>
+            Pages
+          </h3>
+          <nav className="space-y-1 px-3">
+            <Link
+              href="/messages"
+              className={cn(
+                'group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative',
+                pathname === '/messages' || pathname.startsWith('/messages/')
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-700 hover:bg-white hover:shadow-sm',
+                !showExpanded && 'justify-center px-0'
+              )}
+              title={!showExpanded ? 'Messaging' : undefined}
+    >
+              {(pathname === '/messages' || pathname.startsWith('/messages/')) && showExpanded && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gray-900 rounded-r-full -ml-3" />
+              )}
+              
+              <MessageSquare className={cn(
+                'h-5 w-5 shrink-0',
+                pathname === '/messages' || pathname.startsWith('/messages/')
+                  ? 'text-white'
+                  : 'text-gray-500 group-hover:text-gray-700'
+              )} />
+              
+              {showExpanded && (
+                <>
+                  <span className="flex-1 whitespace-nowrap">Messaging</span>
+                  <ChevronRight className={cn(
+                    'h-4 w-4 shrink-0',
+                    pathname === '/messages' || pathname.startsWith('/messages/')
+                      ? 'text-white/70'
+                      : 'text-gray-400'
+                  )} />
+                </>
+              )}
+            </Link>
+          </nav>
+        </div>
 
-      {/* Sidebar - overlays content when expanded */}
-      <aside
-        onMouseEnter={() => {
-          // Only enable hover expansion on non-touch devices
-          if (!isTouchDevice) {
-            setIsHovered(true)
-          }
-        }}
-        onMouseLeave={() => {
-          if (!isTouchDevice) {
-            setIsHovered(false)
-          }
-        }}
-        className={cn(
-          'fixed left-0 z-50 bg-[#F5F4F0] transition-all duration-300 ease-in-out',
-          // Responsive top position: mobile navbar is shorter
-          'top-[52px] md:top-[68px]',
-          // Responsive height
-          'h-[calc(100vh-52px)] md:h-[calc(100vh-68px)]',
-          // Mobile behavior
-          isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
-          // Width: always 16 on mobile, expands on hover for desktop
-          'w-16',
-          // Only expand on hover for desktop (non-touch devices)
-          isHovered && !isTouchDevice && 'md:w-56'
-        )}
-      >
-        <div className="flex h-full flex-col p-2 gap-2">
-          {/* First Box - 2 icons */}
-          <div className="flex flex-col gap-2 rounded-[40px] bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] p-1 overflow-hidden">
-            {firstBoxIcons.map(({ Icon, label }) => (
-              <SidebarIconButton
-                key={label}
-                Icon={Icon}
-                label={label}
-                isActive={activeIcon === label}
-                isExpanded={isHovered}
-                onClick={() => handleIconClick(label)}
-              />
-            ))}
-          </div>
-
-          {/* Second Box - 5 icons */}
-          <div className="flex-1 flex flex-col gap-2 rounded-[40px] bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] p-1 overflow-y-auto overflow-x-hidden">
-            {secondBoxIcons.map(({ Icon, label }) => (
-              <SidebarIconButton
-                key={label}
-                Icon={Icon}
-                label={label}
-                isActive={activeIcon === label}
-                isExpanded={isHovered}
-                onClick={() => handleIconClick(label)}
-              />
-            ))}
-          </div>
-
-          {/* Last Box - 2 icons */}
-          <div className="flex flex-col gap-2 rounded-[40px] bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] p-1 overflow-hidden">
-            {lastBoxIcons.map(({ Icon, label }) => (
-              <SidebarIconButton
-                key={label}
-                Icon={Icon}
-                label={label}
-                isActive={activeIcon === label}
-                isExpanded={isHovered}
-                onClick={() => handleIconClick(label)}
-              />
-            ))}
-          </div>
+        {/* User Section */}
+        <div className="mb-6">
+          <h3 className={cn(
+            "px-4 mb-3 text-xs font-medium text-gray-500 uppercase tracking-wider transition-opacity duration-200 whitespace-nowrap",
+            showExpanded ? "opacity-100" : "opacity-0"
+          )}>
+            User
+          </h3>
+          <nav className="space-y-1 px-3">
+            <Link
+              href="/profile"
+              className={cn(
+                'group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative',
+                pathname === '/profile'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-700 hover:bg-white hover:shadow-sm',
+                !showExpanded && 'justify-center px-0'
+              )}
+              title={!showExpanded ? 'User Profile' : undefined}
+            >
+              {pathname === '/profile' && showExpanded && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gray-900 rounded-r-full -ml-3" />
+              )}
+              
+              <UserIcon className={cn(
+                'h-5 w-5 shrink-0',
+                pathname === '/profile'
+                  ? 'text-white'
+                  : 'text-gray-500 group-hover:text-gray-700'
+              )} />
+              
+              {showExpanded && (
+                <>
+                  <span className="flex-1 whitespace-nowrap">User Profile</span>
+                  <ChevronRight className={cn(
+                    'h-4 w-4 shrink-0',
+                    pathname === '/profile'
+                      ? 'text-white/70 rotate-90'
+                      : 'text-gray-400'
+                  )} />
+                </>
+              )}
+            </Link>
+          </nav>
+        </div>
+      </div>
+      
+      {/* User Profile at Bottom */}
+      <div className="p-3 border-t border-gray-200/50">
+        <Link
+          href="/profile"
+          className={cn(
+            "flex items-center gap-3 rounded-xl bg-white shadow-sm hover:shadow-md transition-all",
+            showExpanded ? "px-3 py-2.5" : "p-2 justify-center"
+          )}
+          title={!showExpanded ? userName : undefined}
+        >
+          <Avatar className={cn("shrink-0", showExpanded ? "h-10 w-10" : "h-8 w-8")}>
+            <AvatarImage src={userAvatar || undefined} alt={userName} />
+            <AvatarFallback className="bg-gray-200 text-gray-600 text-sm font-medium">
+              {userInitials}
+            </AvatarFallback>
+          </Avatar>
+          {showExpanded && (
+            <span className="text-sm font-medium text-gray-900 truncate">
+              {userName}
+        </span>
+      )}
+        </Link>
         </div>
       </aside>
-    </>
   )
 }
