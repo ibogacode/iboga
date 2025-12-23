@@ -5,7 +5,7 @@ import { actionClient } from '@/lib/safe-action'
 import { createAdminClient } from '@/lib/supabase/server'
 import { patientIntakeFormSchema } from '@/lib/validations/patient-intake'
 import { headers } from 'next/headers'
-import { sendEmailDirect, sendPatientPasswordSetupEmail } from './email.action'
+import { sendEmailDirect, sendPatientWelcomeEmail } from './email.action'
 
 export const submitPatientIntakeForm = actionClient
   .schema(patientIntakeFormSchema)
@@ -132,6 +132,7 @@ export const submitPatientIntakeForm = actionClient
               role: 'patient',
               phone: parsedInput.phone_number || null,
               is_active: true,
+              must_change_password: true, // Require password change on first login
             })
             .eq('id', authData.user.id)
         } else {
@@ -146,36 +147,39 @@ export const submitPatientIntakeForm = actionClient
               role: 'patient',
               phone: parsedInput.phone_number || null,
               is_active: true,
+              must_change_password: true, // Require password change on first login
             })
         }
         
-        // Wait a moment for user to be fully created in Supabase before sending password reset
+        // Wait a moment for user to be fully created in Supabase before sending email
         await new Promise(resolve => setTimeout(resolve, 1000))
         
-        // Send password setup email based on who filled out the form
+        // Send welcome email with password based on who filled out the form
         if (parsedInput.filled_by === 'self') {
-          // Patient filled out themselves - send password setup to patient email
-          sendPatientPasswordSetupEmail(
+          // Patient filled out themselves - send welcome email with password to patient email
+          sendPatientWelcomeEmail(
             parsedInput.email,
             parsedInput.first_name,
             parsedInput.last_name,
+            tempPassword, // Include the generated password
             false
           ).catch((error) => {
-            console.error('Error sending password setup email to patient:', error)
+            console.error('Error sending welcome email to patient:', error)
           })
         } else if (parsedInput.filled_by === 'someone_else' && parsedInput.filler_email) {
           // Someone else filled out - account is created with patient email
-          // Send password setup to patient email AND notification to filler
-          sendPatientPasswordSetupEmail(
+          // Send welcome email with password to patient email AND notification to filler
+          sendPatientWelcomeEmail(
             parsedInput.email, // Patient email (account email)
             parsedInput.first_name,
             parsedInput.last_name,
+            tempPassword, // Include the generated password
             true, // isFiller = true
             parsedInput.filler_email, // Filler email for notification
             parsedInput.filler_first_name || '',
             parsedInput.filler_last_name || ''
           ).catch((error) => {
-            console.error('Error sending password setup email:', error)
+            console.error('Error sending welcome email:', error)
           })
         }
       }
