@@ -5,7 +5,7 @@ import { actionClient } from '@/lib/safe-action'
 import { createAdminClient } from '@/lib/supabase/server'
 import { patientIntakeFormSchema } from '@/lib/validations/patient-intake'
 import { headers } from 'next/headers'
-import { sendEmailDirect, sendPatientWelcomeEmail } from './email.action'
+import { sendEmailDirect, sendPatientLoginCredentialsEmail } from './email.action'
 
 export const submitPatientIntakeForm = actionClient
   .schema(patientIntakeFormSchema)
@@ -151,41 +151,45 @@ export const submitPatientIntakeForm = actionClient
             })
         }
         
-        // Wait a moment for user to be fully created in Supabase before sending email
+        // Wait a moment for user to be fully created in Supabase
         await new Promise(resolve => setTimeout(resolve, 1000))
         
-        // Send welcome email with password based on who filled out the form
-        if (parsedInput.filled_by === 'self') {
-          // Patient filled out themselves - send welcome email with password to patient email
-          sendPatientWelcomeEmail(
-            parsedInput.email,
-            parsedInput.first_name,
-            parsedInput.last_name,
-            tempPassword, // Include the generated password
-            false
-          ).catch((error) => {
-            console.error('Error sending welcome email to patient:', error)
-          })
-        } else if (parsedInput.filled_by === 'someone_else' && parsedInput.filler_email) {
-          // Someone else filled out - account is created with patient email
-          // Send welcome email with password to patient email AND notification to filler
-          sendPatientWelcomeEmail(
-            parsedInput.email, // Patient email (account email)
-            parsedInput.first_name,
-            parsedInput.last_name,
-            tempPassword, // Include the generated password
-            true, // isFiller = true
-            parsedInput.filler_email, // Filler email for notification
-            parsedInput.filler_first_name || '',
-            parsedInput.filler_last_name || ''
-          ).catch((error) => {
-            console.error('Error sending welcome email:', error)
-          })
-        }
+        // Send login credentials email separately (after confirmation email)
+        // This will be sent with a delay to make it clear it's a separate email
+        setTimeout(() => {
+          if (parsedInput.filled_by === 'self') {
+            // Patient filled out themselves - send login credentials email to patient
+            sendPatientLoginCredentialsEmail(
+              parsedInput.email,
+              parsedInput.first_name,
+              parsedInput.last_name,
+              tempPassword, // Include the generated password
+              false
+            ).catch((error) => {
+              console.error('Error sending login credentials email to patient:', error)
+            })
+          } else if (parsedInput.filled_by === 'someone_else' && parsedInput.filler_email) {
+            // Someone else filled out - account is created with patient email
+            // Send login credentials email to patient email AND notification to filler
+            sendPatientLoginCredentialsEmail(
+              parsedInput.email, // Patient email (account email)
+              parsedInput.first_name,
+              parsedInput.last_name,
+              tempPassword, // Include the generated password
+              true, // isFiller = true
+              parsedInput.filler_email, // Filler email for notification
+              parsedInput.filler_first_name || '',
+              parsedInput.filler_last_name || ''
+            ).catch((error) => {
+              console.error('Error sending login credentials email:', error)
+            })
+          }
+        }, 2000) // Send 2 seconds after confirmation email
       }
     }
     
-    // Send confirmation emails based on who filled out the form
+    // Send confirmation emails FIRST (application received)
+    // This is the first email: "Thank you, we'll review and let you know"
     if (parsedInput.filled_by === 'self') {
       // If patient filled out themselves, send email only to patient
     sendConfirmationEmail(
