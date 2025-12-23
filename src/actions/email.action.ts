@@ -509,7 +509,15 @@ export async function sendPatientLoginCredentialsEmail(
         </div>
         <div class="content">
           <h2>Your Patient Portal Account is Ready, ${firstName}!</h2>
+          ${isFiller && fillerFirstName ? `
+          <div class="info-box" style="background: #f9f9f9; border-left: 4px solid #5D7A5F; padding: 20px; margin: 20px 0;">
+            <p><strong>Account Created on Your Behalf</strong></p>
+            <p>A patient portal account has been created for you by <strong>${fillerFirstName} ${fillerLastName || ''}</strong> (${fillerEmail}) who submitted your application form.</p>
+            <p>You can now access your portal using the login credentials below.</p>
+          </div>
+          ` : `
           <p>We have created your patient portal account. You can now access your portal using the login credentials below.</p>
+          `}
           
           <div class="credentials-box">
             <p><strong>Email:</strong> ${patientEmail}</p>

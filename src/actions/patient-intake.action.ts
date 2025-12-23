@@ -174,7 +174,8 @@ export const submitPatientIntakeForm = actionClient
           parsedInput.email, 
           parsedInput.first_name,
           parsedInput.last_name,
-          data.id
+          data.id,
+          false // isFiller = false
         )
         if (confirmationResult?.success) {
           console.log('[submitPatientIntakeForm] ✅ Confirmation email sent to patient:', parsedInput.email)
@@ -186,13 +187,17 @@ export const submitPatientIntakeForm = actionClient
       }
     } else if (parsedInput.filled_by === 'someone_else' && parsedInput.filler_email) {
       // If someone else filled out, send emails to both patient and filler
-      // Send to patient
+      // Send to patient - mention that someone else submitted for them
       try {
         const confirmationResult = await sendConfirmationEmail(
           parsedInput.email, 
           parsedInput.first_name,
           parsedInput.last_name,
-          data.id
+          data.id,
+          true, // isFiller = true
+          parsedInput.filler_email,
+          parsedInput.filler_first_name || '',
+          parsedInput.filler_last_name || ''
         )
         if (confirmationResult?.success) {
           console.log('[submitPatientIntakeForm] ✅ Confirmation email sent to patient:', parsedInput.email)
@@ -283,7 +288,11 @@ async function sendConfirmationEmail(
   email: string, 
   firstName: string,
   lastName: string,
-  formId: string
+  formId: string,
+  isFiller: boolean = false,
+  fillerEmail?: string,
+  fillerFirstName?: string,
+  fillerLastName?: string
 ) {
   const supabase = createAdminClient()
   
@@ -399,6 +408,18 @@ async function sendConfirmationEmail(
           background: #eee;
           margin: 30px 0;
         }
+        .info-box {
+          background: #f9f9f9;
+          border-left: 4px solid #5D7A5F;
+          padding: 20px;
+          margin: 20px 0;
+        }
+        .info-box p {
+          margin: 10px 0;
+        }
+        .info-box strong {
+          color: #5D7A5F;
+        }
       </style>
     </head>
     <body>
@@ -408,7 +429,15 @@ async function sendConfirmationEmail(
         </div>
         <div class="content">
           <h2>Thank You, ${firstName}!</h2>
+          ${isFiller && fillerFirstName ? `
+          <div class="info-box" style="background: #f9f9f9; border-left: 4px solid #5D7A5F; padding: 20px; margin: 20px 0;">
+            <p><strong>Application Submitted on Your Behalf</strong></p>
+            <p>We have received an application that was submitted on your behalf by <strong>${fillerFirstName} ${fillerLastName || ''}</strong> (${fillerEmail}).</p>
+            <p>This application is for your patient portal account with the Iboga Wellness Institute.</p>
+          </div>
+          ` : `
           <p>We have received your application and are excited to connect with you on your wellness journey.</p>
+          `}
           <p>Our team will carefully review your information and will let you know soon if you are eligible to move forward. Thank you for your interest and patience.</p>          
           <div class="cta-container">
             <a href="${schedulingLink}" class="cta-button">Schedule Your Call</a>
