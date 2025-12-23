@@ -85,40 +85,6 @@ export const patientIntakeFormSchema = z.object({
   privacy_policy_accepted: z.boolean().refine((val) => val === true, {
     message: 'You must accept the Privacy Policy to continue',
   }),
-  // Ibogaine Therapy Consent - Individual sections
-  consent_for_treatment: z.boolean().refine((val) => val === true, {
-    message: 'You must accept Consent for Treatment to continue',
-  }),
-  risks_and_benefits: z.boolean().refine((val) => val === true, {
-    message: 'You must accept Risks and Benefits to continue',
-  }),
-  pre_screening_health_assessment: z.boolean().refine((val) => val === true, {
-    message: 'You must accept Pre-Screening and Health Assessment to continue',
-  }),
-  voluntary_participation: z.boolean().refine((val) => val === true, {
-    message: 'You must accept Voluntary Participation to continue',
-  }),
-  confidentiality: z.boolean().refine((val) => val === true, {
-    message: 'You must accept Confidentiality to continue',
-  }),
-  liability_release: z.boolean().refine((val) => val === true, {
-    message: 'You must accept Liability Release to continue',
-  }),
-  payment_collection_1: z.boolean().refine((val) => val === true, {
-    message: 'You must accept Payment Collection to continue',
-  }),
-  payment_collection_2: z.boolean().refine((val) => val === true, {
-    message: 'You must accept Payment Collection to continue',
-  }),
-  ibogaine_therapy_consent_accepted: z.boolean().refine((val) => val === true, {
-    message: 'You must accept all Ibogaine Therapy Consent sections to continue',
-  }),
-  release_consent_accepted: z.boolean().refine((val) => val === true, {
-    message: 'You must accept the Release Consent to continue',
-  }),
-  final_acknowledgment_accepted: z.boolean().refine((val) => val === true, {
-    message: 'You must accept the final acknowledgment to continue',
-  }),
   // Optional field for linking to partial form (not validated, just passed through)
   partialFormId: z.string().uuid().optional(),
 }).refine((data) => {

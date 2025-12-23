@@ -82,82 +82,7 @@ Website: https://theibogainstitute.org/
 10. Policy Updates
 We may update this Privacy Policy periodically to reflect best practices or changes in legal requirements. Any updates will be communicated directly to guests prior to their treatment.`
 
-// Ibogaine Therapy Consent sections
-const IBOGAINE_THERAPY_CONSENT_SECTIONS = [
-  {
-    heading: 'Consent for Treatment',
-    text: `I, hereby referred to as "the Patient", voluntarily consent to participate in the Ibogaine therapy monitored by Iboga Wellness Institute. I understand that this therapy involves Ibogaine, a psychoactive substance derived from the Tabernanthe iboga plant, used in the treatment of substance dependency, PTSD, depression, anxiety, and for personal growth.`,
-    field: 'consent_for_treatment'
-  },
-  {
-    heading: 'Risks and Benefits',
-    text: `I acknowledge that I have been informed about the potential benefits, risks, and side effects associated with Ibogaine therapy, including but not limited to: changes in heart rate, blood pressure, nausea, hallucinations, emotional and psychological revelations, and in rare cases, severe health complications.`,
-    field: 'risks_and_benefits'
-  },
-  {
-    heading: 'Pre-Screening and Health Assessment',
-    text: `I confirm that I have undergone a comprehensive pre-screening and health assessment, including an EKG, blood work, and liver panel, conducted by Iboga Wellness Institute' onsite medical doctor. I have disclosed all relevant medical history, current medications, and substance use to ensure my suitability for Ibogaine therapy.`,
-    field: 'pre_screening_health_assessment'
-  },
-  {
-    heading: 'Voluntary Participation',
-    text: `I acknowledge that my participation in this therapy is entirely voluntary and that I have the right to withdraw my consent and discontinue participation at any time.`,
-    field: 'voluntary_participation'
-  },
-  {
-    heading: 'Confidentiality',
-    text: `I understand that my privacy will be respected, and all personal and medical information will be handled in accordance with Iboga Wellness Institute' privacy policy and applicable laws regarding patient confidentiality.`,
-    field: 'confidentiality'
-  },
-  {
-    heading: 'Liability Release',
-    text: `I, the undersigned, formally absolve Iboga Wellness Institute, along with its employees and associated entities, from any claims, liabilities, or damages that may result from my engagement in the Ibogaine therapy program. I acknowledge that Iboga Wellness Institute assumes a supplementary role, offering professional and medical support in the event of an emergency.`,
-    field: 'liability_release'
-  },
-  {
-    heading: 'Payment Collection by Iboga Wellness Institute LLC',
-    text: `Iboga Wellness Institute LLC oversees payment collection. We handle fees for all aspects of your stay, including medical supervision, program costs, food, accommodations, and any non-medical expenses related to your visit.`,
-    field: 'payment_collection_1'
-  },
-  {
-    heading: 'Payment Collection by Iboga Wellness Institute LLC',
-    text: `I have read this consent form (or have had it read to me) in its entirety. I have had the opportunity to ask questions, and all my questions have been answered to my satisfaction. I hereby acknowledge my understanding that during the Ibogaine therapy process, Iboga Wellness Institute' role is exclusively to monitor participants to ensure their safety. I agree to adhere to all terms and conditions specified in this consent form.`,
-    field: 'payment_collection_2'
-  }
-]
-
 // Service Agreement text removed - no longer used in the form
-
-// Release Consent text
-const RELEASE_CONSENT_TEXT = `Acknowledgment and Consent
-
-I, the undersigned, acknowledge and agree to the following:
-
-
-Voluntary Participation:
-
-I understand that my participation in Iboga Wellness Institute is entirely voluntary and that I can withdraw at any time.
-Medical Conditions:
-
-I have disclosed all known medical conditions, including physical and mental health issues, to the Iboga Wellness Institute staff.
-I understand that ibogaine and psilocybin treatments can have significant physiological and psychological effects and may interact with other medications.
-Risks:
-
-I am aware of the potential risks associated with ibogaine and psilocybin therapy, including but not limited to cardiac events, psychological distress, and drug interactions.
-I acknowledge that these treatments should be conducted under medical supervision and in a controlled environment.
-Medical Supervision:
-
-I agree to follow all guidelines and instructions provided by the medical and support staff at Iboga Wellness Institute.
-I consent to any necessary medical intervention should an emergency arise during my participation in the retreat.
-Confidentiality:
-
-I understand that my personal information and any data collected during the retreat will be kept confidential and used only for the purposes of providing care and treatment.
-Waiver of Liability:
-
-I release Iboga Wellness Institute, its owners, staff, and affiliates from any liability, claims, or demands that may arise from my participation in the retreat, including but not limited to personal injury, psychological trauma, or death.
-Compliance:
-
-I agree to adhere to the rules and guidelines set forth by Iboga Wellness Institute to ensure a safe and conducive environment for all participants.`
 
 // US States list
 const US_STATES = [
@@ -585,126 +510,6 @@ function PrivacyPolicyContent({ text }: { text: string }) {
   return <div>{elements}</div>
 } */
 
-// Component to format Release Consent with styled headings
-function ReleaseConsentContent({ text }: { text: string }) {
-  const lines = text.split('\n')
-  const elements: React.ReactNode[] = []
-  let bulletItems: string[] = []
-  let expectingBullets = false
-  
-  function flushBulletList() {
-    if (bulletItems.length > 0) {
-      elements.push(
-        <ul key={`bullets-${elements.length}`} className="list-disc list-inside mb-3 ml-6">
-          {bulletItems.map((item, idx) => (
-            <li key={idx} className="text-base text-gray-700 leading-relaxed">
-              {item}
-            </li>
-          ))}
-        </ul>
-      )
-      bulletItems = []
-      expectingBullets = false
-    }
-  }
-  
-  function isBulletPoint(line: string): boolean {
-    if (!line) return false
-    // Bullet points: start with capital letter, end with period
-    if (/^[A-Z][^:]*\.$/.test(line)) return true
-    // Lines starting with "I" that are statements
-    if (/^I (understand|acknowledge|agree|release|declare)/.test(line) && line.endsWith('.')) return true
-    return false
-  }
-  
-  function isIntroLine(line: string): boolean {
-    return line.endsWith(':') || line.toLowerCase().includes('acknowledge and agree to the following')
-  }
-  
-  function isSubheading(line: string): boolean {
-    // Subheadings like "Voluntary Participation:" that end with colon
-    return /^[A-Z][^:]+:\s*$/.test(line)
-  }
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim()
-    const nextNonEmptyLine = (() => {
-      for (let j = i + 1; j < lines.length; j++) {
-        const next = lines[j].trim()
-        if (next) return next
-      }
-      return ''
-    })()
-    
-    // Check if line is main heading (Iboga Wellness Institute Release Consent)
-    if (line === 'Iboga Wellness Institute Release Consent') {
-      flushBulletList()
-      elements.push(
-        <h2 key={i} className="text-xl font-bold text-gray-900 mb-4">
-          {line}
-        </h2>
-      )
-    }
-    // Check if line is subheading (Acknowledgment and Consent)
-    else if (line === 'Acknowledgment and Consent') {
-      flushBulletList()
-      elements.push(
-        <h3 key={i} className="text-lg font-bold text-gray-900 mt-6 mb-3">
-          {line}
-        </h3>
-      )
-    }
-    // Check if line is a section subheading (e.g., "Voluntary Participation:")
-    else if (line && isSubheading(line)) {
-      flushBulletList()
-      expectingBullets = true
-      elements.push(
-        <h4 key={i} className="text-base font-bold text-gray-900 mt-4 mb-2">
-          {line}
-        </h4>
-      )
-    }
-    // Check if line ends with ":" - indicates bullet points are coming (make it bold)
-    else if (line && isIntroLine(line)) {
-      flushBulletList()
-      expectingBullets = true
-      elements.push(
-        <p key={i} className="mb-3 text-base font-bold text-gray-900 leading-relaxed">
-          {line}
-        </p>
-      )
-    }
-    // Check if line is a bullet point
-    else if (line && isBulletPoint(line) && (expectingBullets || bulletItems.length > 0 || isBulletPoint(nextNonEmptyLine))) {
-      bulletItems.push(line)
-      expectingBullets = true
-    }
-    else if (line) {
-      if (bulletItems.length > 0) {
-        flushBulletList()
-      }
-      expectingBullets = false
-      // Regular text
-      elements.push(
-        <p key={i} className="mb-3 text-base text-gray-700 leading-relaxed">
-          {line}
-        </p>
-      )
-    } else {
-      // Empty line - flush bullets if we have any and next line is not a bullet
-      if (bulletItems.length > 0 && !isBulletPoint(nextNonEmptyLine)) {
-        flushBulletList()
-      } else if (bulletItems.length === 0) {
-        elements.push(<div key={i} className="mb-2" />)
-      }
-    }
-  }
-  
-  // Flush any remaining bullets
-  flushBulletList()
-  
-  return <div>{elements}</div>
-}
 
 function PatientIntakeFormContent() {
   const searchParams = useSearchParams()
@@ -750,17 +555,6 @@ function PatientIntakeFormContent() {
       emergency_contact_relationship: null,
       // Consent and Agreements
       privacy_policy_accepted: false,
-      consent_for_treatment: false,
-      risks_and_benefits: false,
-      pre_screening_health_assessment: false,
-      voluntary_participation: false,
-      confidentiality: false,
-      liability_release: false,
-      payment_collection_1: false,
-      payment_collection_2: false,
-      ibogaine_therapy_consent_accepted: false,
-      release_consent_accepted: false,
-      final_acknowledgment_accepted: false,
     },
   })
 
@@ -858,7 +652,7 @@ function PatientIntakeFormContent() {
   }
 
 
-  const totalSteps = 6
+  const totalSteps = 3
 
   if (isLoadingPartial) {
     return (
@@ -915,7 +709,7 @@ function PatientIntakeFormContent() {
         ) : (
           <>
             <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
-              Patient Opportunity Form
+              Patient Application Form
             </h1>
 
         {/* Progress indicator */}
@@ -1412,113 +1206,6 @@ function PatientIntakeFormContent() {
             </div>
           )}
 
-          {/* Step 4: Ibogaine Therapy Consent */}
-          {currentStep === 4 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Ibogaine Therapy Consent</h2>
-              
-              <div className="space-y-6">
-                {IBOGAINE_THERAPY_CONSENT_SECTIONS.map((section, index) => (
-                  <div key={section.field} className="bg-gray-50 p-6 rounded-lg space-y-3">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {section.heading} <span className="text-red-500">*</span>
-                    </h3>
-                    <p className="text-base text-gray-700 leading-relaxed">
-                      {section.text}
-                    </p>
-                    <div className="flex items-start space-x-3 pt-2">
-                      <Checkbox
-                        id={section.field}
-                        checked={form.watch(section.field as any) as boolean}
-                        onCheckedChange={(checked) => {
-                          form.setValue(section.field as any, checked === true)
-                          // Update main consent if all sections are accepted
-                          const allAccepted = IBOGAINE_THERAPY_CONSENT_SECTIONS.every(s => {
-                            const value = form.watch(s.field as any) as boolean
-                            return s.field === section.field ? checked === true : value === true
-                          })
-                          form.setValue('ibogaine_therapy_consent_accepted', allAccepted)
-                        }}
-                      />
-                      <Label htmlFor={section.field} className="text-base font-medium text-gray-900 cursor-pointer">
-                        I acknowledge and accept
-                      </Label>
-                    </div>
-                    {(() => {
-                      const error = form.formState.errors[section.field as keyof typeof form.formState.errors]
-                      return error ? (
-                        <p className="text-sm text-red-500">
-                          {error.message}
-                        </p>
-                      ) : null
-                    })()}
-                  </div>
-                ))}
-              </div>
-              
-              {form.formState.errors.ibogaine_therapy_consent_accepted && (
-                <p className="text-sm text-red-500">{form.formState.errors.ibogaine_therapy_consent_accepted.message}</p>
-              )}
-            </div>
-          )}
-
-          {/* Step 5: Release Consent */}
-          {currentStep === 5 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Iboga Wellness Institute Release Consent</h2>
-              
-              <div className="bg-gray-50 p-8 rounded-lg">
-                <div className="prose prose-sm max-w-none">
-                  <ReleaseConsentContent text={RELEASE_CONSENT_TEXT} />
-                </div>
-              </div>
-
-              <div className="space-y-3 pt-4">
-                <Label className="text-base font-semibold text-gray-900">
-                  Consent to Treatment Acceptance <span className="text-red-500">*</span>
-                </Label>
-                <div className="flex items-start space-x-3">
-                  <Checkbox
-                    id="release_consent"
-                    checked={form.watch('release_consent_accepted')}
-                    onCheckedChange={(checked) => form.setValue('release_consent_accepted', checked === true)}
-                  />
-                  <Label htmlFor="release_consent" className="text-base text-gray-700 leading-relaxed cursor-pointer">
-                    I have read and understood the above information. I acknowledge that I have had the opportunity to ask questions and that my questions have been answered to my satisfaction. I voluntarily agree to participate in Iboga Wellness Institute and consent to the administration of ibogaine and/or psilocybin therapies as outlined.
-                  </Label>
-                </div>
-                {form.formState.errors.release_consent_accepted && (
-                  <p className="text-sm text-red-500">{form.formState.errors.release_consent_accepted.message}</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Step 6: Patient Acknowledgment */}
-          {currentStep === 6 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Patient Acknowledgment</h2>
-              
-              <div className="space-y-4">
-                <div className="flex items-start space-x-3">
-                  <Checkbox
-                    id="final_acknowledgment"
-                    checked={form.watch('final_acknowledgment_accepted')}
-                    onCheckedChange={(checked) => form.setValue('final_acknowledgment_accepted', checked === true)}
-                  />
-                  <Label htmlFor="final_acknowledgment" className="text-base font-medium cursor-pointer">
-                    Final Acknowledgment & Acceptance <span className="text-red-500">*</span>
-                  </Label>
-                </div>
-                <p className="text-sm text-gray-600 ml-7">
-                  I confirm that all the information I have provided in this form is true and complete to the best of my knowledge, and that I have read, understood, and accepted all sections, including the Privacy Policy, Ibogaine Therapy Consent, and Release Consent of Iboga Wellness Institute.
-                </p>
-                {form.formState.errors.final_acknowledgment_accepted && (
-                  <p className="text-sm text-red-500 ml-7">{form.formState.errors.final_acknowledgment_accepted.message}</p>
-                )}
-                    </div>
-            </div>
-          )}
 
           {/* Navigation buttons */}
           <div className="flex justify-between pt-6 border-t">
@@ -1591,23 +1278,6 @@ function getFieldsForStep(step: number, filledBy?: string): string[] {
       return ['emergency_contact_first_name', 'emergency_contact_last_name', 'emergency_contact_phone', 'emergency_contact_email']
     case 3:
       return ['privacy_policy_accepted']
-    case 4:
-      // Validate all individual ibogaine consent fields
-      return [
-        'consent_for_treatment',
-        'risks_and_benefits',
-        'pre_screening_health_assessment',
-        'voluntary_participation',
-        'confidentiality',
-        'liability_release',
-        'payment_collection_1',
-        'payment_collection_2',
-        'ibogaine_therapy_consent_accepted'
-      ]
-    case 5:
-      return ['release_consent_accepted']
-    case 6:
-      return ['final_acknowledgment_accepted']
     default:
       return []
   }

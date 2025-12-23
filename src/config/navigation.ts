@@ -44,13 +44,13 @@ export interface NavigationConfig {
 export const navigationByRole: Record<UserRole, NavigationConfig> = {
   admin: {
     mainNav: [
-      { title: 'Dashboard', href: '/owner', icon: LayoutDashboard },
-      { title: 'Facility Management', href: '/facility-management', icon: UserCog },
+      { title: 'Home', href: '/owner', icon: Home },
+      { title: 'Facility Management', href: '/facility-management', icon: Building2 },
       { title: 'Patient Pipeline', href: '/patient-pipeline', icon: Users },
-      { title: 'Patient Management', href: '/owner/patient-management', icon: UserCheck },
-      { title: 'Onboarding', href: '/owner/onboarding', icon: UserPlus },
-      { title: 'Research', href: '/owner/research', icon: Search },
-      { title: 'Marketing', href: '/owner/marketing', icon: Megaphone },
+      { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
+      { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
+      { title: 'Research', href: '/research', icon: Search },
+      { title: 'Marketing', href: '/marketing', icon: Megaphone },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
@@ -58,13 +58,13 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   },
   owner: {
     mainNav: [
-      { title: 'Dashboard', href: '/owner', icon: LayoutDashboard },
-      { title: 'Facility Management', href: '/facility-management', icon: UserCog },
+      { title: 'Home', href: '/owner', icon: Home },
+      { title: 'Facility Management', href: '/facility-management', icon: Building2 },
       { title: 'Patient Pipeline', href: '/patient-pipeline', icon: Users },
-      { title: 'Patient Management', href: '/owner/patient-management', icon: UserCheck },
-      { title: 'Onboarding', href: '/owner/onboarding', icon: UserPlus },
-      { title: 'Research', href: '/owner/research', icon: Search },
-      { title: 'Marketing', href: '/owner/marketing', icon: Megaphone },
+      { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
+      { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
+      { title: 'Research', href: '/research', icon: Search },
+      { title: 'Marketing', href: '/marketing', icon: Megaphone },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },

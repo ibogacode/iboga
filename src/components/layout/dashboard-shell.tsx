@@ -21,7 +21,7 @@ const Sidebar = dynamic(
   { 
     ssr: false,
     loading: () => (
-      <div className="hidden md:block w-16 shrink-0" />
+      <aside className="hidden md:block fixed left-0 top-[68px] z-40 h-[calc(100vh-68px)] w-[72px] bg-[#F5F4F0]" />
     )
   }
 )
@@ -34,19 +34,20 @@ interface DashboardShellProps {
 }
 
 export function DashboardShell({ children, user, profile, userRole }: DashboardShellProps) {
-  // All roles use the same layout: navbar + sidebar + content
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       {/* Navbar - Full width at top */}
       <Navbar user={user} profile={profile} role={userRole} />
       
-      {/* Sidebar and Content - Below navbar */}
-      <div className="flex flex-1 overflow-hidden pt-[52px] md:pt-[68px] min-h-0">
-        <Sidebar role={userRole} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[#F5F4F0] pt-2 pl-2 pr-4 pb-4 md:pt-3 md:pl-3 md:pr-6 md:pb-6 min-h-0">
-          {children}
-        </main>
+      {/* Sidebar - Fixed on left, hidden on mobile */}
+      <div className="hidden md:block">
+        <Sidebar role={userRole} user={user} profile={profile} />
       </div>
+      
+      {/* Content - Below navbar, offset by collapsed sidebar width (72px) on desktop */}
+      <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[#F5F4F0] pt-[52px] md:pt-[68px] md:pl-[72px] px-4 pb-4 md:px-6 md:pb-6">
+        {children}
+      </main>
     </div>
   )
 }
