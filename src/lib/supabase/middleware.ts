@@ -1,5 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getRoleRoute } from '@/lib/utils/role-routes'
+import { UserRole } from '@/types'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -78,8 +80,16 @@ export async function updateSession(request: NextRequest) {
     // Redirect authenticated users away from auth pages
     // Exception: allow authenticated users on /reset-password (they need to set new password)
     if (user && isAuthPath && request.nextUrl.pathname !== '/reset-password') {
+      // Get user profile to determine role-based redirect
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      
+      const role = (profile?.role as UserRole) || 'patient'
       const url = request.nextUrl.clone()
-      url.pathname = '/dashboard'
+      url.pathname = getRoleRoute(role)
       return NextResponse.redirect(url)
     }
   }

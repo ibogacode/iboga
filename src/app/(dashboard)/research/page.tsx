@@ -1,53 +1,63 @@
+import { MarketingStatCard } from '@/components/marketing/marketing-stat-card'
+import { ConversionOutcomesTable } from '@/components/research/conversion-outcomes-table'
+import { TreatmentOutcomeCard } from '@/components/research/treatment-outcome-card'
+import { ReportGeneratorCard } from '@/components/research/report-generator-card'
+
+export const metadata = {
+  title: 'Research',
+}
+
 export default function ResearchPage() {
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 
-          style={{ 
-            fontFamily: 'var(--font-instrument-serif), serif',
-            fontSize: '44px',
-            fontWeight: 400,
-            color: 'black',
-            wordWrap: 'break-word'
-          }}
-        >
+    <div className="space-y-4 sm:space-y-6 md:space-y-[25px] pt-4 sm:pt-6 md:pt-[30px] px-4 sm:px-6 md:px-[25px]">
+      {/* Header Section */}
+      <div className="space-y-1 sm:space-y-2">
+        <h1 className="text-2xl sm:text-3xl md:text-[40px] font-normal leading-[1.3em] text-black" style={{ fontFamily: 'var(--font-instrument-serif), serif' }}>
           Research Overview
         </h1>
-        <p className="text-gray-600 mt-2 text-lg">
+        <p className="text-sm sm:text-base font-normal leading-[1.48em] tracking-[-0.04em] text-black">
           Treatment outcomes, conversion, and profitability by diagnosis.
         </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Patients with Data */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-sm font-medium mb-2">Patients with Data</p>
-          <p className="text-4xl font-semibold text-gray-900 mb-3">234</p>
-          <p className="text-gray-400 text-sm">Across diagnoses</p>
-        </div>
+      {/* Metrics Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 md:gap-[25px]">
+        <MarketingStatCard
+          title="Patients with Data"
+          value="234"
+          change=""
+          changeLabel="Across diagnoses"
+        />
+        <MarketingStatCard
+          title="Data Points Collected"
+          value="18.9K"
+          change=""
+          changeLabel="Daily Forms & Vitals"
+        />
+        <MarketingStatCard
+          title="Active Studies"
+          value="4"
+          change=""
+          changeLabel="Parkinson's • PTSD • Addiction"
+          changeLabelColor="#10B981"
+        />
+        <MarketingStatCard
+          title="Published Reports"
+          value="6"
+          change=""
+          changeLabel="Ready for sharing / SEO"
+        />
+      </div>
 
-        {/* Data Points Collected */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-sm font-medium mb-2">Data Points Collected</p>
-          <p className="text-4xl font-semibold text-gray-900 mb-3">18.9K</p>
-          <p className="text-gray-400 text-sm">Daily Forms & Vitals</p>
-        </div>
+      {/* Conversion & Outcomes Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 md:gap-[25px]">
+        <ConversionOutcomesTable />
+        <TreatmentOutcomeCard />
+      </div>
 
-        {/* Active Studies */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-sm font-medium mb-2">Active Studies</p>
-          <p className="text-4xl font-semibold text-gray-900 mb-3">4</p>
-          <p className="text-emerald-600 text-sm font-medium">Parkinson's • PTSD • Addiction</p>
-        </div>
-
-        {/* Published Reports */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-sm font-medium mb-2">Published Reports</p>
-          <p className="text-4xl font-semibold text-gray-900 mb-3">6</p>
-          <p className="text-gray-400 text-sm">Ready for sharing / SEO</p>
-        </div>
+      {/* Report Generator Section */}
+      <div>
+        <ReportGeneratorCard />
       </div>
     </div>
   )
