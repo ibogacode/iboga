@@ -90,10 +90,15 @@ export const submitPatientIntakeForm = actionClient
       .eq('role', 'patient')
       .maybeSingle()
     
+    // Track if we need to send login credentials email
+    let shouldSendLoginCredentials = false
+    let tempPassword = ''
+    let authUserCreated = false
+    
     // Create patient profile if it doesn't exist
     if (!existingProfile) {
-      // Generate a temporary password (will be reset via email)
-      const tempPassword = `Temp${Math.random().toString(36).slice(-8)}!${Math.random().toString(36).slice(-8)}`
+      // Generate a temporary password (will be sent in email)
+      tempPassword = `Temp${Math.random().toString(36).slice(-8)}!${Math.random().toString(36).slice(-8)}`
       
       // Create auth user with patient email
       const { data: authData, error: authError } = await supabase.auth.admin.createUser({
@@ -108,9 +113,12 @@ export const submitPatientIntakeForm = actionClient
       })
       
       if (authError || !authData.user) {
-        console.error('Error creating patient auth user:', authError)
+        console.error('[submitPatientIntakeForm] ❌ Error creating patient auth user:', authError)
         // Don't fail the form submission, but log the error
       } else {
+        authUserCreated = true
+        shouldSendLoginCredentials = true
+        
         // Wait a moment for the trigger to create the profile
         await new Promise(resolve => setTimeout(resolve, 200))
         
@@ -153,74 +161,118 @@ export const submitPatientIntakeForm = actionClient
         
         // Wait a moment for user to be fully created in Supabase
         await new Promise(resolve => setTimeout(resolve, 1000))
-        
-        // Send login credentials email separately (after confirmation email)
-        // This will be sent with a delay to make it clear it's a separate email
-        setTimeout(() => {
-          if (parsedInput.filled_by === 'self') {
-            // Patient filled out themselves - send login credentials email to patient
-            sendPatientLoginCredentialsEmail(
-              parsedInput.email,
-              parsedInput.first_name,
-              parsedInput.last_name,
-              tempPassword, // Include the generated password
-              false
-            ).catch((error) => {
-              console.error('Error sending login credentials email to patient:', error)
-            })
-          } else if (parsedInput.filled_by === 'someone_else' && parsedInput.filler_email) {
-            // Someone else filled out - account is created with patient email
-            // Send login credentials email to patient email AND notification to filler
-            sendPatientLoginCredentialsEmail(
-              parsedInput.email, // Patient email (account email)
-              parsedInput.first_name,
-              parsedInput.last_name,
-              tempPassword, // Include the generated password
-              true, // isFiller = true
-              parsedInput.filler_email, // Filler email for notification
-              parsedInput.filler_first_name || '',
-              parsedInput.filler_last_name || ''
-            ).catch((error) => {
-              console.error('Error sending login credentials email:', error)
-            })
-          }
-        }, 2000) // Send 2 seconds after confirmation email
       }
     }
     
     // Send confirmation emails FIRST (application received)
     // This is the first email: "Thank you, we'll review and let you know"
+    console.log('[submitPatientIntakeForm] Sending confirmation emails...')
     if (parsedInput.filled_by === 'self') {
       // If patient filled out themselves, send email only to patient
-    sendConfirmationEmail(
-      parsedInput.email, 
-      parsedInput.first_name,
-      parsedInput.last_name,
-      data.id
-    ).catch(console.error)
+      try {
+        const confirmationResult = await sendConfirmationEmail(
+          parsedInput.email, 
+          parsedInput.first_name,
+          parsedInput.last_name,
+          data.id
+        )
+        if (confirmationResult?.success) {
+          console.log('[submitPatientIntakeForm] ✅ Confirmation email sent to patient:', parsedInput.email)
+        } else {
+          console.error('[submitPatientIntakeForm] ❌ Failed to send confirmation email:', confirmationResult?.error)
+        }
+      } catch (error) {
+        console.error('[submitPatientIntakeForm] ❌ Error sending confirmation email:', error)
+      }
     } else if (parsedInput.filled_by === 'someone_else' && parsedInput.filler_email) {
       // If someone else filled out, send emails to both patient and filler
       // Send to patient
-      sendConfirmationEmail(
-        parsedInput.email, 
-        parsedInput.first_name,
-        parsedInput.last_name,
-        data.id
-      ).catch((error) => {
-        console.error('Error sending confirmation email to patient:', error)
-      })
+      try {
+        const confirmationResult = await sendConfirmationEmail(
+          parsedInput.email, 
+          parsedInput.first_name,
+          parsedInput.last_name,
+          data.id
+        )
+        if (confirmationResult?.success) {
+          console.log('[submitPatientIntakeForm] ✅ Confirmation email sent to patient:', parsedInput.email)
+        } else {
+          console.error('[submitPatientIntakeForm] ❌ Failed to send confirmation email to patient:', confirmationResult?.error)
+        }
+      } catch (error) {
+        console.error('[submitPatientIntakeForm] ❌ Error sending confirmation email to patient:', error)
+      }
       
       // Send to filler person
-      sendFillerConfirmationEmail(
-        parsedInput.filler_email,
-        parsedInput.filler_first_name || '',
-        parsedInput.filler_last_name || '',
-        parsedInput.first_name,
-        parsedInput.last_name,
-        data.id
-      ).catch((error) => {
-        console.error('Error sending confirmation email to filler:', error)
-      })
+      try {
+        const fillerResult = await sendFillerConfirmationEmail(
+          parsedInput.filler_email,
+          parsedInput.filler_first_name || '',
+          parsedInput.filler_last_name || '',
+          parsedInput.first_name,
+          parsedInput.last_name,
+          data.id
+        )
+        if (fillerResult?.success) {
+          console.log('[submitPatientIntakeForm] ✅ Confirmation email sent to filler:', parsedInput.filler_email)
+        } else {
+          console.error('[submitPatientIntakeForm] ❌ Failed to send confirmation email to filler:', fillerResult?.error)
+        }
+      } catch (error) {
+        console.error('[submitPatientIntakeForm] ❌ Error sending confirmation email to filler:', error)
+      }
+    }
+    
+    // Send login credentials email separately (after confirmation email)
+    // Only send if we created a new account
+    if (shouldSendLoginCredentials && tempPassword) {
+      // Wait 2 seconds to make it clear it's a separate email
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      console.log('[submitPatientIntakeForm] Sending login credentials email...')
+      if (parsedInput.filled_by === 'self') {
+        // Patient filled out themselves - send login credentials email to patient
+        try {
+          const loginResult = await sendPatientLoginCredentialsEmail(
+            parsedInput.email,
+            parsedInput.first_name,
+            parsedInput.last_name,
+            tempPassword, // Include the generated password
+            false
+          )
+          if (loginResult?.success) {
+            console.log('[submitPatientIntakeForm] ✅ Login credentials email sent to patient:', parsedInput.email)
+          } else {
+            console.error('[submitPatientIntakeForm] ❌ Failed to send login credentials email:', loginResult?.error)
+          }
+        } catch (error) {
+          console.error('[submitPatientIntakeForm] ❌ Error sending login credentials email to patient:', error)
+        }
+      } else if (parsedInput.filled_by === 'someone_else' && parsedInput.filler_email) {
+        // Someone else filled out - account is created with patient email
+        // Send login credentials email to patient email AND notification to filler
+        try {
+          const loginResult = await sendPatientLoginCredentialsEmail(
+            parsedInput.email, // Patient email (account email)
+            parsedInput.first_name,
+            parsedInput.last_name,
+            tempPassword, // Include the generated password
+            true, // isFiller = true
+            parsedInput.filler_email, // Filler email for notification
+            parsedInput.filler_first_name || '',
+            parsedInput.filler_last_name || ''
+          )
+          if (loginResult?.success) {
+            console.log('[submitPatientIntakeForm] ✅ Login credentials email sent to patient:', parsedInput.email)
+          } else {
+            console.error('[submitPatientIntakeForm] ❌ Failed to send login credentials email:', loginResult?.error)
+          }
+        } catch (error) {
+          console.error('[submitPatientIntakeForm] ❌ Error sending login credentials email:', error)
+        }
+      }
+    } else if (existingProfile) {
+      console.log('[submitPatientIntakeForm] ⚠️ Profile already exists, skipping login credentials email')
     }
     
     return { success: true, data: { id: data.id } }
