@@ -274,8 +274,9 @@ export async function sendEmployeeWelcomeEmail(
   return result
 }
 
-// Helper function to send patient welcome email with password
-export async function sendPatientWelcomeEmail(
+// Helper function to send patient login credentials email (second email, sent separately)
+// This is sent after the application confirmation email
+export async function sendPatientLoginCredentialsEmail(
   patientEmail: string,
   firstName: string,
   lastName: string,
@@ -285,7 +286,7 @@ export async function sendPatientWelcomeEmail(
   fillerFirstName?: string,
   fillerLastName?: string
 ) {
-  console.log('[sendPatientWelcomeEmail] Called with:', { patientEmail, firstName, lastName, isFiller, fillerEmail })
+  console.log('[sendPatientLoginCredentialsEmail] Called with:', { patientEmail, firstName, lastName, isFiller, fillerEmail })
   
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
     (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
@@ -390,7 +391,7 @@ export async function sendPatientWelcomeEmail(
       </html>
     `
     
-    console.log('[sendPatientWelcomeEmail] Sending filler notification email to:', fillerEmail)
+    console.log('[sendPatientLoginCredentialsEmail] Sending filler notification email to:', fillerEmail)
     const fillerResult = await sendEmailDirect({
       to: fillerEmail,
       subject: `Patient Account Created for ${firstName} ${lastName} | Iboga Wellness Institute`,
@@ -507,8 +508,8 @@ export async function sendPatientWelcomeEmail(
           <h1>Iboga Wellness Institute</h1>
         </div>
         <div class="content">
-          <h2>Welcome to Your Patient Portal, ${firstName}!</h2>
-          <p>We have received your application and created your patient portal account. You can now access your portal using the credentials below.</p>
+          <h2>Your Patient Portal Account is Ready, ${firstName}!</h2>
+          <p>We have created your patient portal account. You can now access your portal using the login credentials below.</p>
           
           <div class="credentials-box">
             <p><strong>Email:</strong> ${patientEmail}</p>
@@ -540,17 +541,17 @@ export async function sendPatientWelcomeEmail(
     </html>
   `
 
-  console.log('[sendPatientWelcomeEmail] Sending patient welcome email to:', patientEmail)
+    console.log('[sendPatientLoginCredentialsEmail] Sending patient login credentials email to:', patientEmail)
   const result = await sendEmailDirect({
     to: patientEmail,
-    subject: 'Welcome to Your Patient Portal - Your Account is Ready | Iboga Wellness Institute',
+    subject: 'Your Patient Portal Login Credentials | Iboga Wellness Institute',
     body: htmlBody,
   })
   
   if (!result.success) {
-    console.error('[sendPatientWelcomeEmail] Failed to send patient email:', result.error)
+    console.error('[sendPatientLoginCredentialsEmail] Failed to send patient email:', result.error)
   } else {
-    console.log('[sendPatientWelcomeEmail] Patient email sent successfully')
+    console.log('[sendPatientLoginCredentialsEmail] Patient email sent successfully')
   }
   
   return result
