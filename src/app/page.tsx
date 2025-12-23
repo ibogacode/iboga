@@ -1,12 +1,13 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getCachedUserWithProfile } from '@/lib/supabase/cached'
+import { getRoleRoute } from '@/lib/utils/role-routes'
 
 export default async function HomePage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user, profile } = await getCachedUserWithProfile()
 
   if (user) {
-    redirect('/dashboard')
+    const role = (profile?.role as 'admin' | 'owner' | 'manager' | 'doctor' | 'psych' | 'nurse' | 'driver' | 'patient') || 'patient'
+    redirect(getRoleRoute(role))
   } else {
     redirect('/login')
   }

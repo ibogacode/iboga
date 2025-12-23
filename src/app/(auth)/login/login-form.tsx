@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { getRoleRoute } from '@/lib/utils/role-routes'
+import { UserRole } from '@/types'
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -50,11 +52,24 @@ export function LoginForm() {
 
       toast.success('Signed in successfully')
       
-      // Redirect to dashboard (which will redirect to role-specific dashboard)
-      // or to the redirectTo path if provided
-      const redirectTo = searchParams.get('redirectTo') || '/dashboard'
-      router.push(redirectTo)
-      router.refresh()
+      // Get user profile to determine role-based redirect
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      
+      if (authUser) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', authUser.id)
+          .single()
+        
+        // Redirect to role-specific dashboard or to the redirectTo path if provided
+        const role = (profile?.role as UserRole) || 'patient'
+        const redirectTo = searchParams.get('redirectTo') || getRoleRoute(role)
+        router.push(redirectTo)
+        router.refresh()
+      } else {
+        router.push('/login')
+      }
     } catch {
       toast.error('An unexpected error occurred')
     } finally {

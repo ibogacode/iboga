@@ -75,13 +75,13 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
     <header className="fixed top-0 left-0 right-0 z-50 w-full bg-[#F5F4F0] border-b border-gray-200/50">
       {/* Main Container */}
       <div className="flex items-center justify-between gap-2 md:gap-6 px-2 md:px-4 lg:px-6 xl:px-8 py-1">
-        {/* Mobile Menu Button */}
+        {/* Mobile/Tablet Menu Button */}
         <Sheet>
           <SheetTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden h-10 w-10 shrink-0"
+              className="lg:hidden h-10 w-10 shrink-0"
             >
               <Menu className="h-5 w-5" />
               <span className="sr-only">Toggle menu</span>

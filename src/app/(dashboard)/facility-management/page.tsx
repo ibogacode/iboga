@@ -200,27 +200,25 @@ export default function FacilityManagementPage() {
 
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-0 mb-6 sm:mb-8">
         <div>
           <h1 
+            className="text-2xl sm:text-3xl md:text-[44px] font-normal leading-[1.3em] text-black"
             style={{ 
               fontFamily: 'var(--font-instrument-serif), serif',
-              fontSize: '44px',
-              fontWeight: 400,
-              color: 'black',
               wordWrap: 'break-word'
             }}
           >
             Facility Overview
           </h1>
-          <p className="text-gray-600 mt-2 text-lg">
+          <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">
             Beds, occupancy, staff capacity, and revenue projections.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {/* Add Employee Dialog */}
           <Dialog open={isEmployeeDialogOpen} onOpenChange={setIsEmployeeDialogOpen}>
             <DialogTrigger asChild>
@@ -229,16 +227,16 @@ export default function FacilityManagementPage() {
                 Add Employee
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
               <DialogHeader>
-                <DialogTitle>Add New Employee</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-lg sm:text-xl">Add New Employee</DialogTitle>
+                <DialogDescription className="text-sm">
                   Create a new employee account with the specified role.
                 </DialogDescription>
               </DialogHeader>
               <Form {...employeeForm}>
                 <form onSubmit={employeeForm.handleSubmit(onEmployeeSubmit)} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
                       control={employeeForm.control}
                       name="firstName"
@@ -279,7 +277,7 @@ export default function FacilityManagementPage() {
                       </FormItem>
                     )}
                   />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
                       control={employeeForm.control}
                       name="password"
@@ -319,7 +317,7 @@ export default function FacilityManagementPage() {
                       )}
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
                       control={employeeForm.control}
                       name="phone"
@@ -391,11 +389,11 @@ export default function FacilityManagementPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
         {/* Occupancy */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-sm font-medium mb-2">Occupancy (this month)</p>
-          <p className="text-4xl font-semibold text-gray-900 mb-3">78</p>
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Occupancy (this month)</p>
+          <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">78</p>
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1 text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
               <TrendingUp className="h-3.5 w-3.5" />
@@ -406,89 +404,90 @@ export default function FacilityManagementPage() {
         </div>
 
         {/* Beds Available */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-sm font-medium mb-2">Beds Available (next 30 days)</p>
-          <p className="text-4xl font-semibold text-gray-900 mb-3">11</p>
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1 text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
-              <TrendingUp className="h-3.5 w-3.5" />
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Beds Available (next 30 days)</p>
+          <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">11</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="flex items-center gap-1 text-xs sm:text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
+              <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               5%
             </span>
-            <span className="text-gray-400 text-sm">empty beds beyond 6 weeks</span>
+            <span className="text-gray-400 text-xs sm:text-sm">empty beds beyond 6 weeks</span>
           </div>
         </div>
 
         {/* Confirmed Revenue */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-sm font-medium mb-2">Confirmed Revenue</p>
-          <p className="text-4xl font-semibold text-gray-900 mb-3">$142K</p>
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1 text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
-              <TrendingUp className="h-3.5 w-3.5" />
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Confirmed Revenue</p>
+          <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">$142K</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="flex items-center gap-1 text-xs sm:text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
+              <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               40%
             </span>
-            <span className="text-gray-400 text-sm">Booked for next 60 days</span>
+            <span className="text-gray-400 text-xs sm:text-sm">Booked for next 60 days</span>
           </div>
         </div>
 
         {/* Staff Load */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-sm font-medium mb-2">Staff Load</p>
-          <p className="text-4xl font-semibold text-gray-900 mb-3">86%</p>
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1 text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
-              <TrendingUp className="h-3.5 w-3.5" />
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Staff Load</p>
+          <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">86%</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="flex items-center gap-1 text-xs sm:text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
+              <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               7%
             </span>
-            <span className="text-gray-400 text-sm">High-monitor overtime</span>
+            <span className="text-gray-400 text-xs sm:text-sm">High-monitor overtime</span>
           </div>
         </div>
       </div>
 
       {/* Employees List */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Employees</h2>
-          <span className="text-sm text-gray-500">{employees.length} total</span>
+      <div className="mt-6 sm:mt-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-4">
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Employees</h2>
+          <span className="text-xs sm:text-sm text-gray-500">{employees.length} total</span>
         </div>
         
         {isLoadingEmployees ? (
-          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100 text-center">
+          <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-100 text-center">
             <Loader2 className="h-6 w-6 animate-spin text-gray-400 mx-auto" />
-            <p className="text-gray-500 mt-2">Loading employees...</p>
+            <p className="text-gray-500 mt-2 text-sm">Loading employees...</p>
           </div>
         ) : employees.length === 0 ? (
-          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100 text-center">
-            <p className="text-gray-500">No employees found. Add your first employee using the button above.</p>
+          <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-100 text-center">
+            <p className="text-gray-500 text-sm sm:text-base">No employees found. Add your first employee using the button above.</p>
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
+            <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+              <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Name
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Email
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Role
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Phone
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Designation
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Pay Rate/Hour
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Added
                   </th>
                   {(currentUserRole === 'admin' || currentUserRole === 'owner') && (
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   )}
@@ -497,42 +496,42 @@ export default function FacilityManagementPage() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {employees.map((employee) => (
                   <tr key={employee.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs sm:text-sm font-medium text-gray-900">
                         {employee.first_name} {employee.last_name}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{employee.email}</div>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs sm:text-sm text-gray-500 truncate max-w-[150px] sm:max-w-none">{employee.email}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
                         roleConfig[employee.role as keyof typeof roleConfig]?.color || 'bg-gray-100'
                       } text-white`}>
                         {getRoleLabel(employee.role)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{employee.phone || '—'}</div>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs sm:text-sm text-gray-500">{employee.phone || '—'}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{employee.designation || '—'}</div>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs sm:text-sm text-gray-500">{employee.designation || '—'}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs sm:text-sm text-gray-500">
                         {employee.pay_rate_per_hour ? `$${parseFloat(employee.pay_rate_per_hour.toString()).toFixed(2)}` : '—'}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{formatDate(employee.created_at)}</div>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      <div className="text-xs sm:text-sm text-gray-500">{formatDate(employee.created_at)}</div>
                     </td>
                     {(currentUserRole === 'admin' || currentUserRole === 'owner') && (
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEditClick(employee)}
-                          className="h-8 w-8 p-0"
+                          className="h-8 w-8 p-0 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -542,16 +541,17 @@ export default function FacilityManagementPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>
 
       {/* Edit Employee Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>Edit Employee</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Edit Employee</DialogTitle>
+            <DialogDescription className="text-sm">
               Update employee information. Note: Password cannot be changed here.
             </DialogDescription>
           </DialogHeader>
@@ -568,7 +568,7 @@ export default function FacilityManagementPage() {
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={editEmployeeForm.control}
                   name="firstName"
@@ -634,7 +634,7 @@ export default function FacilityManagementPage() {
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={editEmployeeForm.control}
                   name="phone"
