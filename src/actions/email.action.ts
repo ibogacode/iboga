@@ -274,7 +274,289 @@ export async function sendEmployeeWelcomeEmail(
   return result
 }
 
-// Helper function to send patient password setup email
+// Helper function to send patient welcome email with password
+export async function sendPatientWelcomeEmail(
+  patientEmail: string,
+  firstName: string,
+  lastName: string,
+  password: string,
+  isFiller: boolean = false,
+  fillerEmail?: string,
+  fillerFirstName?: string,
+  fillerLastName?: string
+) {
+  console.log('[sendPatientWelcomeEmail] Called with:', { patientEmail, firstName, lastName, isFiller, fillerEmail })
+  
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+    (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
+  const loginUrl = `${baseUrl}/login`
+
+  // If this is for a filler, also send notification email to filler
+  if (isFiller && fillerEmail) {
+    const fillerHtmlBody = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { 
+            font-family: 'Helvetica Neue', Arial, sans-serif; 
+            line-height: 1.8; 
+            color: #333; 
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+          }
+          .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: white;
+          }
+          .header { 
+            background: #5D7A5F; 
+            color: white; 
+            padding: 40px 30px; 
+            text-align: center; 
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 400;
+          }
+          .content { 
+            padding: 40px 30px; 
+            background: white; 
+          }
+          .content h2 {
+            color: #5D7A5F;
+            font-size: 24px;
+            margin-top: 0;
+          }
+          .content p {
+            font-size: 16px;
+            color: #555;
+            margin-bottom: 20px;
+          }
+          .info-box {
+            background: #f9f9f9;
+            border-left: 4px solid #5D7A5F;
+            padding: 20px;
+            margin: 20px 0;
+          }
+          .footer { 
+            padding: 30px; 
+            text-align: center; 
+            font-size: 14px; 
+            color: #888;
+            background: #f9f9f9;
+            border-top: 1px solid #eee;
+          }
+          .footer a {
+            color: #5D7A5F;
+            text-decoration: none;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Iboga Wellness Institute</h1>
+          </div>
+          <div class="content">
+            <h2>Patient Account Created</h2>
+            <p>Hello ${fillerFirstName || 'there'},</p>
+            <p>We have created a patient portal account for <strong>${firstName} ${lastName}</strong> based on the intake form you submitted.</p>
+            <div class="info-box">
+              <p><strong>Account Information:</strong></p>
+              <p><strong>Patient Name:</strong> ${firstName} ${lastName}</p>
+              <p><strong>Account Email:</strong> ${patientEmail}</p>
+            </div>
+            
+            <p>${firstName} will receive a separate email with their login credentials. They will be required to change their password on first login for security.</p>
+            
+            <p>If you have any questions, please contact us:</p>
+            <p>
+              <strong>Phone:</strong> +1 (800) 604-7294<br>
+              <strong>Email:</strong> james@theibogainstitute.org
+            </p>
+            <p>Thank you for helping ${firstName} take this important step in their wellness journey.</p>
+            <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
+          </div>
+          <div class="footer">
+            <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+            <p>https://theibogainstitute.org</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+    
+    console.log('[sendPatientWelcomeEmail] Sending filler notification email to:', fillerEmail)
+    const fillerResult = await sendEmailDirect({
+      to: fillerEmail,
+      subject: `Patient Account Created for ${firstName} ${lastName} | Iboga Wellness Institute`,
+      body: fillerHtmlBody,
+    })
+    if (!fillerResult.success) {
+      console.error('[sendPatientWelcomeEmail] Failed to send filler email:', fillerResult.error)
+    } else {
+      console.log('[sendPatientWelcomeEmail] Filler email sent successfully')
+    }
+  }
+
+  // Send welcome email to patient with password included
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { 
+          font-family: 'Helvetica Neue', Arial, sans-serif; 
+          line-height: 1.8; 
+          color: #333; 
+          margin: 0;
+          padding: 0;
+          background-color: #f5f5f5;
+        }
+        .container { 
+          max-width: 600px; 
+          margin: 0 auto; 
+          background: white;
+        }
+        .header { 
+          background: #5D7A5F; 
+          color: white; 
+          padding: 40px 30px; 
+          text-align: center; 
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 28px;
+          font-weight: 400;
+        }
+        .content { 
+          padding: 40px 30px; 
+          background: white; 
+        }
+        .content h2 {
+          color: #5D7A5F;
+          font-size: 24px;
+          margin-top: 0;
+        }
+        .content p {
+          font-size: 16px;
+          color: #555;
+          margin-bottom: 20px;
+        }
+        .credentials-box {
+          background: #f9f9f9;
+          border: 2px solid #5D7A5F;
+          border-radius: 8px;
+          padding: 20px;
+          margin: 20px 0;
+        }
+        .credentials-box p {
+          margin: 10px 0;
+          font-size: 16px;
+        }
+        .credentials-box strong {
+          color: #5D7A5F;
+        }
+        .cta-button {
+          display: inline-block;
+          background: #5D7A5F;
+          color: white !important;
+          padding: 16px 32px;
+          text-decoration: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          margin: 20px 0;
+        }
+        .cta-button:hover {
+          background: #4a6350;
+        }
+        .cta-container {
+          text-align: center;
+          margin: 30px 0;
+        }
+        .security-note {
+          background: #fff3cd;
+          border-left: 4px solid #ffc107;
+          padding: 15px;
+          margin: 20px 0;
+          font-size: 14px;
+          color: #856404;
+        }
+        .footer { 
+          padding: 30px; 
+          text-align: center; 
+          font-size: 14px; 
+          color: #888;
+          background: #f9f9f9;
+          border-top: 1px solid #eee;
+        }
+        .footer a {
+          color: #5D7A5F;
+          text-decoration: none;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Iboga Wellness Institute</h1>
+        </div>
+        <div class="content">
+          <h2>Welcome to Your Patient Portal, ${firstName}!</h2>
+          <p>We have received your application and created your patient portal account. You can now access your portal using the credentials below.</p>
+          
+          <div class="credentials-box">
+            <p><strong>Email:</strong> ${patientEmail}</p>
+            <p><strong>Temporary Password:</strong> ${password}</p>
+          </div>
+          
+          <div class="security-note">
+            <strong>🔒 Security Note:</strong> For your security, you will be required to change your password after your first login. You can do this in <strong>Profile → Security</strong> settings, or you'll be prompted to change it immediately after logging in.
+          </div>
+
+          <div class="cta-container">
+            <a href="${loginUrl}" class="cta-button">Login to Portal</a>
+          </div>
+
+          <p>If you have any questions or need assistance, please contact us:</p>
+          <p>
+            <strong>Phone:</strong> +1 (800) 604-7294<br>
+            <strong>Email:</strong> james@theibogainstitute.org
+          </p>
+          
+          <p>Welcome to the Iboga Wellness Institute!<br><strong>The Iboga Wellness Institute Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+          <p>https://theibogainstitute.org</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  console.log('[sendPatientWelcomeEmail] Sending patient welcome email to:', patientEmail)
+  const result = await sendEmailDirect({
+    to: patientEmail,
+    subject: 'Welcome to Your Patient Portal - Your Account is Ready | Iboga Wellness Institute',
+    body: htmlBody,
+  })
+  
+  if (!result.success) {
+    console.error('[sendPatientWelcomeEmail] Failed to send patient email:', result.error)
+  } else {
+    console.log('[sendPatientWelcomeEmail] Patient email sent successfully')
+  }
+  
+  return result
+}
+
+// Helper function to send patient password setup email (kept for backward compatibility)
 export async function sendPatientPasswordSetupEmail(
   patientEmail: string,
   firstName: string,

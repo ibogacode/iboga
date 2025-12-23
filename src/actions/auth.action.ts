@@ -140,6 +140,17 @@ export const resetPasswordAction = actionClient
       return { success: false, error: error.message }
     }
 
+    // Clear must_change_password flag after successful password reset
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ must_change_password: false })
+      .eq('id', user.id)
+
+    if (profileError) {
+      console.error('Error clearing must_change_password flag:', profileError)
+      // Don't fail the password reset if flag update fails, but log it
+    }
+
     revalidatePath('/', 'layout')
     return { success: true }
   })
@@ -182,6 +193,17 @@ export const changePasswordAction = actionClient
         success: false, 
         error: updateError.message || 'Failed to update password. Please try again.' 
       }
+    }
+
+    // Clear must_change_password flag after successful password change
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ must_change_password: false })
+      .eq('id', user.id)
+
+    if (profileError) {
+      console.error('Error clearing must_change_password flag:', profileError)
+      // Don't fail the password change if flag update fails, but log it
     }
 
     revalidatePath('/', 'layout')

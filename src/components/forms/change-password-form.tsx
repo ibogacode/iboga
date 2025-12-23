@@ -11,8 +11,17 @@ import { changePasswordSchema, type ChangePasswordFormData } from '@/lib/validat
 import { changePasswordAction } from '@/actions/auth.action'
 import { toast } from 'sonner'
 import { designTokens } from '@/config/design-system'
+import { useRouter } from 'next/navigation'
+import { getRoleRoute } from '@/lib/utils/role-routes'
+import { createClient } from '@/lib/supabase/client'
+import { UserRole } from '@/types'
 
-export function ChangePasswordForm() {
+interface ChangePasswordFormProps {
+  isRequired?: boolean
+}
+
+export function ChangePasswordForm({ isRequired = false }: ChangePasswordFormProps) {
+  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
@@ -53,6 +62,27 @@ export function ChangePasswordForm() {
         if (result.data.success) {
           toast.success('Password changed successfully!')
           reset()
+          
+          // If password change was required, redirect to dashboard
+          if (isRequired) {
+            // Get user profile to determine role-based redirect
+            const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+            
+            if (user) {
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', user.id)
+                .single()
+              
+              const role = (profile?.role as UserRole) || 'patient'
+              setTimeout(() => {
+                router.push(getRoleRoute(role))
+                router.refresh()
+              }, 1500)
+            }
+          }
         } else if (result.data.error) {
           toast.error(result.data.error)
         } else {

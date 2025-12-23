@@ -52,15 +52,23 @@ export function LoginForm() {
 
       toast.success('Signed in successfully')
       
-      // Get user profile to determine role-based redirect
+      // Get user profile to check if password change is required
       const { data: { user: authUser } } = await supabase.auth.getUser()
       
       if (authUser) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, must_change_password')
           .eq('id', authUser.id)
           .single()
+        
+        // If password change is required, redirect to change password page
+        if (profile?.must_change_password) {
+          toast.info('Please change your password to continue')
+          router.push('/change-password?required=true')
+          router.refresh()
+          return
+        }
         
         // Redirect to role-specific dashboard or to the redirectTo path if provided
         const role = (profile?.role as UserRole) || 'patient'
