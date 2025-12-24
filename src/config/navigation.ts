@@ -51,9 +51,9 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
       { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
       { title: 'Research', href: '/research', icon: Search },
-      { 
-        title: 'Marketing', 
-        href: '/marketing', 
+      {
+        title: 'Marketing',
+        href: '/marketing',
         icon: Megaphone,
         children: [
           { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
@@ -72,9 +72,9 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
       { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
       { title: 'Research', href: '/research', icon: Search },
-      { 
-        title: 'Marketing', 
-        href: '/marketing', 
+      {
+        title: 'Marketing',
+        href: '/marketing',
         icon: Megaphone,
         children: [
           { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
@@ -150,7 +150,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Home', href: '/patient', icon: Home },
       { title: 'Tasks', href: '/patient/tasks', icon: ClipboardList },
       { title: 'Documents', href: '/patient/documents', icon: FileText },
-      { title: 'Messages', href: '/patient/messages', icon: MessageSquare },
+      { title: 'Messages', href: '/messages', icon: MessageSquare },
       { title: 'Resources', href: '/patient/resources', icon: User },
     ],
     secondaryNav: [],

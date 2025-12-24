@@ -845,7 +845,7 @@ export async function sendPatientPasswordSetupEmail(
         </div>
         <div class="content">
           <h2>Welcome to Your Patient Portal, ${firstName}!</h2>
-          <p>We have created your patient portal account based on your intake form submission.</p>
+          <p>We have created your patient portal account based on your application form submission.</p>
           
           <div class="info-box">
             <p><strong>📧 Next Step - Set Up Your Password:</strong></p>
