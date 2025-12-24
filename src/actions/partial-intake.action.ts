@@ -13,7 +13,7 @@ export const createPartialIntakeForm = authActionClient
   .action(async ({ parsedInput, ctx }) => {
     // Check if user is admin or owner
     if (ctx.user.role !== 'admin' && ctx.user.role !== 'owner') {
-      return { success: false, error: 'Only admins and owners can create partial intake forms' }
+      return { success: false, error: 'Only admins and owners can create partial application forms' }
     }
 
     const supabase = createAdminClient()
@@ -23,11 +23,11 @@ export const createPartialIntakeForm = authActionClient
     
     // Determine recipient email and name based on who is filling out the form
     const recipientEmail = parsedInput.filled_by === 'self' 
-      ? parsedInput.email 
-      : (parsedInput.filler_email || parsedInput.email)
+      ? (parsedInput.email || '')
+      : (parsedInput.filler_email || '')
     
     const recipientName = parsedInput.filled_by === 'self'
-      ? `${parsedInput.first_name} ${parsedInput.last_name}`
+      ? `${parsedInput.first_name || ''} ${parsedInput.last_name || ''}`.trim()
       : (parsedInput.filler_first_name && parsedInput.filler_last_name
           ? `${parsedInput.filler_first_name} ${parsedInput.filler_last_name}`
           : null)
@@ -50,9 +50,9 @@ export const createPartialIntakeForm = authActionClient
         filler_last_name: parsedInput.filler_last_name || null,
         filler_email: parsedInput.filler_email || null,
         filler_phone: parsedInput.filler_phone || null,
-        first_name: parsedInput.first_name,
-        last_name: parsedInput.last_name,
-        email: parsedInput.email,
+        first_name: parsedInput.first_name || null,
+        last_name: parsedInput.last_name || null,
+        email: parsedInput.email || null,
         phone_number: parsedInput.mode === 'partial' ? parsedInput.phone_number : null,
         date_of_birth: dateOfBirth,
         gender: parsedInput.mode === 'partial' ? parsedInput.gender : null,
@@ -86,9 +86,11 @@ export const createPartialIntakeForm = authActionClient
     // Send email with form link based on scenario (fire and forget - don't await)
     sendPartialIntakeFormEmail(
       recipientEmail,
-      recipientName || `${parsedInput.first_name} ${parsedInput.last_name}`,
-      parsedInput.first_name,
-      parsedInput.last_name,
+      recipientName || (parsedInput.filled_by === 'self' 
+        ? `${parsedInput.first_name || ''} ${parsedInput.last_name || ''}`.trim()
+        : `${parsedInput.filler_first_name || ''} ${parsedInput.filler_last_name || ''}`.trim()),
+      parsedInput.first_name || null,
+      parsedInput.last_name || null,
       formLink,
       parsedInput.mode,
       parsedInput.filled_by,
@@ -156,8 +158,8 @@ export const getPartialIntakeForm = actionClient
 async function sendPartialIntakeFormEmail(
   recipientEmail: string,
   recipientName: string,
-  patientFirstName: string,
-  patientLastName: string,
+  patientFirstName: string | null,
+  patientLastName: string | null,
   formLink: string,
   mode: 'minimal' | 'partial',
   filledBy: 'self' | 'someone_else',
@@ -176,58 +178,55 @@ async function sendPartialIntakeFormEmail(
   // Scenario 1: Minimal + Self
   if (isMinimal && isSelf) {
     greeting = `Hello ${recipientName},`
-    introText = `We need you to complete your intake form for Iboga Wellness Institute.`
+    introText = `We need you to complete your application form for Iboga Wellness Institute.`
     infoBoxContent = `
       <div class="info-box">
         <p><strong>Your Information:</strong></p>
-        <p>Name: ${patientFirstName} ${patientLastName}</p>
+        <p>Name: ${patientFirstName || ''} ${patientLastName || ''}</p>
         <p>Email: ${recipientEmail}</p>
-        <p>Please complete the intake form with all required information about yourself.</p>
+        <p>Please complete the application form with all required information about yourself.</p>
       </div>
     `
-    subject = `Complete Your Intake Form - ${patientFirstName} ${patientLastName} | Iboga Wellness Institute`
+    subject = `Complete Your Application Form - ${patientFirstName || ''} ${patientLastName || ''} | Iboga Wellness Institute`
   }
   // Scenario 2: Minimal + Someone Else
   else if (isMinimal && !isSelf) {
     greeting = `Hello ${recipientName},`
-    introText = `You have been asked to complete the intake form for <strong>${patientFirstName} ${patientLastName}</strong>.`
+    introText = `You have been requested to complete a patient application. Please start and fill out all patient data in the form and hit submit. Thank you.`
     infoBoxContent = `
       <div class="info-box">
-        <p><strong>Patient Information:</strong></p>
-        <p>Name: ${patientFirstName} ${patientLastName}</p>
-        <p>Email: ${recipientEmail}</p>
-        <p>Please complete the intake form with all required information about the patient.</p>
+        <p>Please complete this application by entering all required patient information. Once finished, click submit to complete the process. Thank you for your assistance.</p>
       </div>
     `
-    subject = `Complete Intake Form for ${patientFirstName} ${patientLastName} | Iboga Wellness Institute`
+    subject = `Requested: Complete a Patient Application | Iboga Wellness Institute`
   }
   // Scenario 3: Partial + Self
   else if (!isMinimal && isSelf) {
     greeting = `Hello ${recipientName},`
-    introText = `We need you to complete the remaining sections of your intake form. Some information has already been entered for you.`
+    introText = `We need you to complete the remaining sections of your application form. Some information has already been entered for you.`
     infoBoxContent = `
       <div class="info-box">
         <p><strong>Your Information (Pre-filled):</strong></p>
-        <p>Name: ${patientFirstName} ${patientLastName}</p>
+        <p>Name: ${patientFirstName || ''} ${patientLastName || ''}</p>
         <p>Email: ${recipientEmail}</p>
-        <p>Some information has already been entered. Please review and complete the remaining sections of the intake form.</p>
+        <p>Some information has already been entered. Please review and complete the remaining sections of the application form.</p>
       </div>
     `
-    subject = `Complete Your Intake Form - ${patientFirstName} ${patientLastName} | Iboga Wellness Institute`
+    subject = `Complete Your Application Form - ${patientFirstName || ''} ${patientLastName || ''} | Iboga Wellness Institute`
   }
   // Scenario 4: Partial + Someone Else
   else {
     greeting = `Hello ${recipientName},`
-    introText = `You have been asked to complete the remaining sections of the intake form for <strong>${patientFirstName} ${patientLastName}</strong>. Some information has already been entered.`
+    introText = `You have been asked to complete the remaining sections of the application form${patientFirstName && patientLastName ? ` for <strong>${patientFirstName} ${patientLastName}</strong>` : ''}. Some information has already been entered.`
     infoBoxContent = `
       <div class="info-box">
         <p><strong>Patient Information (Pre-filled):</strong></p>
-        <p>Name: ${patientFirstName} ${patientLastName}</p>
+        <p>Name: ${patientFirstName || ''} ${patientLastName || ''}</p>
         <p>Email: ${recipientEmail}</p>
-        <p>Some information has already been entered. Please review and complete the remaining sections of the intake form.</p>
+        <p>Some information has already been entered. Please review and complete the remaining sections of the application form.</p>
       </div>
     `
-    subject = `Complete Intake Form for ${patientFirstName} ${patientLastName} | Iboga Wellness Institute`
+    subject = `Complete Application Form${patientFirstName && patientLastName ? ` for ${patientFirstName} ${patientLastName}` : ''} | Iboga Wellness Institute`
   }
   
   const htmlBody = `
@@ -326,14 +325,18 @@ async function sendPartialIntakeFormEmail(
           <h1>Iboga Wellness Institute</h1>
         </div>
         <div class="content">
-          <h2>${isSelf ? 'Complete Your Intake Form' : `Complete Intake Form for ${patientFirstName} ${patientLastName}`}</h2>
+          <h2>${isSelf 
+            ? 'Complete Your Application Form' 
+            : (patientFirstName && patientLastName 
+                ? `Complete Application Form for ${patientFirstName} ${patientLastName}`
+                : 'Complete Patient Application Form')}</h2>
           <p>${greeting}</p>
           <p>${introText}</p>
           
           ${infoBoxContent}
           
           <div class="cta-container">
-            <a href="${formLink}" class="cta-button">Complete Intake Form</a>
+            <a href="${formLink}" class="cta-button">Complete Application Form</a>
           </div>
           
           <p class="link-fallback">If the button doesn't work, copy and paste this link into your browser:<br>${formLink}</p>
@@ -343,7 +346,7 @@ async function sendPartialIntakeFormEmail(
           <p>If you have any questions, please contact us:</p>
           <p>
             <strong>Phone:</strong> +1 (800) 604-7294<br>
-            <strong>Email:</strong> james@theibogainstitute.org
+            <strong>Email:</strong> contactus@theibogainstitute.org
           </p>
           
           <p>Thank you,<br><strong>The Iboga Wellness Institute Team</strong></p>

@@ -365,7 +365,7 @@ export async function sendPatientLoginCredentialsEmail(
           <div class="content">
             <h2>Patient Account Created</h2>
             <p>Hello ${fillerFirstName || 'there'},</p>
-            <p>We have created a patient portal account for <strong>${firstName} ${lastName}</strong> based on the intake form you submitted.</p>
+            <p>We have created a patient portal account for <strong>${firstName} ${lastName}</strong> based on the application form you submitted.</p>
             <div class="info-box">
               <p><strong>Account Information:</strong></p>
               <p><strong>Patient Name:</strong> ${firstName} ${lastName}</p>
@@ -386,7 +386,7 @@ export async function sendPatientLoginCredentialsEmail(
             <p>If you have any questions, please contact us:</p>
             <p>
               <strong>Phone:</strong> +1 (800) 604-7294<br>
-              <strong>Email:</strong> james@theibogainstitute.org
+              <strong>Email:</strong> contactus@theibogainstitute.org
             </p>
             <p>Thank you for helping ${firstName} take this important step in their wellness journey.</p>
             <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
@@ -544,7 +544,7 @@ export async function sendPatientLoginCredentialsEmail(
           <p>If you have any questions or need assistance, please contact us:</p>
           <p>
             <strong>Phone:</strong> +1 (800) 604-7294<br>
-            <strong>Email:</strong> james@theibogainstitute.org
+            <strong>Email:</strong> contactus@theibogainstitute.org
           </p>
           
           <p>Welcome to the Iboga Wellness Institute!<br><strong>The Iboga Wellness Institute Team</strong></p>
@@ -708,7 +708,7 @@ export async function sendPatientPasswordSetupEmail(
           <div class="content">
             <h2>Patient Account Created</h2>
             <p>Hello ${fillerFirstName || 'there'},</p>
-            <p>We have created a patient portal account for <strong>${firstName} ${lastName}</strong> based on the intake form you submitted.</p>
+            <p>We have created a patient portal account for <strong>${firstName} ${lastName}</strong> based on the application form you submitted.</p>
             <div class="info-box">
               <p><strong>Account Information:</strong></p>
               <p><strong>Patient Name:</strong> ${firstName} ${lastName}</p>
@@ -722,7 +722,7 @@ export async function sendPatientPasswordSetupEmail(
             <p>If you have any questions, please contact us:</p>
             <p>
               <strong>Phone:</strong> +1 (800) 604-7294<br>
-              <strong>Email:</strong> james@theibogainstitute.org
+              <strong>Email:</strong> contactus@theibogainstitute.org
             </p>
             <p>Thank you for helping ${firstName} take this important step in their wellness journey.</p>
             <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
@@ -859,7 +859,7 @@ export async function sendPatientPasswordSetupEmail(
           <p>If you have any questions or need assistance, please contact us:</p>
           <p>
             <strong>Phone:</strong> +1 (800) 604-7294<br>
-            <strong>Email:</strong> james@theibogainstitute.org
+            <strong>Email:</strong> contactus@theibogainstitute.org
           </p>
           
           <p>Welcome to the Iboga Wellness Institute!<br><strong>The Iboga Wellness Institute Team</strong></p>

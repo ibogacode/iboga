@@ -43,7 +43,10 @@ export function FollowersGrowthChart() {
         {/* Chart bars */}
         <div className="flex-1 flex items-end justify-between gap-2 px-4">
           {months.map((month, index) => {
-            const height = Math.random() * 60 + 20 // Random height between 20-80%
+            // Fixed heights to match design and avoid hydration errors
+            // These represent follower growth over 6 months
+            const heights = [75.87, 68.68, 77.52, 55.58, 58.99, 74.55]
+            const height = heights[index] || 50
             return (
               <div key={month} className="flex-1 flex flex-col items-center gap-2">
                 <div 

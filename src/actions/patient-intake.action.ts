@@ -456,7 +456,7 @@ async function sendConfirmationEmail(
           <p>If you have any immediate questions, feel free to reach out:</p>
           <p>
             <strong>Phone:</strong> +1 (800) 604-7294<br>
-            <strong>Email:</strong> james@theibogainstitute.org
+            <strong>Email:</strong> contactus@theibogainstitute.org
           </p>
           
           <p>We look forward to speaking with you soon!</p>
@@ -644,7 +644,7 @@ async function sendFillerConfirmationEmail(
           <p>If you have any immediate questions, feel free to reach out:</p>
           <p>
             <strong>Phone:</strong> +1 (800) 604-7294<br>
-            <strong>Email:</strong> james@theibogainstitute.org
+            <strong>Email:</strong> contactus@theibogainstitute.org
           </p>
           
           <p>Thank you for helping ${patientFirstName} take this important step in their wellness journey.</p>
@@ -661,7 +661,7 @@ async function sendFillerConfirmationEmail(
 
   return sendEmailDirect({
     to: fillerEmail,
-    subject: `Intake Form Submitted - Confirmation for ${patientFirstName} ${patientLastName} | Iboga Wellness Institute`,
+    subject: `Application Form Submitted - Confirmation for ${patientFirstName} ${patientLastName} | Iboga Wellness Institute`,
     body: htmlBody,
   })
 }

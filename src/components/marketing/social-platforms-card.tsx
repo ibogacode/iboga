@@ -1,14 +1,27 @@
 'use client'
 
-const platforms = [
-  { name: 'Instagram', followers: '46.1K', change: '↑ 11%', posts: '24 posts / week' },
-  { name: 'Facebook', followers: '46.1K', change: '↑ 11%', posts: '24 posts / week' },
-  { name: 'LinkedIn', followers: '46.1K', change: '↑ 11%', posts: '24 posts / week' },
-  { name: 'TikTok', followers: '46.1K', change: '↑ 11%', posts: '24 posts / week' },
-  { name: 'Youtube', followers: '46.1K', change: '↑ 11%', posts: '24 posts / week' },
-]
+import { useMetricoolData } from './metricool-data-provider'
+import { formatMetricoolData } from '@/lib/utils/metricool'
 
 export function SocialPlatformsCard() {
+  const { facebook, instagram, youtube, web, isLoading } = useMetricoolData()
+  
+  // Format data for display
+  const formattedData = formatMetricoolData(facebook, instagram, youtube, web)
+  const platforms = formattedData.platforms
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-2.5 p-6 rounded-2xl bg-white">
+        <div className="flex items-center gap-2.5">
+          <h3 className="text-lg font-medium leading-[1.193em] tracking-[-0.04em] text-black">
+            Social Platforms
+          </h3>
+        </div>
+        <div className="text-sm text-gray-500">Loading metrics...</div>
+      </div>
+    )
+  }
   return (
     <div className="flex flex-col gap-2.5 p-6 rounded-2xl bg-white">
       {/* Header */}

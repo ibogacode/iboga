@@ -60,7 +60,7 @@ Non-medical information may be securely deleted upon request after your treatmen
 For questions about this Privacy Policy or to exercise your rights, please contact:
 Iboga Wellness Institute
 
-Email: james@theibogainstitute.org
+Email: contactus@theibogainstitute.org
 Phone: +1 (800) 604-7294
 Website: https://theibogainstitute.org/
 

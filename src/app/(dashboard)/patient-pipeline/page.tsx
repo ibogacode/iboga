@@ -75,8 +75,8 @@ export default function PatientPipelinePage() {
     
     // Load both partial and public forms
     const [partialResult, publicResult] = await Promise.all([
-      getPartialIntakeForms({ limit: 100 }),
-      getPublicIntakeForms({ limit: 100 })
+      getPartialIntakeForms({ limit: 50 }),
+      getPublicIntakeForms({ limit: 50 })
     ])
     
     if (partialResult?.data?.success && partialResult.data.data) {
