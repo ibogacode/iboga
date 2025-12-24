@@ -19,7 +19,7 @@ export async function getIntakeFormData(intakeFormId: string) {
     .single()
   
   if (error || !data) {
-    return { success: false, error: 'Intake form not found' }
+    return { success: false, error: 'application form not found' }
   }
   
   return { success: true, data }
