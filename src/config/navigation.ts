@@ -23,6 +23,7 @@ import {
   Search,
   Megaphone,
   UserCheck,
+  Facebook,
   type LucideIcon,
 } from 'lucide-react'
 import { UserRole } from '@/types'
@@ -50,7 +51,14 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
       { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
       { title: 'Research', href: '/research', icon: Search },
-      { title: 'Marketing', href: '/marketing', icon: Megaphone },
+      { 
+        title: 'Marketing', 
+        href: '/marketing', 
+        icon: Megaphone,
+        children: [
+          { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
+        ]
+      },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
@@ -64,7 +72,14 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
       { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
       { title: 'Research', href: '/research', icon: Search },
-      { title: 'Marketing', href: '/marketing', icon: Megaphone },
+      { 
+        title: 'Marketing', 
+        href: '/marketing', 
+        icon: Megaphone,
+        children: [
+          { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
+        ]
+      },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },

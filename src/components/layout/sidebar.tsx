@@ -119,43 +119,79 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
           </h3>
           <nav className="space-y-1 px-3">
             {mainNavItems.map((item) => {
-              const isActive = isItemActive(item.href)
+              const isActive = isItemActive(item.href) || (item.children && item.children.some(child => isItemActive(child.href)))
               const Icon = item.icon
+              const hasChildren = item.children && item.children.length > 0
               
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative',
-                    isActive
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-700 hover:bg-white hover:shadow-sm',
-                    !showExpanded && 'justify-center px-0'
-                  )}
-                  title={!showExpanded ? item.title : undefined}
-                >
-                  {/* Active indicator */}
-                  {isActive && showExpanded && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gray-900 rounded-r-full -ml-3" />
-                  )}
+                <div key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      'group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative',
+                      isActive
+                        ? 'bg-gray-900 text-white'
+                        : 'text-gray-700 hover:bg-white hover:shadow-sm',
+                      !showExpanded && 'justify-center px-0'
+                    )}
+                    title={!showExpanded ? item.title : undefined}
+                  >
+                    {/* Active indicator */}
+                    {isActive && showExpanded && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gray-900 rounded-r-full -ml-3" />
+                    )}
+                    
+                    <Icon className={cn(
+                      'h-5 w-5 shrink-0',
+                      isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
+                    )} />
+                    
+                    {showExpanded && (
+                      <>
+                        <span className="flex-1 whitespace-nowrap">{item.title}</span>
+                        <ChevronRight className={cn(
+                          'h-4 w-4 shrink-0 transition-transform',
+                          isActive ? 'text-white/70' : 'text-gray-400',
+                          (isActive && hasChildren) && 'rotate-90'
+                        )} />
+                      </>
+                    )}
+                  </Link>
                   
-                  <Icon className={cn(
-                    'h-5 w-5 shrink-0',
-                    isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
-                  )} />
-                  
-                  {showExpanded && (
-                    <>
-                      <span className="flex-1 whitespace-nowrap">{item.title}</span>
-                      <ChevronRight className={cn(
-                        'h-4 w-4 shrink-0 transition-transform',
-                        isActive ? 'text-white/70' : 'text-gray-400',
-                        isActive && 'rotate-90'
-                      )} />
-                    </>
+                  {/* Render children if expanded and item is active */}
+                  {hasChildren && showExpanded && isActive && (
+                    <div className="ml-8 mt-1 space-y-1">
+                      {item.children.map((child) => {
+                        const isChildActive = isItemActive(child.href)
+                        const ChildIcon = child.icon
+                        
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            className={cn(
+                              'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 relative',
+                              isChildActive
+                                ? 'bg-gray-800 text-white'
+                                : 'text-gray-600 hover:bg-gray-100'
+                            )}
+                          >
+                            {isChildActive && (
+                              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-gray-900 rounded-r-full -ml-3" />
+                            )}
+                            
+                            <ChildIcon className={cn(
+                              'h-4 w-4 shrink-0',
+                              isChildActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
+                            )} />
+                            
+                            <span className="flex-1 whitespace-nowrap">{child.title}</span>
+                          </Link>
+                        )
+                      })}
+                    </div>
                   )}
-                </Link>
+                </div>
               )
             })}
           </nav>

@@ -92,7 +92,7 @@ export default function InitiateIntakeForm() {
     <div className="min-h-screen bg-#EDE9E4">
       <div className="max-w-4xl mx-auto bg-white p-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
-          Initiate Patient Intake Form
+          Initiate Patient Application Form
         </h1>
         
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
@@ -148,6 +148,25 @@ export default function InitiateIntakeForm() {
                   form.setValue('filler_last_name', null)
                   form.setValue('filler_email', null)
                   form.setValue('filler_phone', null)
+                } else {
+                  // Clear patient fields when switching to someone else
+                  form.setValue('first_name', '')
+                  form.setValue('last_name', '')
+                  form.setValue('email', '')
+                  form.setValue('phone_number', '')
+                  form.setValue('date_of_birth', '')
+                  form.setValue('gender', null)
+                  form.setValue('address', '')
+                  form.setValue('city', '')
+                  form.setValue('state', '')
+                  form.setValue('zip_code', '')
+                  form.setValue('program_type', null)
+                  form.setValue('emergency_contact_first_name', '')
+                  form.setValue('emergency_contact_last_name', '')
+                  form.setValue('emergency_contact_email', '')
+                  form.setValue('emergency_contact_phone', '')
+                  form.setValue('emergency_contact_address', '')
+                  form.setValue('emergency_contact_relationship', '')
                 }
               }}
               className="flex gap-6"
@@ -274,57 +293,59 @@ export default function InitiateIntakeForm() {
           </div>
         </div>
 
-        {/* Patient Information */}
-        <div className="space-y-6 border-t pt-6">
-          <h2 className="text-2xl font-semibold text-gray-900">Patient Information</h2>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="first_name">
-                First Name <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="first_name"
-                {...form.register('first_name')}
-                className="h-12 mt-2"
-              />
-              {form.formState.errors.first_name && (
-                <p className="text-sm text-red-500 mt-1">{form.formState.errors.first_name.message}</p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="last_name">
-                Last Name <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="last_name"
-                {...form.register('last_name')}
-                className="h-12 mt-2"
-              />
-              {form.formState.errors.last_name && (
-                <p className="text-sm text-red-500 mt-1">{form.formState.errors.last_name.message}</p>
-              )}
-            </div>
-          </div>
+        {/* Patient Information - Only show if patient is filling themselves */}
+        {form.watch('filled_by') === 'self' && (
+          <>
+            <div className="space-y-6 border-t pt-6">
+              <h2 className="text-2xl font-semibold text-gray-900">Patient Information</h2>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="first_name">
+                    First Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="first_name"
+                    {...form.register('first_name')}
+                    className="h-12 mt-2"
+                  />
+                  {form.formState.errors.first_name && (
+                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.first_name.message}</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="last_name">
+                    Last Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="last_name"
+                    {...form.register('last_name')}
+                    className="h-12 mt-2"
+                  />
+                  {form.formState.errors.last_name && (
+                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.last_name.message}</p>
+                  )}
+                </div>
+              </div>
 
-          <div>
-            <Label htmlFor="email">
-              Patient Email <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              {...form.register('email')}
-              className="h-12 mt-2"
-            />
-            {form.formState.errors.email && (
-              <p className="text-sm text-red-500 mt-1">{form.formState.errors.email.message}</p>
-            )}
-          </div>
-        </div>
+              <div>
+                <Label htmlFor="email">
+                  Patient Email <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  {...form.register('email')}
+                  className="h-12 mt-2"
+                />
+                {form.formState.errors.email && (
+                  <p className="text-sm text-red-500 mt-1">{form.formState.errors.email.message}</p>
+                )}
+              </div>
+            </div>
 
-        {/* Partial Mode Fields */}
-        {mode === 'partial' && (
+            {/* Partial Mode Fields - Only show if patient is filling themselves */}
+            {mode === 'partial' && (
           <div className="space-y-6 border-t pt-6">
             <h2 className="text-2xl font-semibold text-gray-900">Additional Patient Details</h2>
             
@@ -540,6 +561,8 @@ export default function InitiateIntakeForm() {
               </div>
             </div>
           </div>
+            )}
+          </>
         )}
 
         <div className="flex justify-end pt-6 border-t">

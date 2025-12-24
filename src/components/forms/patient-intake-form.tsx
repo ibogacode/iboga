@@ -75,7 +75,7 @@ Non-medical information may be securely deleted upon request after your treatmen
 For questions about this Privacy Policy or to exercise your rights, please contact:
 Iboga Wellness Institute
 
-Email: james@theibogainstitute.org
+Email: contactus@theibogainstitute.org
 Phone: +1 (800) 604-7294
 Website: https://theibogainstitute.org/
 
@@ -575,29 +575,76 @@ function PatientIntakeFormContent() {
           const partialData = result.data.data
           setPartialFormId(partialData.id)
           
-          // Pre-fill form with partial data
-          form.setValue('first_name', partialData.first_name || '')
-          form.setValue('last_name', partialData.last_name || '')
-          form.setValue('email', partialData.email || '')
+          // Pre-fill filled_by field
+          if (partialData.filled_by) {
+            form.setValue('filled_by', partialData.filled_by as 'self' | 'someone_else')
+          }
+          
+          // If someone else is filling, prefill their information
+          if (partialData.filled_by === 'someone_else') {
+            form.setValue('filler_relationship', partialData.filler_relationship || null)
+            form.setValue('filler_first_name', partialData.filler_first_name || null)
+            form.setValue('filler_last_name', partialData.filler_last_name || null)
+            form.setValue('filler_email', partialData.filler_email || null)
+            form.setValue('filler_phone', partialData.filler_phone || null)
+          }
+          
+          // Pre-fill patient data (only if patient info exists)
+          // When someone else is filling, patient info might be null
+          if (partialData.first_name) {
+            form.setValue('first_name', partialData.first_name)
+          }
+          if (partialData.last_name) {
+            form.setValue('last_name', partialData.last_name)
+          }
+          if (partialData.email) {
+            form.setValue('email', partialData.email)
+          }
           
           if (partialData.mode === 'partial') {
-            form.setValue('phone_number', partialData.phone_number || '')
+            if (partialData.phone_number) {
+              form.setValue('phone_number', partialData.phone_number)
+            }
             if (partialData.date_of_birth) {
               const dob = new Date(partialData.date_of_birth)
               form.setValue('date_of_birth', dob.toISOString().split('T')[0])
             }
-            form.setValue('gender', partialData.gender as any)
-            form.setValue('address', partialData.address || '')
-            form.setValue('city', partialData.city || '')
-            form.setValue('state', partialData.state || '')
-            form.setValue('zip_code', partialData.zip_code || '')
-            form.setValue('program_type', partialData.program_type as any)
-            form.setValue('emergency_contact_first_name', partialData.emergency_contact_first_name || '')
-            form.setValue('emergency_contact_last_name', partialData.emergency_contact_last_name || '')
-            form.setValue('emergency_contact_email', partialData.emergency_contact_email || null)
-            form.setValue('emergency_contact_phone', partialData.emergency_contact_phone || '')
-            form.setValue('emergency_contact_address', partialData.emergency_contact_address || null)
-            form.setValue('emergency_contact_relationship', partialData.emergency_contact_relationship || null)
+            if (partialData.gender) {
+              form.setValue('gender', partialData.gender as any)
+            }
+            if (partialData.address) {
+              form.setValue('address', partialData.address)
+            }
+            if (partialData.city) {
+              form.setValue('city', partialData.city)
+            }
+            if (partialData.state) {
+              form.setValue('state', partialData.state)
+            }
+            if (partialData.zip_code) {
+              form.setValue('zip_code', partialData.zip_code)
+            }
+            if (partialData.program_type) {
+              form.setValue('program_type', partialData.program_type as any)
+            }
+            if (partialData.emergency_contact_first_name) {
+              form.setValue('emergency_contact_first_name', partialData.emergency_contact_first_name)
+            }
+            if (partialData.emergency_contact_last_name) {
+              form.setValue('emergency_contact_last_name', partialData.emergency_contact_last_name)
+            }
+            if (partialData.emergency_contact_email) {
+              form.setValue('emergency_contact_email', partialData.emergency_contact_email)
+            }
+            if (partialData.emergency_contact_phone) {
+              form.setValue('emergency_contact_phone', partialData.emergency_contact_phone)
+            }
+            if (partialData.emergency_contact_address) {
+              form.setValue('emergency_contact_address', partialData.emergency_contact_address)
+            }
+            if (partialData.emergency_contact_relationship) {
+              form.setValue('emergency_contact_relationship', partialData.emergency_contact_relationship)
+            }
           }
         } else {
           toast.error(result?.serverError || 'Invalid or expired form link')

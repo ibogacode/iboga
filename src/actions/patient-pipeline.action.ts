@@ -7,7 +7,7 @@ import { z } from 'zod'
 
 // Schema for fetching pipeline data
 const getPipelineDataSchema = z.object({
-  limit: z.number().min(1).max(100).optional().default(100),
+  limit: z.number().min(1).max(100).optional().default(50),
 })
 
 // Get partial intake forms (admin/owner sent forms)
@@ -56,111 +56,161 @@ export const getPartialIntakeForms = authActionClient
       creators = profilesData || []
     }
     
-    // Map creators to partial forms and add form completion counts
+    // Batch fetch all related data to avoid N+1 queries
     const adminClient = createAdminClient()
-    const data = await Promise.all((partialForms || []).map(async (form: any) => {
-      const creator = creators.find((c: any) => c.id === form.created_by)
+    const forms = partialForms || []
+    
+    // Collect all intake form IDs (from completed_form_id)
+    const completedIntakeFormIds = forms
+      .map((f: any) => f.completed_form_id)
+      .filter(Boolean)
+    
+    // Collect all patient emails
+    const patientEmails = forms
+      .map((f: any) => f.email?.toLowerCase().trim())
+      .filter(Boolean)
+    
+    // Batch fetch all medical history forms
+    let allMedicalHistory: any[] = []
+    if (completedIntakeFormIds.length > 0) {
+      const { data } = await adminClient
+        .from('medical_history_forms')
+        .select('intake_form_id')
+        .in('intake_form_id', completedIntakeFormIds)
+      allMedicalHistory = data || []
+    }
+    
+    // Create set for O(1) lookup
+    const medicalHistorySet = new Set(
+      (allMedicalHistory || []).map((m: any) => m.intake_form_id)
+    )
+    
+    // Batch fetch all service agreements by intake_form_id
+    let allServiceAgreementsByIntake: any[] = []
+    if (completedIntakeFormIds.length > 0) {
+      const { data } = await adminClient
+        .from('service_agreements')
+        .select('intake_form_id, patient_email')
+        .in('intake_form_id', completedIntakeFormIds)
+      allServiceAgreementsByIntake = data || []
+    }
+    
+    // Batch fetch all service agreements by patient_email (case-insensitive)
+    // Note: Supabase doesn't support batch ILIKE, so we'll check individually but cache results
+    const serviceAgreementByIntakeMap = new Map<string, boolean>()
+    const serviceAgreementByEmailMap = new Map<string, boolean>()
+    
+    // Process service agreements by intake_form_id
+    allServiceAgreementsByIntake.forEach((sa: any) => {
+      if (sa.intake_form_id) {
+        serviceAgreementByIntakeMap.set(sa.intake_form_id, true)
+      }
+      if (sa.patient_email) {
+        serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), true)
+      }
+    })
+    
+    // For forms without completed_form_id, batch fetch intake forms by email
+    const formsWithoutCompletedId = forms.filter((f: any) => !f.completed_form_id)
+    const emailsForIntakeLookup = [...new Set(
+      formsWithoutCompletedId.map((f: any) => f.email?.toLowerCase().trim()).filter(Boolean)
+    )]
+    
+    // Batch fetch intake forms by emails (we'll need to do this in chunks if too many)
+    const intakeFormsByEmailMap = new Map<string, string>() // email -> intake_form_id
+    if (emailsForIntakeLookup.length > 0) {
+      // Fetch in chunks of 50 (Supabase IN clause limit)
+      const chunkSize = 50
+      for (let i = 0; i < emailsForIntakeLookup.length; i += chunkSize) {
+        const emailChunk = emailsForIntakeLookup.slice(i, i + chunkSize)
+        const { data: intakeForms } = await adminClient
+          .from('patient_intake_forms')
+          .select('id, email')
+          .in('email', emailChunk)
+        
+        ;(intakeForms || []).forEach((form: any) => {
+          const email = form.email?.toLowerCase().trim()
+          if (email) {
+            intakeFormsByEmailMap.set(email, form.id)
+          }
+        })
+      }
+    }
+    
+    // Get all intake form IDs from email lookup
+    const intakeFormIdsFromEmail = Array.from(intakeFormsByEmailMap.values())
+    
+    // Batch fetch medical history for intake forms found by email
+    let medicalHistoryForEmailIntakes = []
+    if (intakeFormIdsFromEmail.length > 0) {
+      const { data: medicalHistoryData } = await adminClient
+        .from('medical_history_forms')
+        .select('intake_form_id')
+        .in('intake_form_id', intakeFormIdsFromEmail)
       
-      // Get form completion counts for this patient
+      medicalHistoryForEmailIntakes = medicalHistoryData || []
+      medicalHistoryForEmailIntakes.forEach((m: any) => {
+        medicalHistorySet.add(m.intake_form_id)
+      })
+    }
+    
+    // Batch fetch service agreements for intake forms found by email
+    if (intakeFormIdsFromEmail.length > 0) {
+      const { data: serviceAgreementsForEmailIntakes } = await adminClient
+        .from('service_agreements')
+        .select('intake_form_id, patient_email')
+        .in('intake_form_id', intakeFormIdsFromEmail)
+      
+      ;(serviceAgreementsForEmailIntakes || []).forEach((sa: any) => {
+        if (sa.intake_form_id) {
+          serviceAgreementByIntakeMap.set(sa.intake_form_id, true)
+        }
+        if (sa.patient_email) {
+          serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), true)
+        }
+      })
+    }
+    
+    // Now calculate completion counts using the lookup maps
+    const data = forms.map((form: any) => {
+      const creator = creators.find((c: any) => c.id === form.created_by)
       const patientEmail = form.email?.toLowerCase().trim()
       let completedCount = 0
-      let totalForms = 3 // Intake, Medical History, Service Agreement
+      const totalForms = 3 // Intake, Medical History, Service Agreement
       
       if (form.completed_form_id) {
         // Intake form is completed
         completedCount++
         
-        // Check for medical history form
-        const { data: medicalData } = await adminClient
-          .from('medical_history_forms')
-          .select('id')
-          .eq('intake_form_id', form.completed_form_id)
-          .limit(1)
-        
-        if (medicalData && medicalData.length > 0) {
+        // Check for medical history
+        if (medicalHistorySet.has(form.completed_form_id)) {
           completedCount++
         }
         
-      // Check for service agreement (by intake_form_id or patient_email)
-      let serviceData = null
-      if (patientEmail) {
-        const { data: serviceByEmail } = await adminClient
-          .from('service_agreements')
-          .select('id')
-          .ilike('patient_email', patientEmail)
-          .limit(1)
+        // Check for service agreement
+        const hasServiceByIntake = serviceAgreementByIntakeMap.has(form.completed_form_id)
+        const hasServiceByEmail = patientEmail && serviceAgreementByEmailMap.has(patientEmail)
         
-        if (serviceByEmail && serviceByEmail.length > 0) {
-          serviceData = serviceByEmail
+        if (hasServiceByIntake || hasServiceByEmail) {
+          completedCount++
         }
-      }
-      
-      if (!serviceData) {
-        const { data: serviceByIntake } = await adminClient
-          .from('service_agreements')
-          .select('id')
-          .eq('intake_form_id', form.completed_form_id)
-          .limit(1)
-        
-        if (serviceByIntake && serviceByIntake.length > 0) {
-          serviceData = serviceByIntake
-        }
-      }
-      
-      if (serviceData && serviceData.length > 0) {
-        completedCount++
-      }
       } else if (patientEmail) {
-        // Intake form not completed yet, but check if patient has any forms
-        // Check for intake form by email
-        const { data: intakeData } = await adminClient
-          .from('patient_intake_forms')
-          .select('id')
-          .ilike('email', patientEmail)
-          .limit(1)
+        // Intake form not completed yet, check if patient has any forms
+        const intakeFormId = intakeFormsByEmailMap.get(patientEmail)
         
-        if (intakeData && intakeData.length > 0) {
-          completedCount++
-          const intakeFormId = intakeData[0].id
+        if (intakeFormId) {
+          completedCount++ // Intake form exists
           
           // Check for medical history
-          const { data: medicalData } = await adminClient
-            .from('medical_history_forms')
-            .select('id')
-            .eq('intake_form_id', intakeFormId)
-            .limit(1)
-          
-          if (medicalData && medicalData.length > 0) {
+          if (medicalHistorySet.has(intakeFormId)) {
             completedCount++
           }
           
-          // Check for service agreement (by intake_form_id or patient_email)
-          let serviceData = null
-          if (patientEmail) {
-            const { data: serviceByEmail } = await adminClient
-              .from('service_agreements')
-              .select('id')
-              .ilike('patient_email', patientEmail)
-              .limit(1)
-            
-            if (serviceByEmail && serviceByEmail.length > 0) {
-              serviceData = serviceByEmail
-            }
-          }
+          // Check for service agreement
+          const hasServiceByIntake = serviceAgreementByIntakeMap.has(intakeFormId)
+          const hasServiceByEmail = serviceAgreementByEmailMap.has(patientEmail)
           
-          if (!serviceData) {
-            const { data: serviceByIntake } = await adminClient
-              .from('service_agreements')
-              .select('id')
-              .eq('intake_form_id', intakeFormId)
-              .limit(1)
-            
-            if (serviceByIntake && serviceByIntake.length > 0) {
-              serviceData = serviceByIntake
-            }
-          }
-          
-          if (serviceData && serviceData.length > 0) {
+          if (hasServiceByIntake || hasServiceByEmail) {
             completedCount++
           }
         }
@@ -174,7 +224,7 @@ export const getPartialIntakeForms = authActionClient
           total: totalForms
         }
       }
-    }))
+    })
     
     return { 
       success: true, 
@@ -231,56 +281,75 @@ export const getPublicIntakeForms = authActionClient
       (form: any) => !completedFormIds.has(form.id)
     )
     
-    // Add form completion counts for each public form
+    // Batch fetch all related data to avoid N+1 queries
     const adminClient = createAdminClient()
-    const dataWithCounts = await Promise.all(directApplications.map(async (form: any) => {
+    
+    if (directApplications.length === 0) {
+      return {
+        success: true,
+        data: []
+      }
+    }
+    
+    // Collect all intake form IDs
+    const intakeFormIds = directApplications.map((f: any) => f.id)
+    
+    // Collect all patient emails
+    const patientEmails = directApplications
+      .map((f: any) => f.email?.toLowerCase().trim())
+      .filter(Boolean)
+    
+    // Batch fetch all medical history forms
+    const { data: allMedicalHistory } = await adminClient
+      .from('medical_history_forms')
+      .select('intake_form_id')
+      .in('intake_form_id', intakeFormIds)
+    
+    // Create set for O(1) lookup
+    const medicalHistorySet = new Set(
+      (allMedicalHistory || []).map((m: any) => m.intake_form_id)
+    )
+    
+    // Batch fetch all service agreements by intake_form_id
+    const { data: allServiceAgreementsByIntake } = await adminClient
+      .from('service_agreements')
+      .select('intake_form_id, patient_email')
+      .in('intake_form_id', intakeFormIds)
+    
+    // Create lookup maps
+    const serviceAgreementByIntakeMap = new Map<string, boolean>()
+    const serviceAgreementByEmailMap = new Map<string, boolean>()
+    
+    // Process service agreements
+    ;(allServiceAgreementsByIntake || []).forEach((sa: any) => {
+      if (sa.intake_form_id) {
+        serviceAgreementByIntakeMap.set(sa.intake_form_id, true)
+      }
+      if (sa.patient_email) {
+        serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), true)
+      }
+    })
+    
+    // Calculate completion counts using lookup maps
+    const dataWithCounts = directApplications.map((form: any) => {
       const patientEmail = form.email?.toLowerCase().trim()
       let completedCount = 0
-      let totalForms = 3 // Intake, Medical History, Service Agreement
+      const totalForms = 3 // Intake, Medical History, Service Agreement
       
       // Intake form is completed (since this is a public intake form)
       completedCount++
       const intakeFormId = form.id
       
       // Check for medical history form
-      const { data: medicalData } = await adminClient
-        .from('medical_history_forms')
-        .select('id')
-        .eq('intake_form_id', intakeFormId)
-        .limit(1)
-      
-      if (medicalData && medicalData.length > 0) {
+      if (medicalHistorySet.has(intakeFormId)) {
         completedCount++
       }
       
-      // Check for service agreement (by intake_form_id or patient_email)
-      const patientEmailForService = form.email?.toLowerCase().trim()
-      let serviceData = null
-      if (patientEmailForService) {
-        const { data: serviceByEmail } = await adminClient
-          .from('service_agreements')
-          .select('id')
-          .ilike('patient_email', patientEmailForService)
-          .limit(1)
-        
-        if (serviceByEmail && serviceByEmail.length > 0) {
-          serviceData = serviceByEmail
-        }
-      }
+      // Check for service agreement
+      const hasServiceByIntake = serviceAgreementByIntakeMap.has(intakeFormId)
+      const hasServiceByEmail = patientEmail && serviceAgreementByEmailMap.has(patientEmail)
       
-      if (!serviceData) {
-        const { data: serviceByIntake } = await adminClient
-          .from('service_agreements')
-          .select('id')
-          .eq('intake_form_id', intakeFormId)
-          .limit(1)
-        
-        if (serviceByIntake && serviceByIntake.length > 0) {
-          serviceData = serviceByIntake
-        }
-      }
-      
-      if (serviceData && serviceData.length > 0) {
+      if (hasServiceByIntake || hasServiceByEmail) {
         completedCount++
       }
       
@@ -291,7 +360,7 @@ export const getPublicIntakeForms = authActionClient
           total: totalForms
         }
       }
-    }))
+    })
     
     return { 
       success: true, 
