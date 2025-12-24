@@ -159,7 +159,7 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
                   </Link>
                   
                   {/* Render children if expanded and item is active */}
-                  {hasChildren && showExpanded && isActive && (
+                  {hasChildren && showExpanded && isActive && item.children && (
                     <div className="ml-8 mt-1 space-y-1">
                       {item.children.map((child) => {
                         const isChildActive = isItemActive(child.href)
