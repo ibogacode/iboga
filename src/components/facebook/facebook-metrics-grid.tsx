@@ -177,7 +177,7 @@ export function FacebookMetricsGrid() {
                           fontSize: '12px',
                         }}
                         labelStyle={{ color: '#374151', fontWeight: 600 }}
-                        formatter={(value: number) => [formatNumber(value), metric.yAxisLabel]}
+                        formatter={(value: number | undefined) => [formatNumber(value), metric.yAxisLabel]}
                         labelFormatter={(label) => `Date: ${label}`}
                       />
                     </AreaChart>
