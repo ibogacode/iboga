@@ -89,14 +89,12 @@ export async function fetchAllMetricoolMetrics(endpoints: {
   const results = await Promise.allSettled(
     platforms.map(platform => 
       fetchMetricoolMetrics({ 
-        parsedInput: { 
-          endpoint: endpoints[platform],
-          userId: options?.userId,
-          blogId: options?.blogId,
-          from: options?.from,
-          to: options?.to,
-          params: options?.params,
-        } 
+        endpoint: endpoints[platform],
+        userId: options?.userId,
+        blogId: options?.blogId,
+        from: options?.from,
+        to: options?.to,
+        params: options?.params,
       })
     )
   )
