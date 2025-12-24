@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getPartialIntakeForms, getPublicIntakeForms } from '@/actions/patient-pipeline.action'
+import { getPartialIntakeForms, getPublicIntakeForms, getScheduledPatientsCount } from '@/actions/patient-pipeline.action'
 import { Loader2, TrendingUp, TrendingDown, Eye, CheckCircle2, Users, Mail, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
@@ -50,6 +50,7 @@ export default function PatientPipelinePage() {
   const router = useRouter()
   const [partialForms, setPartialForms] = useState<PartialIntakeForm[]>([])
   const [publicForms, setPublicForms] = useState<PublicIntakeForm[]>([])
+  const [scheduledCount, setScheduledCount] = useState<number>(0)
   const [isLoading, setIsLoading] = useState(true)
 
   function formatDate(dateString: string) {
@@ -73,10 +74,11 @@ export default function PatientPipelinePage() {
   const loadPipelineData = useCallback(async () => {
     setIsLoading(true)
     
-    // Load both partial and public forms
-    const [partialResult, publicResult] = await Promise.all([
+    // Load both partial and public forms, and scheduled count
+    const [partialResult, publicResult, scheduledResult] = await Promise.all([
       getPartialIntakeForms({ limit: 50 }),
-      getPublicIntakeForms({ limit: 50 })
+      getPublicIntakeForms({ limit: 50 }),
+      getScheduledPatientsCount({})
     ])
     
     if (partialResult?.data?.success && partialResult.data.data) {
@@ -85,6 +87,31 @@ export default function PatientPipelinePage() {
     
     if (publicResult?.data?.success && publicResult.data.data) {
       setPublicForms(publicResult.data.data)
+    }
+    
+    if (scheduledResult?.data?.success && scheduledResult.data.data) {
+      setScheduledCount(scheduledResult.data.data.count)
+      
+      // Log debug info if available (always log for debugging)
+      if (scheduledResult.data.data.debug) {
+        console.log('[PatientPipeline] Scheduled Patients Debug Info:', scheduledResult.data.data.debug)
+        console.log('[PatientPipeline] Calendar emails found:', scheduledResult.data.data.debug.calendarEmails)
+        console.log('[PatientPipeline] DB emails found:', scheduledResult.data.data.debug.dbEmails)
+        console.log('[PatientPipeline] Matched emails:', scheduledResult.data.data.debug.matchedEmails)
+        console.log('[PatientPipeline] Events count:', scheduledResult.data.data.debug.eventsCount)
+        console.log('[PatientPipeline] Partial forms count:', scheduledResult.data.data.debug.partialFormsCount)
+        console.log('[PatientPipeline] Intake forms count:', scheduledResult.data.data.debug.intakeFormsCount)
+        if (scheduledResult.data.data.debug.unmatchedCalendar.length > 0) {
+          console.warn('[PatientPipeline] ⚠️ Calendar emails NOT in DB:', scheduledResult.data.data.debug.unmatchedCalendar)
+        }
+        if (scheduledResult.data.data.debug.unmatchedDB.length > 0) {
+          console.warn('[PatientPipeline] ⚠️ DB emails NOT in calendar:', scheduledResult.data.data.debug.unmatchedDB)
+        }
+      }
+    } else if (scheduledResult?.data?.success === false) {
+      console.error('[PatientPipeline] Failed to get scheduled count:', scheduledResult.data.error)
+    } else {
+      console.warn('[PatientPipeline] Unexpected scheduled result:', scheduledResult)
     }
     
     setIsLoading(false)
@@ -145,16 +172,14 @@ export default function PatientPipelinePage() {
           </div>
         </div>
 
-        {/* Scheduled Patients - Static */}
+        {/* Scheduled Patients - Dynamic */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Scheduled Patients</p>
-          <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">24</p>
+          <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">{scheduledCount}</p>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="flex items-center gap-1 text-xs sm:text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
-              <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              28%
+            <span className="text-gray-400 text-xs sm:text-sm">
+              with calendar events
             </span>
-            <span className="text-gray-400 text-xs sm:text-sm">conversion</span>
           </div>
         </div>
 
