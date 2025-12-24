@@ -5,6 +5,250 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { hasOwnerAccess } from '@/lib/utils'
 import { z } from 'zod'
 
+// Get count of scheduled patients from calendar events
+export const getScheduledPatientsCount = authActionClient
+  .schema(z.object({}))
+  .action(async ({ ctx }) => {
+    const supabase = await createClient()
+    
+    // Check if user is owner/admin
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { success: false, error: 'Unauthorized' }
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    
+    if (!profile || !hasOwnerAccess(profile.role)) {
+      return { success: false, error: 'Unauthorized - Owner or Admin access required' }
+    }
+    
+    try {
+      // Get all calendar events
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      
+      // Get all upcoming calendar events
+      const url = `${supabaseUrl}/functions/v1/check-calendar-events`
+      const requestBody = {
+        getAllEvents: true, // Flag to get all events
+      }
+      console.log('[getScheduledPatientsCount] Calling calendar API with body:', JSON.stringify(requestBody))
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify(requestBody),
+      })
+      
+      const responseText = await response.text()
+      console.log('[getScheduledPatientsCount] Raw calendar API response status:', response.status)
+      console.log('[getScheduledPatientsCount] Raw calendar API response text (first 500 chars):', responseText.substring(0, 500))
+      
+      let calendarData
+      try {
+        calendarData = JSON.parse(responseText)
+      } catch (parseError) {
+        // If we can't get calendar events, return 0
+        console.error('[getScheduledPatientsCount] Failed to parse calendar response:', parseError)
+        console.error('[getScheduledPatientsCount] Response text:', responseText)
+        return { success: true, data: { count: 0 } }
+      }
+      
+      console.log('[getScheduledPatientsCount] Parsed calendar data structure:', {
+        hasSuccess: !!calendarData?.success,
+        hasData: !!calendarData?.data,
+        dataKeys: calendarData?.data ? Object.keys(calendarData.data) : [],
+        hasEvents: !!calendarData?.data?.events,
+        eventsIsArray: Array.isArray(calendarData?.data?.events),
+        eventsLength: Array.isArray(calendarData?.data?.events) ? calendarData.data.events.length : 0
+      })
+      
+      if (!calendarData?.success) {
+        console.warn('[getScheduledPatientsCount] Calendar API returned error:', calendarData?.error)
+        return { success: true, data: { count: 0 } }
+      }
+      
+      // Extract all attendee emails from calendar events
+      const scheduledEmails = new Set<string>()
+      const allEvents = calendarData.data?.events || []
+      
+      console.log('[getScheduledPatientsCount] Total calendar events received:', allEvents.length)
+      console.log('[getScheduledPatientsCount] First event sample:', allEvents[0] ? JSON.stringify(allEvents[0], null, 2) : 'No events')
+      
+      allEvents.forEach((event: any, index: number) => {
+        // Skip cancelled events
+        if (event.status === 'cancelled') {
+          console.log(`[getScheduledPatientsCount] Event ${index}: Skipping cancelled event`)
+          return
+        }
+        
+        // Also check organizer email
+        if (event.organizer?.email) {
+          const normalizedEmail = event.organizer.email.toLowerCase().trim()
+          scheduledEmails.add(normalizedEmail)
+          console.log(`[getScheduledPatientsCount] Event ${index} (${event.summary || 'No title'}): Found organizer email: ${normalizedEmail}`)
+        }
+        
+        if (event.attendees && Array.isArray(event.attendees)) {
+          console.log(`[getScheduledPatientsCount] Event ${index} (${event.summary || 'No title'}): Has ${event.attendees.length} attendees`)
+          event.attendees.forEach((attendee: any, attendeeIndex: number) => {
+            if (attendee.email) {
+              const normalizedEmail = attendee.email.toLowerCase().trim()
+              scheduledEmails.add(normalizedEmail)
+              console.log(`[getScheduledPatientsCount] Event ${index}, Attendee ${attendeeIndex}: Found email: ${normalizedEmail}`)
+            } else {
+              console.log(`[getScheduledPatientsCount] Event ${index}, Attendee ${attendeeIndex}: No email field`, {
+                attendeeKeys: Object.keys(attendee),
+                attendee: attendee
+              })
+            }
+          })
+        } else {
+          console.log(`[getScheduledPatientsCount] Event ${index} (${event.summary || 'No title'}): No attendees or attendees is not an array`, {
+            hasAttendees: !!event.attendees,
+            attendeesType: typeof event.attendees,
+            eventKeys: Object.keys(event),
+            organizer: event.organizer
+          })
+        }
+      })
+      
+      console.log('[getScheduledPatientsCount] Unique attendee emails from calendar:', scheduledEmails.size)
+      
+      if (scheduledEmails.size === 0) {
+        console.log('[getScheduledPatientsCount] No attendee emails found in calendar events')
+        return { success: true, data: { count: 0 } }
+      }
+      
+      // Get all patient/filler emails from database
+      const adminClient = createAdminClient()
+      
+      // Get all emails from partial intake forms (email, filler_email, and recipient_email)
+      const { data: partialForms } = await adminClient
+        .from('partial_intake_forms')
+        .select('email, filler_email, recipient_email')
+      
+      // Get all emails from intake forms (including filler_email)
+      const { data: intakeForms } = await adminClient
+        .from('patient_intake_forms')
+        .select('email, filler_email')
+      
+      // Collect all patient/filler emails
+      const patientEmails = new Set<string>()
+      
+      if (partialForms) {
+        partialForms.forEach((form: any) => {
+          if (form.email) {
+            patientEmails.add(form.email.toLowerCase().trim())
+          }
+          if (form.filler_email) {
+            patientEmails.add(form.filler_email.toLowerCase().trim())
+          }
+          if (form.recipient_email) {
+            patientEmails.add(form.recipient_email.toLowerCase().trim())
+          }
+        })
+      }
+      
+      if (intakeForms) {
+        intakeForms.forEach((form: any) => {
+          if (form.email) {
+            patientEmails.add(form.email.toLowerCase().trim())
+          }
+          if (form.filler_email) {
+            patientEmails.add(form.filler_email.toLowerCase().trim())
+          }
+        })
+      }
+      
+      // Debug logging
+      console.log('[getScheduledPatientsCount] Calendar attendee emails:', Array.from(scheduledEmails).sort())
+      console.log('[getScheduledPatientsCount] Patient/filler emails from DB:', Array.from(patientEmails).sort())
+      console.log('[getScheduledPatientsCount] Partial forms count:', partialForms?.length || 0)
+      console.log('[getScheduledPatientsCount] Intake forms count:', intakeForms?.length || 0)
+      
+      // Show sample partial forms with filler emails
+      if (partialForms && partialForms.length > 0) {
+        const formsWithFillerEmail = partialForms.filter((f: any) => f.filler_email)
+        console.log('[getScheduledPatientsCount] Partial forms with filler_email:', formsWithFillerEmail.length)
+        formsWithFillerEmail.slice(0, 3).forEach((form: any, idx: number) => {
+          console.log(`[getScheduledPatientsCount] Partial form ${idx}:`, {
+            filler_email: form.filler_email,
+            email: form.email,
+            recipient_email: form.recipient_email
+          })
+        })
+      }
+      
+      // Show sample intake forms with filler emails
+      if (intakeForms && intakeForms.length > 0) {
+        const formsWithFillerEmail = intakeForms.filter((f: any) => f.filler_email)
+        console.log('[getScheduledPatientsCount] Intake forms with filler_email:', formsWithFillerEmail.length)
+        formsWithFillerEmail.slice(0, 3).forEach((form: any, idx: number) => {
+          console.log(`[getScheduledPatientsCount] Intake form ${idx}:`, {
+            filler_email: form.filler_email,
+            email: form.email
+          })
+        })
+      }
+      
+      // Count emails that appear in both sets (scheduled patients)
+      let scheduledCount = 0
+      const matchedEmails: string[] = []
+      scheduledEmails.forEach((email) => {
+        if (patientEmails.has(email)) {
+          scheduledCount++
+          matchedEmails.push(email)
+        }
+      })
+      
+      console.log('[getScheduledPatientsCount] Matched emails:', matchedEmails)
+      console.log('[getScheduledPatientsCount] Final scheduled count:', scheduledCount)
+      
+      // Show which emails didn't match for debugging
+      const unmatchedCalendar = Array.from(scheduledEmails).filter(e => !patientEmails.has(e))
+      const unmatchedDB = Array.from(patientEmails).filter(e => !scheduledEmails.has(e))
+      if (unmatchedCalendar.length > 0) {
+        console.log('[getScheduledPatientsCount] Calendar emails NOT in DB:', unmatchedCalendar)
+      }
+      if (unmatchedDB.length > 0 && unmatchedDB.length <= 10) {
+        console.log('[getScheduledPatientsCount] DB emails NOT in calendar (first 10):', unmatchedDB)
+      }
+      
+      // Return debug info in development
+      const debugInfo = process.env.NODE_ENV === 'development' ? {
+        calendarEmails: Array.from(scheduledEmails).sort(),
+        dbEmails: Array.from(patientEmails).sort(),
+        matchedEmails,
+        unmatchedCalendar: unmatchedCalendar.slice(0, 10),
+        unmatchedDB: unmatchedDB.slice(0, 10),
+        eventsCount: allEvents.length,
+        partialFormsCount: partialForms?.length || 0,
+        intakeFormsCount: intakeForms?.length || 0
+      } : undefined
+      
+      return { 
+        success: true, 
+        data: { 
+          count: scheduledCount,
+          debug: debugInfo
+        } 
+      }
+    } catch (error) {
+      console.error('[getScheduledPatientsCount] Error:', error)
+      // Return 0 on error to not break the UI
+      return { success: true, data: { count: 0 } }
+    }
+  })
+
 // Schema for fetching pipeline data
 const getPipelineDataSchema = z.object({
   limit: z.number().min(1).max(100).optional().default(50),

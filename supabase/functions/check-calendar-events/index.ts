@@ -6,8 +6,9 @@ const corsHeaders = {
 }
 
 interface CheckBookingRequest {
-  email: string
+  email?: string
   startDate?: string // Optional: check from this date forward
+  getAllEvents?: boolean // If true, return all events regardless of email
 }
 
 // Get access token (same as email function, but needs Calendar scope)
@@ -84,22 +85,69 @@ async function checkCalendarEvents(accessToken: string, email: string, startDate
   }
 }
 
+// Get all calendar events (for scheduled patients count)
+async function getAllCalendarEvents(accessToken: string, startDate?: string) {
+  const timeMin = startDate || new Date().toISOString()
+  const timeMax = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString() // 90 days ahead
+
+  const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events')
+  url.searchParams.set('timeMin', timeMin)
+  url.searchParams.set('timeMax', timeMax)
+  url.searchParams.set('singleEvents', 'true')
+  url.searchParams.set('orderBy', 'startTime')
+  url.searchParams.set('maxResults', '250')
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Calendar API error: ${error}`)
+  }
+
+  const data = await response.json()
+  return data.items || []
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { email, startDate } = await req.json() as CheckBookingRequest
+    const requestBody = await req.json() as CheckBookingRequest
+    const { email, startDate, getAllEvents } = requestBody
+    
+    console.log('[check-calendar-events] Request body:', JSON.stringify(requestBody))
+    console.log('[check-calendar-events] getAllEvents:', getAllEvents, 'type:', typeof getAllEvents)
+    console.log('[check-calendar-events] email:', email)
 
-    if (!email) {
+    const accessToken = await getAccessToken()
+
+    // If getAllEvents is true, return all events
+    if (getAllEvents === true || getAllEvents === 'true') {
+      console.log('[check-calendar-events] Getting all calendar events')
+      const allEvents = await getAllCalendarEvents(accessToken, startDate)
+      console.log('[check-calendar-events] Found', allEvents.length, 'events')
       return new Response(
-        JSON.stringify({ success: false, error: 'Email is required' }),
+        JSON.stringify({ success: true, data: { events: allEvents } }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Otherwise, check for specific email
+    if (!email) {
+      console.log('[check-calendar-events] Email is required but not provided')
+      return new Response(
+        JSON.stringify({ success: false, error: 'Email is required when getAllEvents is false' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const accessToken = await getAccessToken()
     const result = await checkCalendarEvents(accessToken, email, startDate)
 
     return new Response(
@@ -109,7 +157,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Calendar check error:', error)
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
