@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { Send, Plus, Smile, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
 interface MessageInputProps {
@@ -16,7 +16,7 @@ export function MessageInput({ onSend, disabled }: MessageInputProps) {
     const [content, setContent] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const supabase = createClientComponentClient();
+    const supabase = createClient();
 
     const handleSend = async () => {
         if (!content.trim() && !isUploading) return;

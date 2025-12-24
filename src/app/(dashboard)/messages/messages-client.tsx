@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 import { ChatSidebar } from '@/components/chat/sidebar';
 import { ChatWindow } from '@/components/chat/chat-window';
 import { Conversation } from '@/types/chat';
@@ -18,7 +18,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
     const [loading, setLoading] = useState(true);
     const [isNewChatOpen, setIsNewChatOpen] = useState(false);
     const [showChatOnMobile, setShowChatOnMobile] = useState(false);
-    const supabase = createClientComponentClient();
+    const supabase = createClient();
 
     useEffect(() => {
         if (user) {

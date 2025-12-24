@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 import { Search } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -31,7 +31,7 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [availableContacts, setAvailableContacts] = useState<ChatUser[]>([]);
-    const supabase = createClientComponentClient();
+    const supabase = createClient();
 
     useEffect(() => {
         if (isNewChatOpen && currentUser?.id) {

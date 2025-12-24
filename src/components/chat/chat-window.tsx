@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/client';
 import { Conversation, Message, ChatUser } from '@/types/chat';
 import { MessageBubble } from './message-bubble';
 import { MessageInput } from './message-input';
@@ -22,7 +22,7 @@ export function ChatWindow({ conversationId, currentUser, onBack }: ChatWindowPr
     const [conversation, setConversation] = useState<Conversation | null>(null);
     const [participants, setParticipants] = useState<ChatUser[]>([]);
     const [loading, setLoading] = useState(true);
-    const supabase = createClientComponentClient();
+    const supabase = createClient();
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
