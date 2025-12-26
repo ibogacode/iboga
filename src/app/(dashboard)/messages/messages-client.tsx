@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ChatSidebar } from '@/components/chat/sidebar';
 import { ChatWindow } from '@/components/chat/chat-window';
@@ -18,7 +18,41 @@ export function MessagesClient({ user }: MessagesClientProps) {
     const [loading, setLoading] = useState(true);
     const [isNewChatOpen, setIsNewChatOpen] = useState(false);
     const [showChatOnMobile, setShowChatOnMobile] = useState(false);
-    const supabase = createClient();
+    
+    // Use useMemo to ensure client is only created once per component instance
+    const supabase = useMemo(() => {
+        const client = createClient();
+        
+        // Debug auth state when component mounts
+        if (process.env.NODE_ENV === 'development') {
+            client.auth.getSession().then(({ data: { session }, error }: { data: { session: any }, error: any }) => {
+                console.log('[MessagesClient] Session check:', {
+                    hasSession: !!session,
+                    userEmail: session?.user?.email,
+                    error: error?.message
+                });
+            });
+            
+            client.auth.getUser().then(({ data: { user }, error }: { data: { user: any }, error: any }) => {
+                console.log('[MessagesClient] User check:', {
+                    hasUser: !!user,
+                    userEmail: user?.email,
+                    error: error?.message
+                });
+            });
+        }
+        
+        return client;
+    }, []);
+
+    // Refs for safe state management
+    const inFlightRef = useRef<Promise<void> | null>(null);
+    const reqIdRef = useRef(0);
+    const fallbackInFlightRef = useRef(false);
+    const mountedRef = useRef(true);
+    const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
+    const channelRef = useRef<any>(null);
 
     // Debug: Log conversations when they change
     useEffect(() => {
@@ -28,166 +62,39 @@ export function MessagesClient({ user }: MessagesClientProps) {
     // Note: Online status is now tracked globally via DashboardShell
     // No need to track it here anymore
 
-    useEffect(() => {
-        if (user) {
-            setLoading(true);
-            // Add timeout to prevent infinite loading - if RPC hangs, use fallback
-            const timeoutId = setTimeout(() => {
-                console.warn('Conversations fetch timeout - using fallback method');
-                fetchConversationsFallback(user);
-            }, 5000); // 5 second timeout - faster fallback
-            
-            fetchConversations(user).finally(() => {
-                clearTimeout(timeoutId);
-            });
-            
-            const unsubscribe = subscribeToConversations(user.id);
-            return () => {
-                clearTimeout(timeoutId);
-                if (unsubscribe) unsubscribe();
-            };
-        } else {
-            setLoading(false);
+    // Safe state update helper
+    const safeSetState = useCallback(<T,>(setter: (value: T) => void, value: T) => {
+        if (mountedRef.current) {
+            setter(value);
         }
-    }, [user]);
+    }, []);
 
-    const fetchConversations = async (user: any) => {
-        try {
-            console.log('Fetching conversations with optimized function for user:', user.id);
-            // Try optimized function first with timeout
-            const rpcPromise = supabase.rpc('get_user_conversations', {
-                p_user_id: user.id
-            });
-            
-            const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('RPC timeout after 4 seconds')), 4000)
-            );
-            
-            let convs, error;
-            try {
-                const result = await Promise.race([rpcPromise, timeoutPromise]);
-                ({ data: convs, error } = result as any);
-            } catch (timeoutError) {
-                console.warn('RPC call timed out, using fallback:', timeoutError);
-                await fetchConversationsFallback(user);
-                return;
-            }
-
-            console.log('RPC response:', { convs, error, convsLength: convs?.length, convsType: typeof convs });
-
-            if (error) {
-                console.warn('Optimized function error, falling back:', error);
-                // Fallback to original method if function doesn't exist or has error
-                await fetchConversationsFallback(user);
-                return;
-            }
-            
-            // If RPC returns null or undefined, also fallback
-            if (convs === null || convs === undefined) {
-                console.warn('RPC returned null/undefined, falling back');
-                await fetchConversationsFallback(user);
-                return;
-            }
-
-            // Handle both empty array and null/undefined
-            if (convs) {
-                console.log('Raw conversations from RPC:', convs);
-                console.log('Number of conversations:', convs.length);
-                
-                if (convs.length > 0) {
-                    try {
-                        // Transform the data to match the expected format
-                        const transformedConvs = convs.map((conv: any) => {
-                            console.log('Processing conversation:', conv.id, 'participants type:', typeof conv.participants, 'participants:', conv.participants);
-                            
-                            // JSONB from PostgreSQL is already parsed, but check if it's a string
-                            let participants = conv.participants;
-                            if (typeof participants === 'string') {
-                                try {
-                                    participants = JSON.parse(participants);
-                                } catch (e) {
-                                    console.warn('Failed to parse participants JSON:', e);
-                                    participants = [];
-                                }
-                            }
-                            
-                            // Ensure participants is an array
-                            if (!Array.isArray(participants)) {
-                                console.warn('Participants is not an array:', participants);
-                                participants = [];
-                            }
-                            
-                            console.log('Transformed participants for conv', conv.id, ':', participants.length);
-                            
-                            return {
-                                id: conv.id,
-                                created_at: conv.created_at,
-                                updated_at: conv.updated_at,
-                                last_message_at: conv.last_message_at,
-                                last_message_preview: conv.last_message_preview,
-                                is_group: conv.is_group,
-                                name: conv.name,
-                                unread_count: conv.unread_count || 0,
-                                participants: participants.map((p: any) => ({
-                                    conversation_id: conv.id,
-                                    user_id: p.user_id,
-                                    joined_at: p.joined_at,
-                                    last_read_at: p.last_read_at,
-                                    user: p.user
-                                }))
-                            };
-                        });
-                        console.log('Transformed conversations:', transformedConvs.length);
-                        console.log('Sample transformed conv:', transformedConvs[0]);
-                        setConversations(transformedConvs as any);
-                    } catch (transformError) {
-                        console.error('Error transforming conversations data:', transformError);
-                        // Fallback if transformation fails
-                        await fetchConversationsFallback(user);
-                        return;
-                    }
-                } else {
-                    // Empty array - no conversations
-                    console.log('No conversations found');
-                    setConversations([]);
-                }
-            } else {
-                // Null/undefined response
-                console.log('Null/undefined conversations response');
-                setConversations([]);
-            }
-        } catch (error) {
-            console.error('Error in fetchConversations:', error);
-            // Fallback to original method on any error
-            await fetchConversationsFallback(user);
+    // Safe fallback fetch - prevents double calls
+    const safeFallbackFetch = useCallback(async (user: any, requestId: number) => {
+        if (fallbackInFlightRef.current) {
+            console.log(`[req:${requestId}] Fallback already in flight, skipping`);
             return;
-        } finally {
-            // Set loading to false - fallback will also set it, but that's fine (idempotent)
-            setLoading(false);
         }
-    };
 
-    // Fallback method using original query approach
-    const fetchConversationsFallback = async (user: any) => {
+        fallbackInFlightRef.current = true;
+        console.log(`[req:${requestId}] Using fallback method to fetch conversations`);
+
         try {
-            console.log('Using fallback method to fetch conversations');
 
             const { data: myParticipations, error: partError } = await supabase
-            .from('conversation_participants')
-            .select('conversation_id')
-            .eq('user_id', user.id);
+                .from('conversation_participants')
+                .select('conversation_id')
+                .eq('user_id', user.id);
 
             if (partError) {
                 console.error('Error fetching participations:', partError);
-                setConversations([]);
-                setLoading(false);
+                safeSetState(setConversations, []);
                 return;
             }
 
             if (!myParticipations?.length) {
                 console.log('No participations found');
-                setConversations([]);
-                setLoading(false);
+                safeSetState(setConversations, []);
                 return;
             }
 
@@ -202,15 +109,13 @@ export function MessagesClient({ user }: MessagesClientProps) {
 
             if (convsError) {
                 console.error('Error fetching conversations:', convsError);
-                setConversations([]);
-                setLoading(false);
+                safeSetState(setConversations, []);
                 return;
             }
 
             if (!convs || convs.length === 0) {
                 console.log('No conversations found');
-                setConversations([]);
-                setLoading(false);
+                safeSetState(setConversations, []);
                 return;
             }
 
@@ -260,49 +165,322 @@ export function MessagesClient({ user }: MessagesClientProps) {
                 })
             );
 
-            console.log('Fallback completed, setting', convsWithParticipants.length, 'conversations');
-            setConversations(convsWithParticipants as any);
+            console.log(`[req:${requestId}] Fallback completed, setting`, convsWithParticipants.length, 'conversations');
+            // Only update if this is still the latest request
+            if (mountedRef.current && reqIdRef.current === requestId) {
+                safeSetState(setConversations, convsWithParticipants as any);
+            }
         } catch (fallbackError) {
-            console.error('Error in fallback method:', fallbackError);
-            setConversations([]);
+            console.error(`[req:${requestId}] Error in fallback method:`, fallbackError);
+            if (mountedRef.current && reqIdRef.current === requestId) {
+                safeSetState(setConversations, []);
+            }
         } finally {
-            setLoading(false);
+            fallbackInFlightRef.current = false;
         }
-    };
+    }, [supabase, safeSetState]);
 
-    const subscribeToConversations = (userId: string) => {
-        const channel = supabase.channel('conversations_list')
+    // Unified safe fetch function with single-flight and request ID guard
+    const safeFetchConversations = useCallback(async (
+        user: any,
+        source: 'initial' | 'realtime' | 'manual' = 'manual'
+    ) => {
+        // Single-flight guard: skip if already in flight
+        if (inFlightRef.current) {
+            console.log(`[${source}] Skipped: in-flight`);
+            return;
+        }
+
+        // Increment request ID for this fetch
+        reqIdRef.current += 1;
+        const requestId = reqIdRef.current;
+        console.log(`[req:${requestId}][${source}] Starting fetch for user:`, user.id);
+
+        // Create the fetch promise - store in local variable for identity check
+        const startTime = performance.now();
+        let timeoutId: NodeJS.Timeout | null = null;
+        let fallbackUsed = false;
+
+        // Create promise - use closure variable to capture identity
+        let fetchPromiseRef: Promise<void> | null = null;
+        const currentFetch = (async () => {
+            // Set loading only if this is still the latest request
+            if (mountedRef.current && reqIdRef.current === requestId) {
+                safeSetState(setLoading, true);
+            }
+
+            try {
+                // Try optimized function first with timeout and pagination
+                const rpcPromise = supabase.rpc('get_user_conversations', {
+                    p_user_id: user.id,
+                    p_limit: 50,
+                    p_offset: 0
+                });
+
+                // Create cancellable timeout
+                const timeoutPromise = new Promise<never>((_, reject) => {
+                    timeoutId = setTimeout(() => {
+                        reject(new Error('RPC timeout after 10 seconds'));
+                    }, 10000);
+                });
+
+                let convs, error;
+                try {
+                    const result = await Promise.race([rpcPromise, timeoutPromise]);
+                    // Cancel timeout if RPC resolved
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                        timeoutId = null;
+                    }
+                    ({ data: convs, error } = result as any);
+                    const endTime = performance.now();
+                    const duration = ((endTime - startTime) / 1000).toFixed(2);
+                    console.log(`[req:${requestId}][${source}] RPC completed in ${duration}s`);
+                } catch (timeoutError) {
+                    // Cancel timeout if it was set
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                        timeoutId = null;
+                    }
+                    const endTime = performance.now();
+                    const duration = ((endTime - startTime) / 1000).toFixed(2);
+                    console.warn(`[req:${requestId}][${source}] RPC timed out after ${duration}s, using fallback`);
+                    fallbackUsed = true;
+                    await safeFallbackFetch(user, requestId);
+                    return;
+                }
+
+                // Check if this is still the latest request before processing
+                if (reqIdRef.current !== requestId) {
+                    console.log(`[req:${requestId}][${source}] Stale request, ignoring results`);
+                    return;
+                }
+
+                console.log(`[req:${requestId}][${source}] RPC response:`, { convsLength: convs?.length });
+
+                if (error) {
+                    console.warn(`[req:${requestId}][${source}] RPC error, falling back:`, error);
+                    fallbackUsed = true;
+                    await safeFallbackFetch(user, requestId);
+                    return;
+                }
+                
+                // If RPC returns null or undefined, also fallback
+                if (convs === null || convs === undefined) {
+                    console.warn(`[req:${requestId}][${source}] RPC returned null/undefined, falling back`);
+                    fallbackUsed = true;
+                    await safeFallbackFetch(user, requestId);
+                    return;
+                }
+
+                // Handle both empty array and null/undefined
+                if (convs) {
+                    if (convs.length > 0) {
+                        try {
+                            // Transform the data to match the expected format
+                            const transformedConvs = convs.map((conv: any) => {
+                                // JSONB from PostgreSQL is already parsed, but check if it's a string
+                                let participants = conv.participants;
+                                if (typeof participants === 'string') {
+                                    try {
+                                        participants = JSON.parse(participants);
+                                    } catch (e) {
+                                        console.warn(`[req:${requestId}] Failed to parse participants JSON:`, e);
+                                        participants = [];
+                                    }
+                                }
+                                
+                                // Ensure participants is an array
+                                if (!Array.isArray(participants)) {
+                                    console.warn(`[req:${requestId}] Participants is not an array:`, participants);
+                                    participants = [];
+                                }
+                                
+                                return {
+                                    id: conv.id,
+                                    created_at: conv.created_at,
+                                    updated_at: conv.updated_at,
+                                    last_message_at: conv.last_message_at,
+                                    last_message_preview: conv.last_message_preview,
+                                    is_group: conv.is_group,
+                                    name: conv.name,
+                                    unread_count: conv.unread_count || 0,
+                                    participants: participants.map((p: any) => ({
+                                        conversation_id: conv.id,
+                                        user_id: p.user_id,
+                                        joined_at: p.joined_at,
+                                        last_read_at: p.last_read_at,
+                                        user: p.user
+                                    }))
+                                };
+                            });
+                            
+                            // Only update state if this is still the latest request
+                            if (mountedRef.current && reqIdRef.current === requestId) {
+                                console.log(`[req:${requestId}][${source}] Setting ${transformedConvs.length} conversations${fallbackUsed ? ' (via fallback)' : ''}`);
+                                safeSetState(setConversations, transformedConvs as any);
+                            }
+                        } catch (transformError) {
+                            console.error(`[req:${requestId}][${source}] Error transforming data:`, transformError);
+                            fallbackUsed = true;
+                            await safeFallbackFetch(user, requestId);
+                            return;
+                        }
+                    } else {
+                        // Empty array - no conversations
+                        if (mountedRef.current && reqIdRef.current === requestId) {
+                            console.log(`[req:${requestId}][${source}] No conversations found`);
+                            safeSetState(setConversations, []);
+                        }
+                    }
+                } else {
+                    // Null/undefined response
+                    if (mountedRef.current && reqIdRef.current === requestId) {
+                        console.log(`[req:${requestId}][${source}] Null/undefined conversations response`);
+                        safeSetState(setConversations, []);
+                    }
+                }
+            } catch (error) {
+                console.error(`[req:${requestId}][${source}] Error in fetch:`, error);
+                if (mountedRef.current && reqIdRef.current === requestId) {
+                    await safeFallbackFetch(user, requestId);
+                }
+            } finally {
+                // Clean up timeout if still set
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+                
+                // Only clear loading if this is still the latest request
+                if (mountedRef.current && reqIdRef.current === requestId) {
+                    safeSetState(setLoading, false);
+                }
+                
+                // Clear in-flight ref using promise identity (always release lock, regardless of request ID)
+                // Use closure variable to check identity
+                if (inFlightRef.current === fetchPromiseRef) {
+                    inFlightRef.current = null;
+                }
+                
+                const endTime = performance.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+                console.log(`[req:${requestId}][${source}] Fetch completed in ${duration}s${fallbackUsed ? ' (fallback used)' : ''}`);
+            }
+        })();
+
+        // Store promise reference for identity check
+        fetchPromiseRef = currentFetch;
+        
+        // Store the promise for single-flight guard
+        inFlightRef.current = currentFetch;
+        
+        return currentFetch;
+    }, [supabase, safeFallbackFetch, safeSetState]);
+
+    // Debounced refetch scheduler - prevents fetch storms from realtime
+    const scheduleRefetch = useCallback((userId: string) => {
+        // Don't schedule if already loading or in-flight
+        if (inFlightRef.current !== null) {
+            console.log('[realtime] Skipped: fetch in-flight');
+            return;
+        }
+        
+        if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+        }
+        
+        debounceTimerRef.current = setTimeout(() => {
+            // Double-check before executing
+            if (mountedRef.current && inFlightRef.current === null) {
+                safeFetchConversations({ id: userId }, 'realtime');
+            }
+        }, 500);
+    }, [safeFetchConversations]);
+
+    const subscribeToConversations = useCallback((userId: string) => {
+        // Clean up existing channel if any
+        if (channelRef.current) {
+            supabase.removeChannel(channelRef.current);
+            channelRef.current = null;
+        }
+
+        const channel = supabase.channel(`conversations_list_${userId}`)
             // Listen for conversation updates (new messages, etc.)
             .on('postgres_changes', {
                 event: '*', schema: 'public', table: 'conversations'
             }, () => {
-                fetchConversations({ id: userId });
+                scheduleRefetch(userId);
             })
             // Listen for new messages to update unread counts
             .on('postgres_changes', {
                 event: 'INSERT', schema: 'public', table: 'messages'
             }, () => {
-                fetchConversations({ id: userId });
+                scheduleRefetch(userId);
             })
             // Listen for message read status updates
             .on('postgres_changes', {
                 event: 'UPDATE', schema: 'public', table: 'messages',
             }, () => {
-                fetchConversations({ id: userId });
+                scheduleRefetch(userId);
             })
             .subscribe();
 
+        channelRef.current = channel;
+
         return () => {
-            supabase.removeChannel(channel);
+            if (channelRef.current) {
+                supabase.removeChannel(channelRef.current);
+                channelRef.current = null;
+            }
         }
-    };
+    }, [supabase, scheduleRefetch]);
+
+    useEffect(() => {
+        // Reset refs on mount
+        mountedRef.current = true;
+        inFlightRef.current = null;
+        fallbackInFlightRef.current = false;
+        reqIdRef.current = 0;
+
+        if (!user?.id) {
+            safeSetState(setLoading, false);
+            return;
+        }
+
+        // Fetch once per user id
+        safeFetchConversations(user, 'initial');
+        
+        const unsubscribe = subscribeToConversations(user.id);
+        
+        return () => {
+            mountedRef.current = false;
+            
+            // Cancel any in-flight fetch
+            inFlightRef.current = null;
+            fallbackInFlightRef.current = false;
+            
+            // Clear timers
+            if (debounceTimerRef.current) {
+                clearTimeout(debounceTimerRef.current);
+                debounceTimerRef.current = null;
+            }
+            if (timeoutIdRef.current) {
+                clearTimeout(timeoutIdRef.current);
+                timeoutIdRef.current = null;
+            }
+            
+            // Unsubscribe from realtime
+            if (unsubscribe) unsubscribe();
+        };
+    }, [user?.id, safeFetchConversations, safeSetState, subscribeToConversations]);
     
     // Callback to refresh unread counts after marking messages as read
     const handleMessagesRead = useCallback(() => {
-        if (user) {
-            fetchConversations(user);
+        if (user?.id) {
+            scheduleRefetch(user.id);
         }
-    }, [user]);
+    }, [user?.id, scheduleRefetch]);
 
     const handleNewChat = async (targetUserId: string) => {
         console.log('handleNewChat called with user:', targetUserId);
@@ -345,8 +523,10 @@ export function MessagesClient({ user }: MessagesClientProps) {
             }
 
             console.log('Participants added, fetching conversations...');
-            await fetchConversations(user);
-            setSelectedChatId(newConv.id);
+            await safeFetchConversations(user, 'manual');
+            if (mountedRef.current) {
+                setSelectedChatId(newConv.id);
+            }
             setIsNewChatOpen(false);
             setShowChatOnMobile(true);
         }
@@ -364,10 +544,10 @@ export function MessagesClient({ user }: MessagesClientProps) {
 
     const handleDeleteConversation = async (conversationId: string) => {
         // Refresh conversations list
-        await fetchConversations(user);
+        await safeFetchConversations(user, 'manual');
         
         // If deleted conversation was selected, go back to list
-        if (selectedChatId === conversationId) {
+        if (mountedRef.current && selectedChatId === conversationId) {
             setSelectedChatId(undefined);
             setShowChatOnMobile(false);
         }
