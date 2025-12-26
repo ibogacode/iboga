@@ -14,7 +14,7 @@ export function ModuleCard({ title, description, metrics, href }: ModuleCardProp
   return (
     <Link 
       href={href}
-      className="flex flex-col gap-2 sm:gap-[10px] p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-white hover:shadow-md transition-shadow cursor-pointer min-h-[44px]"
+      className="flex flex-col gap-2 sm:gap-[10px] p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-white shadow-md hover-lift cursor-pointer min-h-[44px] focus-ring animate-fade-in-up"
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-2 sm:gap-2.5">

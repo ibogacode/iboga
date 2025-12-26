@@ -128,10 +128,10 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
                   <Link
                     href={item.href}
                     className={cn(
-                      'group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative',
+                      'group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-smooth relative focus-ring',
                       isActive
                         ? 'bg-gray-900 text-white'
-                        : 'text-gray-700 hover:bg-white hover:shadow-sm',
+                        : 'text-gray-700 hover:bg-white hover:shadow-md',
                       !showExpanded && 'justify-center px-0'
                     )}
                     title={!showExpanded ? item.title : undefined}
@@ -170,10 +170,10 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
                             key={child.href}
                             href={child.href}
                             className={cn(
-                              'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 relative',
+                              'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-smooth relative focus-ring',
                               isChildActive
                                 ? 'bg-gray-800 text-white'
-                                : 'text-gray-600 hover:bg-gray-100'
+                                : 'text-gray-600 hover:bg-gray-100 hover:shadow-sm'
                             )}
                           >
                             {isChildActive && (
@@ -295,7 +295,7 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
         <Link
           href="/profile"
           className={cn(
-            "flex items-center gap-3 rounded-xl bg-white shadow-sm hover:shadow-md transition-all",
+            "flex items-center gap-3 rounded-xl bg-white shadow-md hover-lift transition-smooth focus-ring",
             showExpanded ? "px-3 py-2.5" : "p-2 justify-center"
           )}
           title={!showExpanded ? userName : undefined}
