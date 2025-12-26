@@ -40,20 +40,51 @@ export function LoginForm() {
     try {
       const supabase = createClient()
       
-      const { error } = await supabase.auth.signInWithPassword({
+      // Debug: Log client config before login
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[LoginForm] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+        console.log('[LoginForm] Anon Key (first 10 chars):', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 10) || 'MISSING')
+      }
+      
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       })
 
       if (error) {
+        console.error('[LoginForm] Sign in error:', error)
         toast.error(error.message)
         return
       }
 
+      // Debug: Verify session was created
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[LoginForm] Sign in successful, session:', authData.session ? 'created' : 'missing')
+        console.log('[LoginForm] User:', authData.user?.email)
+      }
+
       toast.success('Signed in successfully')
       
+      // Verify session persists
+      const { data: { session: verifySession }, error: sessionError } = await supabase.auth.getSession()
+      if (process.env.NODE_ENV === 'development') {
+        if (sessionError) {
+          console.error('[LoginForm] Session verification error:', sessionError)
+        } else {
+          console.log('[LoginForm] Session verified:', verifySession ? 'persisted' : 'NOT PERSISTED')
+        }
+      }
+      
       // Get user profile to check if password change is required
-      const { data: { user: authUser } } = await supabase.auth.getUser()
+      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser()
+      
+      if (process.env.NODE_ENV === 'development') {
+        if (userError) {
+          console.error('[LoginForm] Get user error:', userError)
+        } else {
+          console.log('[LoginForm] User retrieved:', authUser ? authUser.email : 'null')
+        }
+      }
       
       if (authUser) {
         const { data: profile } = await supabase

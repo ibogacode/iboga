@@ -31,6 +31,13 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
+  // Redirect /settings to /profile
+  if (request.nextUrl.pathname === '/settings') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/profile'
+    return NextResponse.redirect(url)
+  }
+
   // Protected routes that require authentication
   const protectedPaths = [
     '/dashboard',
@@ -77,47 +84,15 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    // Check if password change is required for authenticated users
-    if (user && isProtectedPath && request.nextUrl.pathname !== '/change-password') {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('must_change_password')
-        .eq('id', user.id)
-        .single()
-      
-      // If password change is required, redirect to change password page
-      if (profile?.must_change_password) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/change-password'
-        url.searchParams.set('required', 'true')
-        return NextResponse.redirect(url)
-      }
-    }
-
     // Redirect authenticated users away from auth pages
     // Exception: allow authenticated users on /reset-password and /change-password (they need to set/change password)
     if (user && isAuthPath && 
         request.nextUrl.pathname !== '/reset-password' && 
         request.nextUrl.pathname !== '/change-password') {
-      // Get user profile to check if password change is required
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role, must_change_password')
-        .eq('id', user.id)
-        .single()
-      
-      // If password change is required, redirect to change password page
-      if (profile?.must_change_password) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/change-password'
-        url.searchParams.set('required', 'true')
-        return NextResponse.redirect(url)
-      }
-      
-      // Otherwise redirect to role-based dashboard
-      const role = (profile?.role as UserRole) || 'patient'
+      // Try to get role from JWT metadata, otherwise default to /patient
+      const role = (user.user_metadata?.role || user.app_metadata?.role) as UserRole | undefined
       const url = request.nextUrl.clone()
-      url.pathname = getRoleRoute(role)
+      url.pathname = role ? getRoleRoute(role) : '/patient'
       return NextResponse.redirect(url)
     }
   }
