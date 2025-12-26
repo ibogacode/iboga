@@ -96,14 +96,9 @@ export function useOnlineStatus(user: User | null) {
 
         // Handle page unload (browser close, tab close, navigation away)
         const handleBeforeUnload = () => {
-            // Use sendBeacon for reliable offline status update
-            if (navigator.sendBeacon) {
-                // Note: sendBeacon doesn't support RPC calls, so we'll use a regular fetch
-                // For now, we'll rely on the cleanup function
-                updateStatus(false);
-            } else {
-                updateStatus(false);
-            }
+            // Note: sendBeacon doesn't support RPC calls, so we'll use a regular fetch
+            // For now, we'll rely on the cleanup function
+            updateStatus(false);
         };
 
         window.addEventListener('beforeunload', handleBeforeUnload);
