@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { User } from '@/types'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { UserRole } from '@/types'
+import { useOnlineStatus } from '@/hooks/use-online-status.hook'
 
 // Dynamic imports to prevent hydration mismatch with Radix UI components
 const Navbar = dynamic(
@@ -34,6 +35,9 @@ interface DashboardShellProps {
 }
 
 export function DashboardShell({ children, user, profile, userRole }: DashboardShellProps) {
+  // Automatically track online status globally
+  useOnlineStatus(user)
+
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       {/* Navbar - Full width at top */}
@@ -45,8 +49,10 @@ export function DashboardShell({ children, user, profile, userRole }: DashboardS
       </div>
       
       {/* Content - Below navbar, offset by collapsed sidebar width (72px) on desktop (lg) */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden bg-[#F5F4F0] pt-[52px] md:pt-[68px] lg:pl-[72px] px-4 pb-4 md:px-6 md:pb-6">
-        {children}
+      <main className="flex-1 overflow-y-auto overflow-x-hidden pt-[52px] md:pt-[68px] lg:pl-[72px]">
+        <div className="min-h-full w-full max-w-[1920px] mx-auto bg-[#F5F4F0] px-4 pb-4 md:px-6 md:pb-6">
+          {children}
+        </div>
       </main>
     </div>
   )

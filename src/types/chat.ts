@@ -8,6 +8,8 @@ export interface ChatUser {
     role: string;
     avatar_url?: string;
     name?: string; // Derived for easier display
+    is_online?: boolean;
+    last_seen_at?: string;
 }
 
 export interface Conversation {
@@ -42,5 +44,7 @@ export interface Message {
     is_deleted: boolean;
     delivered_at?: string;
     read_at?: string;
+    reply_to?: string; // ID of the message being replied to
     sender?: ChatUser; // Joined profile data
+    replied_message?: Message; // The message being replied to (joined data)
 }
