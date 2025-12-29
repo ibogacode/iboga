@@ -136,7 +136,7 @@ export function MessagesClient({ userId, initialConversations = [] }: MessagesCl
                     const { data: unreadCount } = await supabase.rpc('get_unread_count', {
                         p_conversation_id: conv.id,
                         p_user_id: userId
-                    });
+                    } as any);
 
                     return {
                         ...conv,
@@ -196,7 +196,7 @@ export function MessagesClient({ userId, initialConversations = [] }: MessagesCl
                     p_user_id: userId,
                     p_limit: 50,
                     p_offset: 0
-                });
+                } as any);
 
                 // Create cancellable timeout
                 const timeoutPromise = new Promise<never>((_, reject) => {
@@ -500,7 +500,7 @@ export function MessagesClient({ userId, initialConversations = [] }: MessagesCl
         console.log('Creating new conversation...');
         const { data: newConv, error: convError } = await supabase
             .from('conversations')
-            .insert({ is_group: false })
+            .insert({ is_group: false } as any)
             .select()
             .single();
 
@@ -509,13 +509,13 @@ export function MessagesClient({ userId, initialConversations = [] }: MessagesCl
             return;
         }
 
-        console.log('Conversation created:', newConv.id);
+        console.log('Conversation created:', (newConv as any)?.id);
 
         if (newConv) {
             const { error: partError } = await supabase.from('conversation_participants').insert([
-                { conversation_id: newConv.id, user_id: userId },
-                { conversation_id: newConv.id, user_id: targetUserId }
-            ]);
+                { conversation_id: (newConv as any).id, user_id: userId },
+                { conversation_id: (newConv as any).id, user_id: targetUserId }
+            ] as any);
 
             if (partError) {
                 console.error('Error adding participants:', partError);
@@ -525,7 +525,7 @@ export function MessagesClient({ userId, initialConversations = [] }: MessagesCl
             console.log('Participants added, fetching conversations...');
             await safeFetchConversations(userId, 'manual');
             if (mountedRef.current) {
-                setSelectedChatId(newConv.id);
+                setSelectedChatId((newConv as any)?.id);
             }
             setIsNewChatOpen(false);
             setShowChatOnMobile(true);
