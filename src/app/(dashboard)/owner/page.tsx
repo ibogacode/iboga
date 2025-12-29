@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { StatCard } from '@/components/dashboard/stat-card'
 import { ProgramsCard } from '@/components/dashboard/programs-card'
@@ -20,7 +21,7 @@ export default async function OwnerDashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    return null
+    redirect('/login?redirectTo=/owner')
   }
 
   // Get user profile with name

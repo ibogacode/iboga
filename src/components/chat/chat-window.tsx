@@ -2,8 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Conversation, Message, ChatUser } from '@/types/chat';
+import { Conversation, Message, ChatUser, MessageType } from '@/types/chat';
+import type { Database } from '@/types/supabase';
 import { MessageBubble } from './message-bubble';
+
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 import { MessageInput } from './message-input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -30,6 +33,7 @@ import {
 interface ChatWindowProps {
     conversationId: string;
     currentUser: any;
+    userId?: string;
     onBack?: () => void;
     onMessagesRead?: () => void;
 }
@@ -39,7 +43,17 @@ interface OtherUserStatus {
     last_seen_at: string | null;
 }
 
-export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead }: ChatWindowProps) {
+export function ChatWindow({ conversationId, currentUser, userId, onBack, onMessagesRead }: ChatWindowProps) {
+    // Use userId if provided, otherwise fall back to currentUser.id
+    const effectiveUserId = userId || currentUser?.id
+    
+    if (!effectiveUserId) {
+        return (
+            <div className="flex-1 flex items-center justify-center">
+                <div className="text-gray-400">Loading user...</div>
+            </div>
+        )
+    }
     const [messages, setMessages] = useState<Message[]>([]);
     const [conversation, setConversation] = useState<Conversation | null>(null);
     const [participants, setParticipants] = useState<ChatUser[]>([]);
@@ -134,25 +148,38 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
             setConversation(conv);
         }
 
-        const { data: parts } = await supabase
-            .from('conversation_participants')
-            .select('user_id')
-            .eq('conversation_id', conversationId);
+        // Fetch participants via API route (server-side to avoid RLS issues)
+        try {
+            const res = await fetch(`/api/chat/participants?conversationId=${conversationId}`, {
+                method: "GET",
+                headers: { "Content-Type": "application/json" },
+                cache: "no-store",
+            });
 
-        if (parts) {
-            const profiles = await Promise.all(
-                parts.map(async (part) => {
-                    const { data: profile } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('id', part.user_id)
-                        .single();
-                    return profile;
-                })
-            );
-            setParticipants(profiles.filter(p => p) as ChatUser[]);
+            const json = await res.json();
+
+            if (!res.ok) {
+                console.error("[participants API] failed:", res.status, json);
+            } else {
+                const profiles = json.profiles || [];
+                setParticipants(profiles.map((p: ProfileRow) => ({
+                    id: p.id,
+                    email: p.email,
+                    first_name: p.first_name || '',
+                    last_name: p.last_name || '',
+                    role: p.role,
+                    avatar_url: p.avatar_url || undefined,
+                    name: p.name || undefined,
+                    is_online: p.is_online,
+                    last_seen_at: p.last_seen_at || undefined
+                })));
+            }
+        } catch (e) {
+            console.error("[participants API] exception:", e);
         }
 
+        type MessageRow = Database['public']['Tables']['messages']['Row'];
+        
         const { data: msgs } = await supabase
             .from('messages')
             .select('*')
@@ -161,9 +188,21 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
             .order('created_at', { ascending: true });
 
         if (msgs) {
+            const typedMessages = msgs as MessageRow[];
             const messagesWithSenders = await Promise.all(
-                msgs.map(async (msg) => {
-                    let messageData: any = { ...msg };
+                typedMessages.map(async (msg): Promise<Message> => {
+                    const messageData: Message = {
+                        id: msg.id,
+                        conversation_id: msg.conversation_id,
+                        sender_id: msg.sender_id,
+                        content: msg.content,
+                        type: msg.type as MessageType,
+                        media_url: msg.media_url || undefined,
+                        created_at: msg.created_at,
+                        updated_at: msg.updated_at,
+                        is_deleted: msg.is_deleted,
+                        reply_to: msg.reply_to || undefined
+                    };
                     
                     // Get sender info
                     if (msg.sender_id) {
@@ -171,29 +210,65 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
                             .from('profiles')
                             .select('*')
                             .eq('id', msg.sender_id)
-                            .single();
-                        messageData.sender = sender;
+                            .single<ProfileRow>();
+                        if (sender) {
+                            messageData.sender = {
+                                id: sender.id,
+                                email: sender.email,
+                                first_name: sender.first_name || '',
+                                last_name: sender.last_name || '',
+                                role: sender.role,
+                                avatar_url: sender.avatar_url || undefined,
+                                name: sender.name || undefined
+                            };
+                        }
                     }
                     
                     // Get replied message if exists
                     if (msg.reply_to) {
                         const { data: repliedMsg } = await supabase
                             .from('messages')
-                            .select('*, sender_id')
+                            .select('*')
                             .eq('id', msg.reply_to)
                             .single();
                         
-                        if (repliedMsg && !repliedMsg.is_deleted) {
-                            // Get sender of replied message
-                            if (repliedMsg.sender_id) {
-                                const { data: repliedSender } = await supabase
-                                    .from('profiles')
-                                    .select('*')
-                                    .eq('id', repliedMsg.sender_id)
-                                    .single();
-                                messageData.replied_message = { ...repliedMsg, sender: repliedSender };
-                            } else {
-                                messageData.replied_message = repliedMsg;
+                        if (repliedMsg) {
+                            const typedRepliedMsg = repliedMsg as MessageRow;
+                            if (!typedRepliedMsg.is_deleted) {
+                                const repliedMessage: Message = {
+                                    id: typedRepliedMsg.id,
+                                    conversation_id: typedRepliedMsg.conversation_id,
+                                    sender_id: typedRepliedMsg.sender_id,
+                                    content: typedRepliedMsg.content,
+                                    type: typedRepliedMsg.type as MessageType,
+                                    media_url: typedRepliedMsg.media_url || undefined,
+                                    created_at: typedRepliedMsg.created_at,
+                                    updated_at: typedRepliedMsg.updated_at,
+                                    is_deleted: typedRepliedMsg.is_deleted,
+                                    reply_to: typedRepliedMsg.reply_to || undefined
+                                };
+                                
+                                // Get sender of replied message
+                                if (typedRepliedMsg.sender_id) {
+                                    const { data: repliedSender } = await supabase
+                                        .from('profiles')
+                                        .select('*')
+                                        .eq('id', typedRepliedMsg.sender_id)
+                                        .single();
+                                    if (repliedSender) {
+                                        const typedRepliedSender = repliedSender as ProfileRow;
+                                        repliedMessage.sender = {
+                                            id: typedRepliedSender.id,
+                                            email: typedRepliedSender.email,
+                                            first_name: typedRepliedSender.first_name || '',
+                                            last_name: typedRepliedSender.last_name || '',
+                                            role: typedRepliedSender.role,
+                                            avatar_url: typedRepliedSender.avatar_url || undefined,
+                                            name: typedRepliedSender.name || undefined
+                                        };
+                                    }
+                                }
+                                messageData.replied_message = repliedMessage;
                             }
                         }
                     }
@@ -201,7 +276,7 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
                     return messageData;
                 })
             );
-            setMessages(messagesWithSenders as Message[]);
+            setMessages(messagesWithSenders);
         }
 
         // Scroll to bottom immediately after loading messages
@@ -210,29 +285,30 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
         }, 200);
 
         // Mark all messages in this conversation as read
-        const { data: readCount, error: readError } = await supabase.rpc('mark_messages_as_read', {
-            p_conversation_id: conversationId,
-            p_user_id: currentUser.id
-        });
+        // Get user from auth to ensure we have a valid user ID
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user?.id) {
+            console.warn('Cannot mark messages as read: user not authenticated');
+        } else {
+            const rpcArgs = {
+                p_conversation_id: conversationId,
+                p_user_id: user.id
+            };
+            // @ts-expect-error - Supabase RPC types not fully inferred
+            const { data: readCount, error: readError } = await supabase.rpc('mark_messages_as_read', rpcArgs);
 
-        if (!readError && readCount > 0) {
-            // Notify parent to refresh unread counts
-            onMessagesRead?.();
+            if (!readError && readCount && readCount > 0) {
+                onMessagesRead?.();
+            }
         }
         
-        // Get other user's online status
-        const otherUser = parts?.find(p => p.user_id !== currentUser.id);
-        if (otherUser) {
-            const { data: statusData } = await supabase
-                .from('profiles')
-                .select('is_online, last_seen_at')
-                .eq('id', otherUser.user_id)
-                .single();
-            
-            if (statusData) {
+        // Get other user's online status (from participants already loaded)
+        if (participants && participants.length > 0) {
+            const otherParticipant = participants.find((p: ChatUser) => p.id !== effectiveUserId);
+            if (otherParticipant) {
                 setOtherUserStatus({
-                    is_online: statusData.is_online || false,
-                    last_seen_at: statusData.last_seen_at
+                    is_online: otherParticipant.is_online || false,
+                    last_seen_at: otherParticipant.last_seen_at || null
                 });
             }
         }
@@ -252,43 +328,93 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
                     filter: `conversation_id=eq.${conversationId}`
                 },
                 async (payload) => {
+                    type MessageRow = Database['public']['Tables']['messages']['Row'];
                     const { data: newMsg } = await supabase
                         .from('messages')
                         .select('*')
                         .eq('id', payload.new.id)
-                        .single();
+                        .single<MessageRow>();
 
                     if (newMsg) {
-                        let messageData: any = { ...newMsg };
+                        const typedNewMsg = newMsg;
+                        
+                        const messageData: Message = {
+                            id: typedNewMsg.id,
+                            conversation_id: typedNewMsg.conversation_id,
+                            sender_id: typedNewMsg.sender_id,
+                            content: typedNewMsg.content,
+                            type: typedNewMsg.type as MessageType,
+                            media_url: typedNewMsg.media_url || undefined,
+                            created_at: typedNewMsg.created_at,
+                            updated_at: typedNewMsg.updated_at,
+                            is_deleted: typedNewMsg.is_deleted,
+                            reply_to: typedNewMsg.reply_to || undefined
+                        };
                         
                         // Get sender info
-                        if (newMsg.sender_id) {
+                        if (typedNewMsg.sender_id) {
                             const { data: sender } = await supabase
                                 .from('profiles')
                                 .select('*')
-                                .eq('id', newMsg.sender_id)
-                                .single();
-                            messageData.sender = sender;
+                                .eq('id', typedNewMsg.sender_id)
+                                .single<ProfileRow>();
+                            if (sender) {
+                                messageData.sender = {
+                                    id: sender.id,
+                                    email: sender.email,
+                                    first_name: sender.first_name || '',
+                                    last_name: sender.last_name || '',
+                                    role: sender.role,
+                                    avatar_url: sender.avatar_url || undefined,
+                                    name: sender.name || undefined
+                                };
+                            }
                         }
                         
                         // Get replied message if exists
-                        if (newMsg.reply_to) {
+                        if (typedNewMsg.reply_to) {
                             const { data: repliedMsg } = await supabase
                                 .from('messages')
-                                .select('*, sender_id')
-                                .eq('id', newMsg.reply_to)
+                                .select('*')
+                                .eq('id', typedNewMsg.reply_to)
                                 .single();
                             
-                            if (repliedMsg && !repliedMsg.is_deleted) {
-                                if (repliedMsg.sender_id) {
-                                    const { data: repliedSender } = await supabase
-                                        .from('profiles')
-                                        .select('*')
-                                        .eq('id', repliedMsg.sender_id)
-                                        .single();
-                                    messageData.replied_message = { ...repliedMsg, sender: repliedSender };
-                                } else {
-                                    messageData.replied_message = repliedMsg;
+                            if (repliedMsg) {
+                                const typedRepliedMsg = repliedMsg as MessageRow;
+                                if (!typedRepliedMsg.is_deleted) {
+                                    const repliedMessage: Message = {
+                                        id: typedRepliedMsg.id,
+                                        conversation_id: typedRepliedMsg.conversation_id,
+                                        sender_id: typedRepliedMsg.sender_id,
+                                        content: typedRepliedMsg.content,
+                                        type: typedRepliedMsg.type as MessageType,
+                                        media_url: typedRepliedMsg.media_url || undefined,
+                                        created_at: typedRepliedMsg.created_at,
+                                        updated_at: typedRepliedMsg.updated_at,
+                                        is_deleted: typedRepliedMsg.is_deleted,
+                                        reply_to: typedRepliedMsg.reply_to || undefined
+                                    };
+                                    
+                                    if (typedRepliedMsg.sender_id) {
+                                        const { data: repliedSender } = await supabase
+                                            .from('profiles')
+                                            .select('*')
+                                            .eq('id', typedRepliedMsg.sender_id)
+                                            .single();
+                                        if (repliedSender) {
+                                            const typedRepliedSender = repliedSender as ProfileRow;
+                                            repliedMessage.sender = {
+                                                id: typedRepliedSender.id,
+                                                email: typedRepliedSender.email,
+                                                first_name: typedRepliedSender.first_name || '',
+                                                last_name: typedRepliedSender.last_name || '',
+                                                role: typedRepliedSender.role,
+                                                avatar_url: typedRepliedSender.avatar_url || undefined,
+                                                name: typedRepliedSender.name || undefined
+                                            };
+                                        }
+                                    }
+                                    messageData.replied_message = repliedMessage;
                                 }
                             }
                         }
@@ -297,17 +423,23 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
                             if (prev.find(m => m.id === messageData.id)) {
                                 return prev;
                             }
-                            return [...prev, messageData as Message];
+                            return [...prev, messageData];
                         });
                         
                         // If message is from someone else, mark it as read immediately
-                        if (newMsg.sender_id !== currentUser.id) {
-                            supabase.rpc('mark_messages_as_read', {
-                                p_conversation_id: conversationId,
-                                p_user_id: currentUser.id
-                            }).then(({ data }) => {
-                                if (data > 0) {
-                                    onMessagesRead?.();
+                        if (newMsg.sender_id !== effectiveUserId) {
+                            supabase.auth.getUser().then(({ data: { user } }) => {
+                                if (user?.id) {
+                                    const rpcArgs = {
+                                        p_conversation_id: conversationId,
+                                        p_user_id: user.id
+                                    };
+                                    // @ts-expect-error - Supabase RPC types not fully inferred
+                                    supabase.rpc('mark_messages_as_read', rpcArgs).then(({ data }) => {
+                                        if (data && data > 0) {
+                                            onMessagesRead?.();
+                                        }
+                                    });
                                 }
                             });
                         }
@@ -340,14 +472,17 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
     };
 
     const handleSendMessage = async (content: string, type: 'text' | 'image' | 'audio', mediaUrl?: string, replyTo?: string) => {
-        const { error } = await supabase.from('messages').insert({
+        type MessageInsert = Database['public']['Tables']['messages']['Insert'];
+        const messageInsert: MessageInsert = {
             conversation_id: conversationId,
-            sender_id: currentUser.id,
+            sender_id: effectiveUserId,
             content,
             type,
-            media_url: mediaUrl,
+            media_url: mediaUrl || null,
             reply_to: replyTo || null
-        });
+        };
+        // @ts-expect-error - Supabase insert types not fully inferred
+        const { error } = await supabase.from('messages').insert([messageInsert]);
 
         if (error) {
             console.error('Error sending message:', error);
@@ -384,9 +519,10 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
     const handleDeleteMessage = async (messageId: string) => {
         const { error } = await supabase
             .from('messages')
+            // @ts-expect-error - Supabase update types not fully inferred
             .update({ is_deleted: true })
             .eq('id', messageId)
-            .eq('sender_id', currentUser.id);
+            .eq('sender_id', effectiveUserId);
 
         if (error) {
             console.error('Error deleting message:', error);
@@ -404,7 +540,7 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
             .from('conversation_participants')
             .delete()
             .eq('conversation_id', conversationId)
-            .eq('user_id', currentUser.id);
+            .eq('user_id', effectiveUserId);
 
         if (error) {
             console.error('Error deleting conversation:', error);
@@ -543,7 +679,7 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
                                         )}
                                         <MessageBubble
                                             message={msg}
-                                            isOwn={msg.sender_id === currentUser?.id}
+                                            isOwn={msg.sender_id === effectiveUserId}
                                             sender={msg.sender}
                                             onDelete={handleDeleteMessage}
                                             onReply={handleReply}

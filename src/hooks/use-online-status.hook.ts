@@ -24,6 +24,7 @@ export function useOnlineStatus(user: User | null) {
         if (!user) return;
         
         try {
+            // @ts-expect-error - Supabase RPC types not fully inferred
             await supabase.rpc('update_online_status', { p_is_online: isOnline });
             isOnlineRef.current = isOnline;
         } catch (error) {

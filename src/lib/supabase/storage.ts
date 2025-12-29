@@ -45,6 +45,7 @@ export async function uploadAvatar(file: File, userId: string): Promise<string> 
   // Update profile with avatar URL
   const { error: updateError } = await supabase
     .from('profiles')
+    // @ts-expect-error - Supabase update types not fully inferred
     .update({ avatar_url: publicUrl })
     .eq('id', userId)
   
@@ -97,6 +98,7 @@ export async function deleteAvatar(userId: string, fileName?: string): Promise<v
   // Clear avatar_url from profile
   const { error: updateError } = await supabase
     .from('profiles')
+    // @ts-expect-error - Supabase update types not fully inferred
     .update({ avatar_url: null })
     .eq('id', userId)
   

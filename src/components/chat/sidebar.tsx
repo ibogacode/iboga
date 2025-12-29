@@ -29,7 +29,8 @@ interface ChatSidebarProps {
     conversations: Conversation[];
     selectedId?: string;
     onSelect: (id: string) => void;
-    currentUser: any;
+    userId: string;
+    currentUser?: any;
     onNewChat: (userId: string) => void;
     isNewChatOpen: boolean;
     setIsNewChatOpen: (v: boolean) => void;
@@ -40,12 +41,25 @@ export function ChatSidebar({
     conversations,
     selectedId,
     onSelect,
+    userId,
     currentUser,
     onNewChat,
     isNewChatOpen,
     setIsNewChatOpen,
     onDeleteConversation
 }: ChatSidebarProps) {
+    const effectiveUserId = userId || currentUser?.id;
+    
+    if (!effectiveUserId) {
+        return (
+            <div className="flex flex-col h-full w-full md:w-[380px] shrink-0 min-h-0 overflow-hidden bg-white">
+                <div className="px-6 pt-6 pb-4 shrink-0">
+                    <div className="text-gray-400">Loading...</div>
+                </div>
+            </div>
+        );
+    }
+
     const [searchQuery, setSearchQuery] = useState('');
     const [availableContacts, setAvailableContacts] = useState<ChatUser[]>([]);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -53,13 +67,13 @@ export function ChatSidebar({
     const supabase = createClient();
 
     useEffect(() => {
-        if (isNewChatOpen && currentUser?.id) {
+        if (isNewChatOpen && effectiveUserId) {
             fetchContacts();
         }
-    }, [isNewChatOpen, currentUser?.id]);
+    }, [isNewChatOpen, effectiveUserId]);
 
     const fetchContacts = async () => {
-        if (!currentUser?.id) {
+        if (!effectiveUserId) {
             console.warn('Cannot fetch contacts: user not loaded');
             return;
         }
@@ -72,16 +86,56 @@ export function ChatSidebar({
             return;
         }
 
-        console.log('Fetched contacts:', data?.length || 0);
-        if (data) {
-            setAvailableContacts(data);
+        const contactsData = (data as unknown) as any[] | null;
+        const contactsLength = contactsData ? contactsData.length : 0;
+        console.log('Fetched contacts:', contactsLength);
+        if (contactsData && Array.isArray(contactsData)) {
+            // Filter out current user to ensure they don't appear in contacts
+            // Also ensure each contact has unique data and valid name
+            const filteredContacts = contactsData
+                .filter((contact: any) => {
+                    // Exclude current user
+                    if (contact.id === effectiveUserId) {
+                        return false;
+                    }
+                    // Ensure contact has valid data
+                    if (!contact || !contact.id) {
+                        return false;
+                    }
+                    // Ensure contact has a name (first_name or email)
+                    if (!contact.first_name && !contact.email) {
+                        console.warn('Contact missing name:', contact);
+                        return false;
+                    }
+                    return true;
+                })
+                .map((contact: any) => ({
+                    // Explicitly map fields to ensure we're using the correct data
+                    id: contact.id,
+                    email: contact.email,
+                    first_name: contact.first_name,
+                    last_name: contact.last_name,
+                    role: contact.role,
+                    avatar_url: contact.avatar_url
+                }));
+            
+            console.log('Filtered contacts (excluding self):', filteredContacts.length);
+            if (filteredContacts.length > 0) {
+                console.log('First contact:', {
+                    id: filteredContacts[0].id,
+                    name: `${filteredContacts[0].first_name} ${filteredContacts[0].last_name || ''}`.trim(),
+                    email: filteredContacts[0].email
+                });
+            }
+            setAvailableContacts(filteredContacts);
         } else {
-            console.warn('No contacts returned');
+            console.warn('No contacts returned or invalid data format');
+            setAvailableContacts([]);
         }
     };
 
     const filteredConversations = conversations.filter(c => {
-        const otherParticipant = c.participants?.find(p => p.user_id !== currentUser?.id)?.user;
+        const otherParticipant = c.participants?.find(p => p.user_id !== effectiveUserId)?.user;
         const name = c.name || otherParticipant?.first_name || otherParticipant?.email || 'Unknown';
         return name.toLowerCase().includes(searchQuery.toLowerCase());
     });
@@ -92,7 +146,7 @@ export function ChatSidebar({
             console.warn('Conversation has no participants:', c.id, c);
         }
         
-        const other = c.participants?.find(p => p.user_id !== currentUser?.id)?.user;
+        const other = c.participants?.find(p => p.user_id !== effectiveUserId)?.user;
 
         // Name priority: conversation name > user full name > email > 'Unknown'
         let name = 'Unknown';
@@ -119,20 +173,25 @@ export function ChatSidebar({
     };
 
     const handleConfirmDelete = async () => {
-        if (!conversationToDelete || !onDeleteConversation) return;
+        if (!conversationToDelete) return;
+
+        if (!effectiveUserId) {
+            console.warn("[Sidebar] Missing userId, skipping delete");
+            return;
+        }
 
         // Delete conversation participants (this will cascade delete the conversation)
         const { error } = await supabase
             .from('conversation_participants')
             .delete()
             .eq('conversation_id', conversationToDelete)
-            .eq('user_id', currentUser.id);
+            .eq('user_id', effectiveUserId);
 
         if (error) {
             console.error('Error deleting conversation:', error);
             alert('Failed to delete conversation');
         } else {
-            onDeleteConversation(conversationToDelete);
+            onDeleteConversation?.(conversationToDelete);
             setDeleteDialogOpen(false);
             setConversationToDelete(null);
         }
@@ -173,12 +232,23 @@ export function ChatSidebar({
                         ) : (
                             availableContacts
                                 .filter(u => {
+                                    // Explicitly exclude current user (double-check)
+                                    if (u.id === effectiveUserId) {
+                                        return false;
+                                    }
+                                    // Filter by search query
                                     const displayName = u.first_name
                                         ? `${u.first_name} ${u.last_name || ''}`
                                         : (u.email || '');
                                     return displayName.toLowerCase().includes(searchQuery.toLowerCase());
                                 })
-                                .map(contact => (
+                                .map(contact => {
+                                    // Ensure we have valid contact data
+                                    const contactName = contact.first_name
+                                        ? `${contact.first_name} ${contact.last_name || ''}`.trim()
+                                        : contact.email || 'Unknown';
+                                    
+                                    return (
                                     <button
                                         key={contact.id}
                                         onClick={() => {
@@ -195,12 +265,13 @@ export function ChatSidebar({
                                         </Avatar>
                                         <div>
                                             <p className="font-semibold text-gray-900 group-hover:text-gray-700">
-                                                {contact.first_name ? `${contact.first_name} ${contact.last_name || ''}`.trim() : contact.email}
+                                                {contactName}
                                             </p>
-                                            <p className="text-sm text-gray-500 capitalize">{contact.role}</p>
+                                            <p className="text-sm text-gray-500 capitalize">{contact.role || 'user'}</p>
                                         </div>
                                     </button>
-                                ))
+                                    );
+                                })
                         )}
                         <button
                             onClick={() => setIsNewChatOpen(false)}

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
+  SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
 import {
@@ -88,6 +90,9 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-[280px] p-0">
+            <SheetHeader className="sr-only">
+              <SheetTitle>Navigation Menu</SheetTitle>
+            </SheetHeader>
             <Sidebar role={role} user={user} profile={profile} isMobile />
           </SheetContent>
         </Sheet>
