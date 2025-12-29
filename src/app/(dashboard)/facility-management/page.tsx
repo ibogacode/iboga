@@ -59,8 +59,8 @@ export default function FacilityManagementPage() {
           .from('profiles')
           .select('role')
           .eq('id', user.id)
-          .single()
-        if (profile) {
+          .single<{ role: string }>()
+        if (profile && profile.role) {
           setCurrentUserRole(profile.role as UserRole)
         }
       }
