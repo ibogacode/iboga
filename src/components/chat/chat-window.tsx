@@ -260,16 +260,16 @@ export function ChatWindow({
                         if (repliedMsg && !repliedMsg.is_deleted) {
                             base.replied_message = {
                                 id: repliedMsg.id,
-                                conversation_id: repliedMsg.conversation_id,
-                                sender_id: repliedMsg.sender_id,
-                                content: repliedMsg.content,
-                                type: repliedMsg.type as MessageType,
+                                conversation_id: repliedMsg.conversation_id ?? conversationId,
+                                sender_id: repliedMsg.sender_id ?? '',
+                                content: repliedMsg.content ?? '',
+                                type: (repliedMsg.type as MessageType) ?? 'text',
                                 media_url: repliedMsg.media_url || undefined,
-                                created_at: repliedMsg.created_at,
-                                updated_at: repliedMsg.updated_at,
-                                is_deleted: repliedMsg.is_deleted,
+                                created_at: repliedMsg.created_at ?? new Date().toISOString(),
+                                updated_at: repliedMsg.updated_at ?? new Date().toISOString(),
+                                is_deleted: repliedMsg.is_deleted ?? false,
                                 reply_to: repliedMsg.reply_to || undefined,
-                                sender: participantMapRef.current.get(repliedMsg.sender_id),
+                                sender: repliedMsg.sender_id ? participantMapRef.current.get(repliedMsg.sender_id) : undefined,
                             };
                         }
                     }
@@ -310,16 +310,16 @@ export function ChatWindow({
 
                     const messageData: Message = {
                         id: newMsg.id,
-                        conversation_id: newMsg.conversation_id,
-                        sender_id: newMsg.sender_id,
-                        content: newMsg.content,
-                        type: newMsg.type as MessageType,
+                        conversation_id: newMsg.conversation_id ?? conversationId,
+                        sender_id: newMsg.sender_id ?? '',
+                        content: newMsg.content ?? '',
+                        type: (newMsg.type as MessageType) ?? 'text',
                         media_url: newMsg.media_url || undefined,
-                        created_at: newMsg.created_at,
-                        updated_at: newMsg.updated_at,
-                        is_deleted: newMsg.is_deleted,
+                        created_at: newMsg.created_at ?? new Date().toISOString(),
+                        updated_at: newMsg.updated_at ?? new Date().toISOString(),
+                        is_deleted: newMsg.is_deleted ?? false,
                         reply_to: newMsg.reply_to || undefined,
-                        sender: participantMapRef.current.get(newMsg.sender_id),
+                        sender: newMsg.sender_id ? participantMapRef.current.get(newMsg.sender_id) : undefined,
                     };
 
                     if (newMsg.reply_to) {
@@ -332,16 +332,16 @@ export function ChatWindow({
                         if (repliedMsg && !repliedMsg.is_deleted) {
                             messageData.replied_message = {
                                 id: repliedMsg.id,
-                                conversation_id: repliedMsg.conversation_id,
-                                sender_id: repliedMsg.sender_id,
-                                content: repliedMsg.content,
-                                type: repliedMsg.type as MessageType,
+                                conversation_id: repliedMsg.conversation_id ?? conversationId,
+                                sender_id: repliedMsg.sender_id ?? '',
+                                content: repliedMsg.content ?? '',
+                                type: (repliedMsg.type as MessageType) ?? 'text',
                                 media_url: repliedMsg.media_url || undefined,
-                                created_at: repliedMsg.created_at,
-                                updated_at: repliedMsg.updated_at,
-                                is_deleted: repliedMsg.is_deleted,
+                                created_at: repliedMsg.created_at ?? new Date().toISOString(),
+                                updated_at: repliedMsg.updated_at ?? new Date().toISOString(),
+                                is_deleted: repliedMsg.is_deleted ?? false,
                                 reply_to: repliedMsg.reply_to || undefined,
-                                sender: participantMapRef.current.get(repliedMsg.sender_id),
+                                sender: repliedMsg.sender_id ? participantMapRef.current.get(repliedMsg.sender_id) : undefined,
                             };
                         }
                     }
