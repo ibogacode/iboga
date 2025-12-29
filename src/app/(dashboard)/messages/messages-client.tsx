@@ -232,9 +232,10 @@ const fetchConversations = useCallback(
       return;
     }
 
-    const { data: newConvId, error } = await supabase.rpc('create_conversation_with_participants', {
-      p_other_user_id: targetUserId,
-    });
+const { data: newConvId, error } = await supabase.rpc(
+  'create_conversation_with_participants',
+  { p_other_user_id: targetUserId } as any
+);
 
     if (error) {
       console.error('create_conversation_with_participants error:', error);
