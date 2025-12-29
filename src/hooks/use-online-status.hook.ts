@@ -22,10 +22,17 @@ export function useOnlineStatus(user: User | null) {
     // Update online status in database
     const updateStatus = async (isOnline: boolean) => {
         if (!user) return;
-        
+
         try {
-            // @ts-expect-error - Supabase RPC types not fully inferred
-            await supabase.rpc('update_online_status', { p_is_online: isOnline });
+            // Use fetch with keepalive for reliability
+            await fetch('/api/status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ isOnline }),
+                keepalive: true
+            });
             isOnlineRef.current = isOnline;
         } catch (error) {
             console.error('Error updating online status:', error);
@@ -35,7 +42,7 @@ export function useOnlineStatus(user: User | null) {
     // Heartbeat to keep status fresh (every 30 seconds)
     const sendHeartbeat = async () => {
         if (!user || !isOnlineRef.current) return;
-        
+
         // Only update if user was active in last 2 minutes
         const timeSinceActivity = Date.now() - lastActivityRef.current.getTime();
         if (timeSinceActivity < 2 * 60 * 1000) {
@@ -97,9 +104,12 @@ export function useOnlineStatus(user: User | null) {
 
         // Handle page unload (browser close, tab close, navigation away)
         const handleBeforeUnload = () => {
-            // Note: sendBeacon doesn't support RPC calls, so we'll use a regular fetch
-            // For now, we'll rely on the cleanup function
-            updateStatus(false);
+            if (!user) return;
+
+            // Use sendBeacon for guaranteed execution on unload
+            const blob = new Blob([JSON.stringify({ isOnline: false })], { type: 'application/json' });
+            navigator.sendBeacon('/api/status', blob);
+            isOnlineRef.current = false;
         };
 
         window.addEventListener('beforeunload', handleBeforeUnload);
@@ -112,12 +122,12 @@ export function useOnlineStatus(user: User | null) {
             });
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('beforeunload', handleBeforeUnload);
-            
+
             // Clear heartbeat
             if (heartbeatIntervalRef.current) {
                 clearInterval(heartbeatIntervalRef.current);
             }
-            
+
             // Set offline on cleanup
             updateStatus(false);
         };

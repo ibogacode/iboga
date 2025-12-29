@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { User as SupabaseUser } from '@supabase/supabase-js'
-import { User } from '@/types'
+import { User, UserRole } from '@/types'
 
 interface UseUserReturn {
   user: SupabaseUser | null
@@ -24,7 +24,7 @@ export function useUser(): UseUserReturn {
     console.log('fetchProfile: creating supabase client...')
     const supabase = createClient()
     console.log('fetchProfile: supabase client created, making query...')
-    
+
     try {
       console.log('fetchProfile: starting query...')
       const { data: profileData, error: profileError } = await supabase
@@ -41,8 +41,15 @@ export function useUser(): UseUserReturn {
         setError(profileError)
         setProfile(null)
       } else {
-        console.log('Profile fetched successfully:', profileData)
-        setProfile(profileData)
+        setProfile({
+          ...profileData,
+          role: profileData.role as UserRole,
+          name: profileData.name ?? undefined,
+          is_active: profileData.is_active ?? false,
+          created_at: profileData.created_at ?? new Date().toISOString(),
+          updated_at: profileData.updated_at ?? new Date().toISOString(),
+          gender: profileData.gender as any,
+        })
         setError(null)
       }
     } catch (err) {
@@ -68,9 +75,9 @@ export function useUser(): UseUserReturn {
       console.log('useUser: initializing...')
       try {
         const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
-        
+
         console.log('useUser: auth user:', authUser?.id, 'error:', authError)
-        
+
         if (authError) {
           console.error('Auth error:', authError)
           if (isMounted) {
@@ -79,7 +86,7 @@ export function useUser(): UseUserReturn {
           }
           return
         }
-        
+
         if (isMounted) {
           setUser(authUser)
         }
@@ -105,11 +112,11 @@ export function useUser(): UseUserReturn {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id)
-        
+
         if (!isMounted) return
-        
+
         setUser(session?.user ?? null)
-        
+
         if (session?.user) {
           await fetchProfile(session.user.id)
         } else {

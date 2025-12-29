@@ -16,67 +16,36 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Verify user belongs to this conversation
-  const { data: membership, error: membershipError } = await supabase
-    .from("conversation_participants")
-    .select("user_id")
-    .eq("conversation_id", conversationId)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (membershipError) {
-    console.error('[participants API] membership check error:', {
-      message: (membershipError as any)?.message,
-      details: (membershipError as any)?.details,
-      hint: (membershipError as any)?.hint,
-      code: (membershipError as any)?.code,
-      raw: membershipError,
+  // Verify membership and fetch participants in one secure RPC call
+  // This bypasses the recursion issues of querying conversation_participants directly
+  const { data: participants, error: rpcError } = await supabase
+    .rpc('get_conversation_members', {
+      _conversation_id: conversationId
     });
-    return NextResponse.json({ error: membershipError }, { status: 500 });
-  }
 
-  if (!membership) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  // Fetch all participants
-  const { data: parts, error: partsError } = await supabase
-    .from("conversation_participants")
-    .select("user_id")
-    .eq("conversation_id", conversationId);
-
-  console.log('[participants API] participants data:', parts);
-  console.log('[participants API] participants error:', partsError);
-
-  if (partsError) {
-    console.error('[participants API] participants fetch error:', {
-      message: (partsError as any)?.message,
-      details: (partsError as any)?.details,
-      hint: (partsError as any)?.hint,
-      code: (partsError as any)?.code,
-      raw: partsError,
+  if (rpcError) {
+    console.error('[participants API] RPC error:', {
+      message: (rpcError as any)?.message,
+      details: (rpcError as any)?.details,
+      code: (rpcError as any)?.code,
+      raw: rpcError,
     });
-    return NextResponse.json({ error: partsError }, { status: 500 });
+    // Fallback or specific error handling can be improved here
+    return NextResponse.json({ error: rpcError.message }, { status: 500 });
   }
 
-  const userIds = (parts ?? []).map(p => p.user_id);
+  // The RPC returns the full profile data joined, so we map it to match the expected format
+  const profiles = (participants || []).map((p: any) => ({
+    id: p.user_id,
+    email: p.email,
+    first_name: p.first_name,
+    last_name: p.last_name,
+    role: p.role,
+    avatar_url: p.avatar_url,
+    is_online: p.is_online,
+    last_seen_at: p.last_seen_at
+  }));
 
-  const { data: profiles, error: profilesError } = await supabase
-    .from("profiles")
-    .select("*")
-    .in("id", userIds);
-
-  if (profilesError) {
-    console.error('[participants API] profiles fetch error:', {
-      message: (profilesError as any)?.message,
-      details: (profilesError as any)?.details,
-      hint: (profilesError as any)?.hint,
-      code: (profilesError as any)?.code,
-      raw: profilesError,
-    });
-    return NextResponse.json({ error: profilesError }, { status: 500 });
-  }
-
-  return NextResponse.json({ profiles: profiles ?? [] });
+  return NextResponse.json({ profiles });
 }
 

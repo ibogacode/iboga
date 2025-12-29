@@ -9,7 +9,7 @@ export default async function MessagesPage() {
 
   if (!user) redirect('/login?redirectTo=/messages')
 
-  const { conversations } = await getUserConversations(user.id)
+  const { conversations } = await getUserConversations()
 
   return <MessagesClient userId={user.id} initialConversations={conversations} />
 }
