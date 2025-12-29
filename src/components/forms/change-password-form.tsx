@@ -74,7 +74,7 @@ export function ChangePasswordForm({ isRequired = false }: ChangePasswordFormPro
                 .from('profiles')
                 .select('role')
                 .eq('id', user.id)
-                .single()
+                .single<{ role: string }>()
               
               const role = (profile?.role as UserRole) || 'patient'
               setTimeout(() => {

@@ -608,6 +608,7 @@ export function MessagesClient({ userId, initialConversations = [] }: MessagesCl
                         conversations={conversations}
                         selectedId={selectedChatId}
                         onSelect={handleSelectChat}
+                        userId={userId}
                         currentUser={user}
                         onNewChat={handleNewChat}
                         isNewChatOpen={isNewChatOpen}
