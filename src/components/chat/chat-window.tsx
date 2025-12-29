@@ -148,13 +148,18 @@ export function ChatWindow({
 
     try {
       const { data: convList, error: convErr } = await supabase.rpc(
-  'get_user_conversations',
-  {
-    p_user_id: effectiveUserId,
-    p_limit: 200,
-    p_offset: 0,
-  } as any
-);
+    'get_user_conversations',
+    {
+        p_user_id: effectiveUserId,
+        p_limit: 200,
+        p_offset: 0,
+    } as any
+    );
+
+    const convListArr = (convList ?? []) as any[];
+    const currentConv = convListArr.find((c: any) => c.id === conversationId);
+            
+
 
       if (convErr) {
         console.error('Error loading user conversations:', convErr);
@@ -162,7 +167,7 @@ export function ChatWindow({
         return;
       }
 
-      const currentConv = (convList || []).find((c: any) => c.id === conversationId);
+    //   const currentConv = (convList || []).find((c: any) => c.id === conversationId);
 
       if (!currentConv) {
         console.warn('Conversation not found or not accessible for user:', {
