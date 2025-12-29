@@ -2,13 +2,23 @@
 
 import { createClient } from '@/lib/supabase/server'
 
-export async function getUserConversations(userId: string) {
+export async function getUserConversations() {
   const supabase = await createClient()
-  
+
+  // Always use the authenticated user from the session (don’t trust an argument)
+  const {
+    data: { user },
+    error: userErr,
+  } = await supabase.auth.getUser()
+
+  if (userErr || !user) {
+    return { conversations: [], error: 'Not authenticated' }
+  }
+
   const { data, error } = await supabase.rpc('get_user_conversations', {
-    p_user_id: userId,
+    p_user_id: user.id,
     p_limit: 50,
-    p_offset: 0
+    p_offset: 0,
   })
 
   if (error) {
@@ -16,25 +26,18 @@ export async function getUserConversations(userId: string) {
     return { conversations: [], error: error.message }
   }
 
-  // Transform the data to match the expected format
   const conversations = (data ?? []).map((conv: any) => {
-    // JSONB from PostgreSQL is already parsed, but check if it's a string
+    // participants is JSONB (already parsed). If somehow string, parse safely.
     let participants = conv.participants
     if (typeof participants === 'string') {
       try {
         participants = JSON.parse(participants)
-      } catch (e) {
-        console.warn('[getUserConversations] Failed to parse participants JSON:', e)
+      } catch {
         participants = []
       }
     }
-    
-    // Ensure participants is an array
-    if (!Array.isArray(participants)) {
-      console.warn('[getUserConversations] Participants is not an array:', participants)
-      participants = []
-    }
-    
+    if (!Array.isArray(participants)) participants = []
+
     return {
       id: conv.id,
       created_at: conv.created_at,
@@ -43,17 +46,16 @@ export async function getUserConversations(userId: string) {
       last_message_preview: conv.last_message_preview,
       is_group: conv.is_group,
       name: conv.name,
-      unread_count: conv.unread_count || 0,
+      unread_count: conv.unread_count ?? 0,
       participants: participants.map((p: any) => ({
         conversation_id: conv.id,
         user_id: p.user_id,
         joined_at: p.joined_at,
         last_read_at: p.last_read_at,
-        user: p.user
-      }))
+        user: p.user,
+      })),
     }
   })
 
   return { conversations, error: null }
 }
-
