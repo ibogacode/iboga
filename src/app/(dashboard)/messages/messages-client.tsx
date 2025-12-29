@@ -58,39 +58,42 @@ export function MessagesClient({ userId, initialConversations = [] }: MessagesCl
     });
   }, []);
 
-  const fetchConversations = useCallback(
-    async (source: 'initial' | 'realtime' | 'manual' = 'manual') => {
-      if (!userId) return;
-      if (inFlightRef.current) return;
+const fetchConversations = useCallback(
+  async (source: 'initial' | 'realtime' | 'manual' = 'manual') => {
+    if (!userId) return;
 
-      const task = (async () => {
-        safeSet(setLoading, true);
+    // prevent overlapping requests
+    if (inFlightRef.current) return;
 
-        try {
-          const { data, error } = await supabase.rpc('get_user_conversations', {
-            p_user_id: userId,
-            p_limit: 50,
-            p_offset: 0,
-          } as any);
+    // create the promise first and store it
+    const promise = (async () => {
+      safeSet(setLoading, true);
 
-          if (error) {
-            console.error(`[${source}] get_user_conversations error:`, error);
-            return;
-          }
+      try {
+        const { data, error } = await supabase.rpc('get_user_conversations', {
+          p_user_id: userId,
+          p_limit: 50,
+          p_offset: 0,
+        } as any);
 
-          const next = transformConversations(data ?? []);
-          safeSet(setConversations, next);
-        } finally {
-          safeSet(setLoading, false);
-          if (inFlightRef.current === task) inFlightRef.current = null;
+        if (error) {
+          console.error(`[${source}] get_user_conversations error:`, error);
+          return;
         }
-      })();
 
-      inFlightRef.current = task;
-      await task;
-    },
-    [supabase, userId, safeSet, transformConversations]
-  );
+        const next = transformConversations(data ?? []);
+        safeSet(setConversations, next);
+      } finally {
+        safeSet(setLoading, false);
+        inFlightRef.current = null; // ✅ always clear after done
+      }
+    })();
+
+    inFlightRef.current = promise;
+    await promise;
+  },
+  [supabase, userId, safeSet, transformConversations]
+);
 
   // Kept (optional) – not used on message insert anymore
   const scheduleRefetch = useCallback(() => {
