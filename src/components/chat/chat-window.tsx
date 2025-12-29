@@ -238,7 +238,7 @@ export function ChatWindow({
         typed.map(async (msg): Promise<Message> => {
           const base: Message = {
             id: msg.id,
-            conversation_id: msg.conversation_id,
+            conversation_id: msg.conversation_id ?? conversationId,
             sender_id: msg.sender_id,
             content: msg.content,
             type: msg.type as MessageType,
