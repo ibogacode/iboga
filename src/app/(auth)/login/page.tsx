@@ -1,6 +1,10 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { getRoleRoute } from '@/lib/utils/role-routes'
+import { UserRole } from '@/types'
 import { LoginForm } from './login-form'
 import { designTokens } from '@/config/design-system'
 
@@ -9,7 +13,22 @@ export const metadata = {
   description: 'Sign in to your account',
 }
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // If user is already logged in, redirect to their role route
+  if (user) {
+    // Get role from profiles table (source of truth)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    
+    const role = profile?.role as UserRole | undefined
+    redirect(role ? getRoleRoute(role) : '/patient')
+  }
   return (
     <div className="flex min-h-screen w-full">
       {/* Left Half - Design/Branding */}

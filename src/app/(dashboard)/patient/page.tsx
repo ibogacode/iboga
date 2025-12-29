@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ProgramInfoCard } from '@/components/patient/program-info-card'
 import { NeedAssistanceCard } from '@/components/patient/need-assistance-card'
@@ -21,7 +22,7 @@ export default async function PatientHomePage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    return null
+    redirect('/login?redirectTo=/patient')
   }
 
   // Get user profile with name

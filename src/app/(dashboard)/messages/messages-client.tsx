@@ -9,40 +9,21 @@ import { MessageSquarePlus, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface MessagesClientProps {
-    user: any;
+    userId: string;
+    initialConversations?: Conversation[];
 }
 
-export function MessagesClient({ user }: MessagesClientProps) {
-    const [conversations, setConversations] = useState<Conversation[]>([]);
+export function MessagesClient({ userId, initialConversations = [] }: MessagesClientProps) {
+    const [conversations, setConversations] = useState<Conversation[]>(initialConversations);
     const [selectedChatId, setSelectedChatId] = useState<string | undefined>();
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [isNewChatOpen, setIsNewChatOpen] = useState(false);
     const [showChatOnMobile, setShowChatOnMobile] = useState(false);
+    const [user, setUser] = useState<any>(null);
     
     // Use useMemo to ensure client is only created once per component instance
     const supabase = useMemo(() => {
-        const client = createClient();
-        
-        // Debug auth state when component mounts
-        if (process.env.NODE_ENV === 'development') {
-            client.auth.getSession().then(({ data: { session }, error }: { data: { session: any }, error: any }) => {
-                console.log('[MessagesClient] Session check:', {
-                    hasSession: !!session,
-                    userEmail: session?.user?.email,
-                    error: error?.message
-                });
-            });
-            
-            client.auth.getUser().then(({ data: { user }, error }: { data: { user: any }, error: any }) => {
-                console.log('[MessagesClient] User check:', {
-                    hasUser: !!user,
-                    userEmail: user?.email,
-                    error: error?.message
-                });
-            });
-        }
-        
-        return client;
+        return createClient();
     }, []);
 
     // Refs for safe state management
@@ -70,7 +51,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
     }, []);
 
     // Safe fallback fetch - prevents double calls
-    const safeFallbackFetch = useCallback(async (user: any, requestId: number) => {
+    const safeFallbackFetch = useCallback(async (userId: string, requestId: number) => {
         if (fallbackInFlightRef.current) {
             console.log(`[req:${requestId}] Fallback already in flight, skipping`);
             return;
@@ -84,7 +65,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
             const { data: myParticipations, error: partError } = await supabase
                 .from('conversation_participants')
                 .select('conversation_id')
-                .eq('user_id', user.id);
+                .eq('user_id', userId);
 
             if (partError) {
                 console.error('Error fetching participations:', partError);
@@ -98,7 +79,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
                 return;
             }
 
-            const conversationIds = myParticipations.map(p => p.conversation_id);
+            const conversationIds = myParticipations.map((p: { conversation_id: string }) => p.conversation_id);
             console.log('Found conversation IDs:', conversationIds.length);
 
             const { data: convs, error: convsError } = await supabase
@@ -122,7 +103,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
             console.log('Processing', convs.length, 'conversations with participants and unread counts');
             
             const convsWithParticipants = await Promise.all(
-                convs.map(async (conv) => {
+                convs.map(async (conv: any) => {
                     const { data: parts, error: partsErr } = await supabase
                         .from('conversation_participants')
                         .select('user_id, joined_at, last_read_at')
@@ -134,7 +115,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
                     }
 
                     const participantsWithProfiles = await Promise.all(
-                        (parts || []).map(async (part) => {
+                        (parts || []).map(async (part: { user_id: string; joined_at: string; last_read_at: string | null }) => {
                             const { data: profile } = await supabase
                                 .from('profiles')
                                 .select('*')
@@ -154,7 +135,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
                     // Get unread count for this conversation
                     const { data: unreadCount } = await supabase.rpc('get_unread_count', {
                         p_conversation_id: conv.id,
-                        p_user_id: user.id
+                        p_user_id: userId
                     });
 
                     return {
@@ -182,7 +163,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
 
     // Unified safe fetch function with single-flight and request ID guard
     const safeFetchConversations = useCallback(async (
-        user: any,
+        userId: string,
         source: 'initial' | 'realtime' | 'manual' = 'manual'
     ) => {
         // Single-flight guard: skip if already in flight
@@ -194,7 +175,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
         // Increment request ID for this fetch
         reqIdRef.current += 1;
         const requestId = reqIdRef.current;
-        console.log(`[req:${requestId}][${source}] Starting fetch for user:`, user.id);
+        console.log(`[req:${requestId}][${source}] Starting fetch for user:`, userId);
 
         // Create the fetch promise - store in local variable for identity check
         const startTime = performance.now();
@@ -212,7 +193,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
             try {
                 // Try optimized function first with timeout and pagination
                 const rpcPromise = supabase.rpc('get_user_conversations', {
-                    p_user_id: user.id,
+                    p_user_id: userId,
                     p_limit: 50,
                     p_offset: 0
                 });
@@ -246,7 +227,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
                     const duration = ((endTime - startTime) / 1000).toFixed(2);
                     console.warn(`[req:${requestId}][${source}] RPC timed out after ${duration}s, using fallback`);
                     fallbackUsed = true;
-                    await safeFallbackFetch(user, requestId);
+                    await safeFallbackFetch(userId, requestId);
                     return;
                 }
 
@@ -261,7 +242,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
                 if (error) {
                     console.warn(`[req:${requestId}][${source}] RPC error, falling back:`, error);
                     fallbackUsed = true;
-                    await safeFallbackFetch(user, requestId);
+                    await safeFallbackFetch(userId, requestId);
                     return;
                 }
                 
@@ -269,7 +250,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
                 if (convs === null || convs === undefined) {
                     console.warn(`[req:${requestId}][${source}] RPC returned null/undefined, falling back`);
                     fallbackUsed = true;
-                    await safeFallbackFetch(user, requestId);
+                    await safeFallbackFetch(userId, requestId);
                     return;
                 }
 
@@ -323,7 +304,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
                         } catch (transformError) {
                             console.error(`[req:${requestId}][${source}] Error transforming data:`, transformError);
                             fallbackUsed = true;
-                            await safeFallbackFetch(user, requestId);
+                            await safeFallbackFetch(userId, requestId);
                             return;
                         }
                     } else {
@@ -343,7 +324,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
             } catch (error) {
                 console.error(`[req:${requestId}][${source}] Error in fetch:`, error);
                 if (mountedRef.current && reqIdRef.current === requestId) {
-                    await safeFallbackFetch(user, requestId);
+                    await safeFallbackFetch(userId, requestId);
                 }
             } finally {
                 // Clean up timeout if still set
@@ -393,7 +374,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
         debounceTimerRef.current = setTimeout(() => {
             // Double-check before executing
             if (mountedRef.current && inFlightRef.current === null) {
-                safeFetchConversations({ id: userId }, 'realtime');
+                safeFetchConversations(userId, 'realtime');
             }
         }, 500);
     }, [safeFetchConversations]);
@@ -436,22 +417,36 @@ export function MessagesClient({ user }: MessagesClientProps) {
         }
     }, [supabase, scheduleRefetch]);
 
+    // Fetch user object for child components
     useEffect(() => {
+        if (!userId) return;
+
+        supabase.auth.getUser().then(({ data: { user: authUser } }) => {
+            if (authUser) {
+                setUser(authUser);
+            }
+        });
+    }, [userId, supabase]);
+
+    // Initialize conversations from server props and set up realtime subscriptions
+    useEffect(() => {
+        if (!userId) {
+            return;
+        }
+
         // Reset refs on mount
         mountedRef.current = true;
         inFlightRef.current = null;
         fallbackInFlightRef.current = false;
         reqIdRef.current = 0;
 
-        if (!user?.id) {
-            safeSetState(setLoading, false);
-            return;
+        // Initialize conversations from server-fetched data
+        if (initialConversations.length > 0) {
+            setConversations(initialConversations);
         }
-
-        // Fetch once per user id
-        safeFetchConversations(user, 'initial');
         
-        const unsubscribe = subscribeToConversations(user.id);
+        // Set up realtime subscriptions for live updates
+        const unsubscribe = subscribeToConversations(userId);
         
         return () => {
             mountedRef.current = false;
@@ -473,16 +468,21 @@ export function MessagesClient({ user }: MessagesClientProps) {
             // Unsubscribe from realtime
             if (unsubscribe) unsubscribe();
         };
-    }, [user?.id, safeFetchConversations, safeSetState, subscribeToConversations]);
+    }, [userId, initialConversations, subscribeToConversations]);
     
     // Callback to refresh unread counts after marking messages as read
     const handleMessagesRead = useCallback(() => {
-        if (user?.id) {
-            scheduleRefetch(user.id);
+        if (userId) {
+            scheduleRefetch(userId);
         }
-    }, [user?.id, scheduleRefetch]);
+    }, [userId, scheduleRefetch]);
 
     const handleNewChat = async (targetUserId: string) => {
+        if (!userId) {
+            console.error('Cannot create chat: userId not available');
+            return;
+        }
+
         console.log('handleNewChat called with user:', targetUserId);
 
         const existing = conversations.find(c =>
@@ -513,7 +513,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
 
         if (newConv) {
             const { error: partError } = await supabase.from('conversation_participants').insert([
-                { conversation_id: newConv.id, user_id: user.id },
+                { conversation_id: newConv.id, user_id: userId },
                 { conversation_id: newConv.id, user_id: targetUserId }
             ]);
 
@@ -523,7 +523,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
             }
 
             console.log('Participants added, fetching conversations...');
-            await safeFetchConversations(user, 'manual');
+            await safeFetchConversations(userId, 'manual');
             if (mountedRef.current) {
                 setSelectedChatId(newConv.id);
             }
@@ -543,8 +543,13 @@ export function MessagesClient({ user }: MessagesClientProps) {
     };
 
     const handleDeleteConversation = async (conversationId: string) => {
+        if (!userId) {
+            console.error('Cannot delete conversation: userId not available');
+            return;
+        }
+
         // Refresh conversations list
-        await safeFetchConversations(user, 'manual');
+        await safeFetchConversations(userId, 'manual');
         
         // If deleted conversation was selected, go back to list
         if (mountedRef.current && selectedChatId === conversationId) {
@@ -617,6 +622,7 @@ export function MessagesClient({ user }: MessagesClientProps) {
                         <ChatWindow
                             conversationId={selectedChatId}
                             currentUser={user}
+                            userId={userId}
                             onBack={handleBackToList}
                             onMessagesRead={handleMessagesRead}
                         />

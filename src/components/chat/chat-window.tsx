@@ -30,6 +30,7 @@ import {
 interface ChatWindowProps {
     conversationId: string;
     currentUser: any;
+    userId?: string;
     onBack?: () => void;
     onMessagesRead?: () => void;
 }
@@ -39,7 +40,17 @@ interface OtherUserStatus {
     last_seen_at: string | null;
 }
 
-export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead }: ChatWindowProps) {
+export function ChatWindow({ conversationId, currentUser, userId, onBack, onMessagesRead }: ChatWindowProps) {
+    // Use userId if provided, otherwise fall back to currentUser.id
+    const effectiveUserId = userId || currentUser?.id
+    
+    if (!effectiveUserId) {
+        return (
+            <div className="flex-1 flex items-center justify-center">
+                <div className="text-gray-400">Loading user...</div>
+            </div>
+        )
+    }
     const [messages, setMessages] = useState<Message[]>([]);
     const [conversation, setConversation] = useState<Conversation | null>(null);
     const [participants, setParticipants] = useState<ChatUser[]>([]);
@@ -212,7 +223,7 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
         // Mark all messages in this conversation as read
         const { data: readCount, error: readError } = await supabase.rpc('mark_messages_as_read', {
             p_conversation_id: conversationId,
-            p_user_id: currentUser.id
+            p_user_id: effectiveUserId
         });
 
         if (!readError && readCount > 0) {
@@ -221,7 +232,7 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
         }
         
         // Get other user's online status
-        const otherUser = parts?.find(p => p.user_id !== currentUser.id);
+        const otherUser = parts?.find(p => p.user_id !== effectiveUserId);
         if (otherUser) {
             const { data: statusData } = await supabase
                 .from('profiles')
@@ -301,10 +312,10 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
                         });
                         
                         // If message is from someone else, mark it as read immediately
-                        if (newMsg.sender_id !== currentUser.id) {
+                        if (newMsg.sender_id !== effectiveUserId) {
                             supabase.rpc('mark_messages_as_read', {
                                 p_conversation_id: conversationId,
-                                p_user_id: currentUser.id
+                                p_user_id: effectiveUserId
                             }).then(({ data }) => {
                                 if (data > 0) {
                                     onMessagesRead?.();
@@ -342,7 +353,7 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
     const handleSendMessage = async (content: string, type: 'text' | 'image' | 'audio', mediaUrl?: string, replyTo?: string) => {
         const { error } = await supabase.from('messages').insert({
             conversation_id: conversationId,
-            sender_id: currentUser.id,
+            sender_id: effectiveUserId,
             content,
             type,
             media_url: mediaUrl,
@@ -386,7 +397,7 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
             .from('messages')
             .update({ is_deleted: true })
             .eq('id', messageId)
-            .eq('sender_id', currentUser.id);
+            .eq('sender_id', effectiveUserId);
 
         if (error) {
             console.error('Error deleting message:', error);
@@ -404,7 +415,7 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
             .from('conversation_participants')
             .delete()
             .eq('conversation_id', conversationId)
-            .eq('user_id', currentUser.id);
+            .eq('user_id', effectiveUserId);
 
         if (error) {
             console.error('Error deleting conversation:', error);
@@ -543,7 +554,7 @@ export function ChatWindow({ conversationId, currentUser, onBack, onMessagesRead
                                         )}
                                         <MessageBubble
                                             message={msg}
-                                            isOwn={msg.sender_id === currentUser?.id}
+                                            isOwn={msg.sender_id === effectiveUserId}
                                             sender={msg.sender}
                                             onDelete={handleDeleteMessage}
                                             onReply={handleReply}
