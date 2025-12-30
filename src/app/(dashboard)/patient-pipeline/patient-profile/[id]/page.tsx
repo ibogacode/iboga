@@ -39,7 +39,7 @@ export default function PatientProfilePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [triggeringForm, setTriggeringForm] = useState<'intake' | 'medical' | 'service' | null>(null)
+  const [triggeringForm, setTriggeringForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   const [profileData, setProfileData] = useState<PatientProfileData | null>(null)
   const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   const [viewFormData, setViewFormData] = useState<any>(null)
