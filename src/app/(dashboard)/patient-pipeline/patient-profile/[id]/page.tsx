@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById } from '@/actions/patient-profile.action'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { sendFormEmail } from '@/actions/send-form-email.action'
-import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye } from 'lucide-react'
+import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,6 +23,12 @@ interface PatientProfileData {
   medicalHistoryForm: any
   serviceAgreement: any
   ibogaineConsentForm: any
+  existingPatientDocuments?: Array<{
+    id: string
+    form_type: 'intake' | 'medical' | 'service' | 'ibogaine'
+    document_url: string
+    document_name?: string | null
+  }>
   formStatuses: {
     intake: 'completed' | 'pending' | 'not_started'
     medicalHistory: 'completed' | 'not_started'
@@ -522,24 +528,40 @@ export default function PatientProfilePage() {
                       variant="outline"
                       size="sm"
                       onClick={async () => {
-                        // Load and view intake form
-                        const intakeFormId = profileData.intakeForm?.id
-                        if (intakeFormId) {
-                          setLoadingViewForm('intake')
-                          try {
-                            const result = await getIntakeFormById({ formId: intakeFormId })
-                            
-                            if (result?.data?.success && result.data.data) {
-                              setViewFormData(result.data.data)
-                              setViewingForm('intake')
-                            } else {
-                              toast.error(result?.data?.error || 'Failed to load form data')
+                        // Check if there's an uploaded document for this form
+                        const uploadedDoc = profileData.existingPatientDocuments?.find(
+                          doc => doc.form_type === 'intake'
+                        )
+                        
+                        if (uploadedDoc) {
+                          // Show uploaded document
+                          setViewFormData({ 
+                            type: 'uploaded_document',
+                            document_url: uploadedDoc.document_url,
+                            document_name: uploadedDoc.document_name || 'Intake Form Document',
+                            form_type: 'intake'
+                          })
+                          setViewingForm('intake')
+                        } else {
+                          // Load and view intake form
+                          const intakeFormId = profileData.intakeForm?.id
+                          if (intakeFormId) {
+                            setLoadingViewForm('intake')
+                            try {
+                              const result = await getIntakeFormById({ formId: intakeFormId })
+                              
+                              if (result?.data?.success && result.data.data) {
+                                setViewFormData(result.data.data)
+                                setViewingForm('intake')
+                              } else {
+                                toast.error(result?.data?.error || 'Failed to load form data')
+                              }
+                            } catch (error) {
+                              console.error('Error loading form:', error)
+                              toast.error('Failed to load form data')
+                            } finally {
+                              setLoadingViewForm(null)
                             }
-                          } catch (error) {
-                            console.error('Error loading form:', error)
-                            toast.error('Failed to load form data')
-                          } finally {
-                            setLoadingViewForm(null)
                           }
                         }
                       }}
@@ -606,24 +628,40 @@ export default function PatientProfilePage() {
                       variant="outline"
                       size="sm"
                       onClick={async () => {
-                        // Load and view medical history form
-                        const medicalFormId = profileData.medicalHistoryForm?.id
-                        if (medicalFormId) {
-                          setLoadingViewForm('medical')
-                          try {
-                            const result = await getMedicalHistoryFormById({ formId: medicalFormId })
-                            
-                            if (result?.data?.success && result.data.data) {
-                              setViewFormData(result.data.data)
-                              setViewingForm('medical')
-                            } else {
-                              toast.error(result?.data?.error || 'Failed to load form data')
+                        // Check if there's an uploaded document for this form
+                        const uploadedDoc = profileData.existingPatientDocuments?.find(
+                          doc => doc.form_type === 'medical'
+                        )
+                        
+                        if (uploadedDoc) {
+                          // Show uploaded document
+                          setViewFormData({ 
+                            type: 'uploaded_document',
+                            document_url: uploadedDoc.document_url,
+                            document_name: uploadedDoc.document_name || 'Medical History Document',
+                            form_type: 'medical'
+                          })
+                          setViewingForm('medical')
+                        } else {
+                          // Load and view medical history form
+                          const medicalFormId = profileData.medicalHistoryForm?.id
+                          if (medicalFormId) {
+                            setLoadingViewForm('medical')
+                            try {
+                              const result = await getMedicalHistoryFormById({ formId: medicalFormId })
+                              
+                              if (result?.data?.success && result.data.data) {
+                                setViewFormData(result.data.data)
+                                setViewingForm('medical')
+                              } else {
+                                toast.error(result?.data?.error || 'Failed to load form data')
+                              }
+                            } catch (error) {
+                              console.error('Error loading form:', error)
+                              toast.error('Failed to load form data')
+                            } finally {
+                              setLoadingViewForm(null)
                             }
-                          } catch (error) {
-                            console.error('Error loading form:', error)
-                            toast.error('Failed to load form data')
-                          } finally {
-                            setLoadingViewForm(null)
                           }
                         }
                       }}
@@ -672,24 +710,40 @@ export default function PatientProfilePage() {
                       variant="outline"
                       size="sm"
                       onClick={async () => {
-                        // Load and view service agreement
-                        const serviceAgreementId = profileData.serviceAgreement?.id
-                        if (serviceAgreementId) {
-                          setLoadingViewForm('service')
-                          try {
-                            const result = await getServiceAgreementById({ formId: serviceAgreementId })
-                            
-                            if (result?.data?.success && result.data.data) {
-                              setViewFormData(result.data.data)
-                              setViewingForm('service')
-                            } else {
-                              toast.error(result?.data?.error || 'Failed to load form data')
+                        // Check if there's an uploaded document for this form
+                        const uploadedDoc = profileData.existingPatientDocuments?.find(
+                          doc => doc.form_type === 'service'
+                        )
+                        
+                        if (uploadedDoc) {
+                          // Show uploaded document
+                          setViewFormData({ 
+                            type: 'uploaded_document',
+                            document_url: uploadedDoc.document_url,
+                            document_name: uploadedDoc.document_name || 'Service Agreement Document',
+                            form_type: 'service'
+                          })
+                          setViewingForm('service')
+                        } else {
+                          // Load and view service agreement
+                          const serviceAgreementId = profileData.serviceAgreement?.id
+                          if (serviceAgreementId) {
+                            setLoadingViewForm('service')
+                            try {
+                              const result = await getServiceAgreementById({ formId: serviceAgreementId })
+                              
+                              if (result?.data?.success && result.data.data) {
+                                setViewFormData(result.data.data)
+                                setViewingForm('service')
+                              } else {
+                                toast.error(result?.data?.error || 'Failed to load form data')
+                              }
+                            } catch (error) {
+                              console.error('Error loading form:', error)
+                              toast.error('Failed to load form data')
+                            } finally {
+                              setLoadingViewForm(null)
                             }
-                          } catch (error) {
-                            console.error('Error loading form:', error)
-                            toast.error('Failed to load form data')
-                          } finally {
-                            setLoadingViewForm(null)
                           }
                         }
                       }}
@@ -756,24 +810,40 @@ export default function PatientProfilePage() {
                       variant="outline"
                       size="sm"
                       onClick={async () => {
-                        // Load and view ibogaine consent form
-                        const ibogaineConsentFormId = profileData.ibogaineConsentForm?.id
-                        if (ibogaineConsentFormId) {
-                          setLoadingViewForm('ibogaine')
-                          try {
-                            const result = await getIbogaineConsentFormById({ formId: ibogaineConsentFormId })
-                            
-                            if (result?.data?.success && result.data.data) {
-                              setViewFormData(result.data.data)
-                              setViewingForm('ibogaine')
-                            } else {
-                              toast.error(result?.data?.error || 'Failed to load form data')
+                        // Check if there's an uploaded document for this form
+                        const uploadedDoc = profileData.existingPatientDocuments?.find(
+                          doc => doc.form_type === 'ibogaine'
+                        )
+                        
+                        if (uploadedDoc) {
+                          // Show uploaded document
+                          setViewFormData({ 
+                            type: 'uploaded_document',
+                            document_url: uploadedDoc.document_url,
+                            document_name: uploadedDoc.document_name || 'Ibogaine Consent Form Document',
+                            form_type: 'ibogaine'
+                          })
+                          setViewingForm('ibogaine')
+                        } else {
+                          // Load and view ibogaine consent form
+                          const ibogaineConsentFormId = profileData.ibogaineConsentForm?.id
+                          if (ibogaineConsentFormId) {
+                            setLoadingViewForm('ibogaine')
+                            try {
+                              const result = await getIbogaineConsentFormById({ formId: ibogaineConsentFormId })
+                              
+                              if (result?.data?.success && result.data.data) {
+                                setViewFormData(result.data.data)
+                                setViewingForm('ibogaine')
+                              } else {
+                                toast.error(result?.data?.error || 'Failed to load form data')
+                              }
+                            } catch (error) {
+                              console.error('Error loading form:', error)
+                              toast.error('Failed to load form data')
+                            } finally {
+                              setLoadingViewForm(null)
                             }
-                          } catch (error) {
-                            console.error('Error loading form:', error)
-                            toast.error('Failed to load form data')
-                          } finally {
-                            setLoadingViewForm(null)
                           }
                         }
                       }}
@@ -816,7 +886,52 @@ export default function PatientProfilePage() {
                 </Button>
               </div>
               <div className="p-6">
-                <PatientIntakeFormView form={viewFormData} />
+                {viewFormData?.type === 'uploaded_document' ? (
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 rounded-lg p-6 text-center">
+                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        {viewFormData.document_name || 'Uploaded Document'}
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        This is an uploaded document for an existing patient.
+                      </p>
+                      <div className="flex gap-3 justify-center">
+                        <Button
+                          onClick={() => window.open(viewFormData.document_url, '_blank')}
+                          className="gap-2"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Open Document
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            const link = document.createElement('a')
+                            link.href = viewFormData.document_url
+                            link.download = viewFormData.document_name || 'document'
+                            link.click()
+                          }}
+                          className="gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download
+                        </Button>
+                      </div>
+                    </div>
+                    {viewFormData.document_url && (
+                      <div className="mt-4">
+                        <iframe
+                          src={viewFormData.document_url}
+                          className="w-full h-[600px] border border-gray-200 rounded-lg"
+                          title={viewFormData.document_name || 'Document'}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <PatientIntakeFormView form={viewFormData} />
+                )}
               </div>
             </div>
           </div>
@@ -843,7 +958,52 @@ export default function PatientProfilePage() {
                 </Button>
               </div>
               <div className="p-6">
-                <MedicalHistoryFormView form={viewFormData} />
+                {viewFormData?.type === 'uploaded_document' ? (
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 rounded-lg p-6 text-center">
+                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        {viewFormData.document_name || 'Uploaded Document'}
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        This is an uploaded document for an existing patient.
+                      </p>
+                      <div className="flex gap-3 justify-center">
+                        <Button
+                          onClick={() => window.open(viewFormData.document_url, '_blank')}
+                          className="gap-2"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Open Document
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            const link = document.createElement('a')
+                            link.href = viewFormData.document_url
+                            link.download = viewFormData.document_name || 'document'
+                            link.click()
+                          }}
+                          className="gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download
+                        </Button>
+                      </div>
+                    </div>
+                    {viewFormData.document_url && (
+                      <div className="mt-4">
+                        <iframe
+                          src={viewFormData.document_url}
+                          className="w-full h-[600px] border border-gray-200 rounded-lg"
+                          title={viewFormData.document_name || 'Document'}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <MedicalHistoryFormView form={viewFormData} />
+                )}
               </div>
             </div>
           </div>
@@ -870,7 +1030,52 @@ export default function PatientProfilePage() {
                 </Button>
               </div>
               <div className="p-6">
-                <ServiceAgreementFormView form={viewFormData} />
+                {viewFormData?.type === 'uploaded_document' ? (
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 rounded-lg p-6 text-center">
+                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        {viewFormData.document_name || 'Uploaded Document'}
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        This is an uploaded document for an existing patient.
+                      </p>
+                      <div className="flex gap-3 justify-center">
+                        <Button
+                          onClick={() => window.open(viewFormData.document_url, '_blank')}
+                          className="gap-2"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Open Document
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            const link = document.createElement('a')
+                            link.href = viewFormData.document_url
+                            link.download = viewFormData.document_name || 'document'
+                            link.click()
+                          }}
+                          className="gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download
+                        </Button>
+                      </div>
+                    </div>
+                    {viewFormData.document_url && (
+                      <div className="mt-4">
+                        <iframe
+                          src={viewFormData.document_url}
+                          className="w-full h-[600px] border border-gray-200 rounded-lg"
+                          title={viewFormData.document_name || 'Document'}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <ServiceAgreementFormView form={viewFormData} />
+                )}
               </div>
             </div>
           </div>
@@ -897,7 +1102,52 @@ export default function PatientProfilePage() {
                 </Button>
               </div>
               <div className="p-6">
-                <IbogaineConsentFormView form={viewFormData} />
+                {viewFormData?.type === 'uploaded_document' ? (
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 rounded-lg p-6 text-center">
+                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        {viewFormData.document_name || 'Uploaded Document'}
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        This is an uploaded document for an existing patient.
+                      </p>
+                      <div className="flex gap-3 justify-center">
+                        <Button
+                          onClick={() => window.open(viewFormData.document_url, '_blank')}
+                          className="gap-2"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Open Document
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            const link = document.createElement('a')
+                            link.href = viewFormData.document_url
+                            link.download = viewFormData.document_name || 'document'
+                            link.click()
+                          }}
+                          className="gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download
+                        </Button>
+                      </div>
+                    </div>
+                    {viewFormData.document_url && (
+                      <div className="mt-4">
+                        <iframe
+                          src={viewFormData.document_url}
+                          className="w-full h-[600px] border border-gray-200 rounded-lg"
+                          title={viewFormData.document_name || 'Document'}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <IbogaineConsentFormView form={viewFormData} />
+                )}
               </div>
             </div>
           </div>

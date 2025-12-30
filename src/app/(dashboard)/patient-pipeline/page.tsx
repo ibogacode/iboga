@@ -141,13 +141,21 @@ export default function PatientPipelinePage() {
           </p>
         </div>
 
-        {/* Add Patient Button - Links to Initiate Intake */}
-        <Link href="/owner/initiate-intake" className="shrink-0">
-            <Button variant="outline" className="gap-2 w-full sm:w-auto min-h-[44px]">
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+          <Link href="/owner/initiate-intake" className="w-full sm:w-auto">
+            <Button className="gap-2 w-full sm:w-auto min-h-[44px] bg-gray-900 hover:bg-gray-800 text-white border-gray-900 hover:border-gray-800">
               <Users className="h-4 w-4" />
               Add Patient
             </Button>
-        </Link>
+          </Link>
+          <Link href="/patient-pipeline/add-existing-patient" className="w-full sm:w-auto">
+            <Button className="gap-2 w-full sm:w-auto min-h-[44px] bg-gray-900 hover:bg-gray-800 text-white border-gray-900 hover:border-gray-800">
+              <UserPlus className="h-4 w-4" />
+              Add Existing Patient
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -372,7 +380,7 @@ export default function PatientPipelinePage() {
                           {form.formCompletion.completed}/{form.formCompletion.total}
                         </div>
                       ) : (
-                        <div className="text-xs sm:text-sm text-gray-500">1/3</div>
+                        <div className="text-xs sm:text-sm text-gray-500">1/4</div>
                       )}
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">

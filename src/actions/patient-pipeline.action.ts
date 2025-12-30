@@ -338,49 +338,129 @@ export const getPartialIntakeForms = authActionClient
       })
     }
     
+    // Batch fetch ibogaine consent forms
+    const ibogaineConsentByIntakeMap = new Map<string, boolean>()
+    const ibogaineConsentByEmailMap = new Map<string, boolean>()
+    
+    // Fetch ibogaine consent forms by intake_form_id
+    const allIntakeFormIds = [...completedIntakeFormIds, ...intakeFormIdsFromEmail]
+    if (allIntakeFormIds.length > 0) {
+      const { data: ibogaineConsents } = await adminClient
+        .from('ibogaine_consent_forms')
+        .select('intake_form_id, email')
+        .in('intake_form_id', allIntakeFormIds)
+      
+      ;(ibogaineConsents || []).forEach((ic: any) => {
+        if (ic.intake_form_id) {
+          ibogaineConsentByIntakeMap.set(ic.intake_form_id, true)
+        }
+        if (ic.email) {
+          ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), true)
+        }
+      })
+    }
+    
+    // Batch fetch existing patient documents (uploaded documents)
+    const existingDocumentsByPartialFormMap = new Map<string, Set<string>>() // partial_form_id -> Set<form_type>
+    const partialFormIds = forms.map((f: any) => f.id).filter(Boolean)
+    if (partialFormIds.length > 0) {
+      const { data: existingDocs } = await adminClient
+        .from('existing_patient_documents')
+        .select('partial_intake_form_id, form_type')
+        .in('partial_intake_form_id', partialFormIds)
+      
+      ;(existingDocs || []).forEach((doc: any) => {
+        if (doc.partial_intake_form_id) {
+          if (!existingDocumentsByPartialFormMap.has(doc.partial_intake_form_id)) {
+            existingDocumentsByPartialFormMap.set(doc.partial_intake_form_id, new Set())
+          }
+          existingDocumentsByPartialFormMap.get(doc.partial_intake_form_id)?.add(doc.form_type)
+        }
+      })
+    }
+    
     // Now calculate completion counts using the lookup maps
     const data = forms.map((form: any) => {
       const creator = creators.find((c: any) => c.id === form.created_by)
       const patientEmail = form.email?.toLowerCase().trim()
       let completedCount = 0
-      const totalForms = 3 // Intake, Medical History, Service Agreement
+      const totalForms = 4 // Intake, Medical History, Service Agreement, Ibogaine Consent
+      
+      // Check for uploaded documents first (existing patients)
+      const uploadedDocs = existingDocumentsByPartialFormMap.get(form.id)
+      const hasIntakeDoc = uploadedDocs?.has('intake') || false
+      const hasMedicalDoc = uploadedDocs?.has('medical') || false
+      const hasServiceDoc = uploadedDocs?.has('service') || false
+      const hasIbogaineDoc = uploadedDocs?.has('ibogaine') || false
       
       if (form.completed_form_id) {
-        // Intake form is completed
-        completedCount++
-        
-        // Check for medical history
-        if (medicalHistorySet.has(form.completed_form_id)) {
+        // Intake form is completed (or has uploaded document)
+        if (hasIntakeDoc) {
+          completedCount++
+        } else {
           completedCount++
         }
         
-        // Check for service agreement
+        // Check for medical history (form or uploaded document)
+        if (hasMedicalDoc || medicalHistorySet.has(form.completed_form_id)) {
+          completedCount++
+        }
+        
+        // Check for service agreement (form or uploaded document)
         const hasServiceByIntake = serviceAgreementByIntakeMap.has(form.completed_form_id)
         const hasServiceByEmail = patientEmail && serviceAgreementByEmailMap.has(patientEmail)
         
-        if (hasServiceByIntake || hasServiceByEmail) {
+        if (hasServiceDoc || hasServiceByIntake || hasServiceByEmail) {
+          completedCount++
+        }
+        
+        // Check for ibogaine consent (form or uploaded document)
+        const hasIbogaineByIntake = ibogaineConsentByIntakeMap.has(form.completed_form_id)
+        const hasIbogaineByEmail = patientEmail && ibogaineConsentByEmailMap.has(patientEmail)
+        
+        if (hasIbogaineDoc || hasIbogaineByIntake || hasIbogaineByEmail) {
           completedCount++
         }
       } else if (patientEmail) {
         // Intake form not completed yet, check if patient has any forms
         const intakeFormId = intakeFormsByEmailMap.get(patientEmail)
         
-        if (intakeFormId) {
-          completedCount++ // Intake form exists
+        if (intakeFormId || hasIntakeDoc) {
+          completedCount++ // Intake form exists or has uploaded document
           
-          // Check for medical history
-          if (medicalHistorySet.has(intakeFormId)) {
+          // Check for medical history (form or uploaded document)
+          if (hasMedicalDoc || (intakeFormId && medicalHistorySet.has(intakeFormId))) {
             completedCount++
           }
           
-          // Check for service agreement
-          const hasServiceByIntake = serviceAgreementByIntakeMap.has(intakeFormId)
+          // Check for service agreement (form or uploaded document)
+          const hasServiceByIntake = intakeFormId && serviceAgreementByIntakeMap.has(intakeFormId)
           const hasServiceByEmail = serviceAgreementByEmailMap.has(patientEmail)
           
-          if (hasServiceByIntake || hasServiceByEmail) {
+          if (hasServiceDoc || hasServiceByIntake || hasServiceByEmail) {
             completedCount++
           }
+          
+          // Check for ibogaine consent (form or uploaded document)
+          const hasIbogaineByIntake = intakeFormId && ibogaineConsentByIntakeMap.has(intakeFormId)
+          const hasIbogaineByEmail = ibogaineConsentByEmailMap.has(patientEmail)
+          
+          if (hasIbogaineDoc || hasIbogaineByIntake || hasIbogaineByEmail) {
+            completedCount++
+          }
+        } else if (hasMedicalDoc || hasServiceDoc || hasIbogaineDoc) {
+          // Has uploaded documents but no intake form yet
+          if (hasIntakeDoc) completedCount++
+          if (hasMedicalDoc) completedCount++
+          if (hasServiceDoc) completedCount++
+          if (hasIbogaineDoc) completedCount++
         }
+      } else if (uploadedDocs && uploadedDocs.size > 0) {
+        // Has uploaded documents but no email
+        if (hasIntakeDoc) completedCount++
+        if (hasMedicalDoc) completedCount++
+        if (hasServiceDoc) completedCount++
+        if (hasIbogaineDoc) completedCount++
       }
       
       return {
@@ -497,11 +577,31 @@ export const getPublicIntakeForms = authActionClient
       }
     })
     
+    // Batch fetch ibogaine consent forms
+    const ibogaineConsentByIntakeMap = new Map<string, boolean>()
+    const ibogaineConsentByEmailMap = new Map<string, boolean>()
+    
+    if (intakeFormIds.length > 0) {
+      const { data: ibogaineConsents } = await adminClient
+        .from('ibogaine_consent_forms')
+        .select('intake_form_id, email')
+        .in('intake_form_id', intakeFormIds)
+      
+      ;(ibogaineConsents || []).forEach((ic: any) => {
+        if (ic.intake_form_id) {
+          ibogaineConsentByIntakeMap.set(ic.intake_form_id, true)
+        }
+        if (ic.email) {
+          ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), true)
+        }
+      })
+    }
+    
     // Calculate completion counts using lookup maps
     const dataWithCounts = directApplications.map((form: any) => {
       const patientEmail = form.email?.toLowerCase().trim()
       let completedCount = 0
-      const totalForms = 3 // Intake, Medical History, Service Agreement
+      const totalForms = 4 // Intake, Medical History, Service Agreement, Ibogaine Consent
       
       // Intake form is completed (since this is a public intake form)
       completedCount++
@@ -517,6 +617,14 @@ export const getPublicIntakeForms = authActionClient
       const hasServiceByEmail = patientEmail && serviceAgreementByEmailMap.has(patientEmail)
       
       if (hasServiceByIntake || hasServiceByEmail) {
+        completedCount++
+      }
+      
+      // Check for ibogaine consent form
+      const hasIbogaineByIntake = ibogaineConsentByIntakeMap.has(intakeFormId)
+      const hasIbogaineByEmail = patientEmail && ibogaineConsentByEmailMap.has(patientEmail)
+      
+      if (hasIbogaineByIntake || hasIbogaineByEmail) {
         completedCount++
       }
       
