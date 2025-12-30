@@ -59,6 +59,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
           { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
         ]
       },
+      { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
@@ -80,6 +81,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
           { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
         ]
       },
+      { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
@@ -92,6 +94,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Patients', href: '/manager/patients', icon: Users },
       { title: 'Schedule', href: '/manager/schedule', icon: Calendar },
       { title: 'Reports', href: '/manager/reports', icon: BarChart3 },
+      { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
@@ -104,6 +107,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Treatments', href: '/doctor/treatments', icon: Stethoscope },
       { title: 'Prescriptions', href: '/doctor/prescriptions', icon: Pill },
       { title: 'Schedule', href: '/doctor/schedule', icon: Calendar },
+      { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
@@ -116,6 +120,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Assessments', href: '/psych/assessments', icon: Brain },
       { title: 'Sessions', href: '/psych/sessions', icon: ClipboardList },
       { title: 'Schedule', href: '/psych/schedule', icon: Calendar },
+      { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
@@ -129,6 +134,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Daily Logs', href: '/nurse/daily-logs', icon: FileText },
       { title: 'Vitals', href: '/nurse/vitals', icon: Activity },
       { title: 'Medications', href: '/nurse/medications', icon: Pill },
+      { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
@@ -140,6 +146,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Transport', href: '/driver/transport', icon: Car },
       { title: 'Flights', href: '/driver/flights', icon: Plane },
       { title: 'Schedule', href: '/driver/schedule', icon: Calendar },
+      { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
