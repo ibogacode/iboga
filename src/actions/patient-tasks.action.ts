@@ -8,7 +8,7 @@ const getPatientTasksSchema = z.object({})
 
 export interface PatientTask {
   id: string
-  type: 'intake' | 'medical_history' | 'service_agreement'
+  type: 'intake' | 'medical_history' | 'service_agreement' | 'ibogaine_consent'
   title: string
   description: string
   status: 'not_started' | 'in_progress' | 'completed'
@@ -330,6 +330,85 @@ export const getPatientTasks = authActionClient
         isOptional: false,
         formId: '',
         link: '/patient/service-agreement',
+      })
+    }
+
+    // 4. Check for Ibogaine Consent Form
+    let ibogaineConsentForm = null
+
+    // Strategy 1: Try by patient_id first (most reliable link)
+    if (patientId) {
+      const { data: consentByPatientId, error: patientIdError } = await supabase
+        .from('ibogaine_consent_forms')
+        .select('id, patient_id, email, intake_form_id, created_at')
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (!patientIdError && consentByPatientId && consentByPatientId.length > 0) {
+        ibogaineConsentForm = consentByPatientId[0]
+        console.log('[getPatientTasks] ✓ Found ibogaine consent form by patient_id:', ibogaineConsentForm.id)
+      }
+    }
+
+    // Strategy 2: Try by intake_form_id if available
+    if (!ibogaineConsentForm && intakeForm) {
+      const { data: consentByIntake, error: intakeError } = await supabase
+        .from('ibogaine_consent_forms')
+        .select('id, patient_id, email, intake_form_id, created_at')
+        .eq('intake_form_id', intakeForm.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (!intakeError && consentByIntake && consentByIntake.length > 0) {
+        ibogaineConsentForm = consentByIntake[0]
+        console.log('[getPatientTasks] ✓ Found ibogaine consent form by intake_form_id:', ibogaineConsentForm.id)
+      }
+    }
+
+    // Strategy 3: Try by email (case-insensitive)
+    if (!ibogaineConsentForm && patientEmail) {
+      const { data: consentByEmail, error: emailError } = await supabase
+        .from('ibogaine_consent_forms')
+        .select('id, patient_id, email, intake_form_id, created_at')
+        .ilike('email', patientEmail)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (!emailError && consentByEmail && consentByEmail.length > 0) {
+        ibogaineConsentForm = consentByEmail[0]
+        console.log('[getPatientTasks] ✓ Found ibogaine consent form by email:', ibogaineConsentForm.id)
+      }
+    }
+
+    if (ibogaineConsentForm) {
+      tasks.push({
+        id: `ibogaine-consent-${ibogaineConsentForm.id}`,
+        type: 'ibogaine_consent',
+        title: 'Ibogaine Therapy Consent Form',
+        description: 'Consent form for Ibogaine therapy treatment.',
+        status: 'completed',
+        estimatedTime: '~10 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: ibogaineConsentForm.created_at,
+        formId: ibogaineConsentForm.id,
+        link: `/ibogaine-consent?view=${ibogaineConsentForm.id}`,
+      })
+    } else {
+      // Link to intake form if it exists
+      const intakeFormId = intakeForm?.id || null
+      tasks.push({
+        id: 'ibogaine-consent-new',
+        type: 'ibogaine_consent',
+        title: 'Ibogaine Therapy Consent Form',
+        description: 'Consent form for Ibogaine therapy treatment.',
+        status: 'not_started',
+        estimatedTime: '~10 min',
+        isRequired: true,
+        isOptional: false,
+        formId: '',
+        link: intakeFormId ? `/ibogaine-consent?intake_form_id=${intakeFormId}` : '/ibogaine-consent',
       })
     }
 

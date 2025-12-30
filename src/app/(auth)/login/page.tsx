@@ -15,7 +15,24 @@ export const metadata = {
 
 export default async function LoginPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  
+  // Try to get user, but handle invalid refresh tokens gracefully
+  let user = null
+  try {
+    const { data, error } = await supabase.auth.getUser()
+    
+    // If there's an error with refresh token, clear the session
+    if (error && (error.message?.includes('refresh_token') || error.message?.includes('Invalid Refresh Token'))) {
+      console.log('Invalid refresh token detected, clearing session')
+      await supabase.auth.signOut()
+    } else {
+      user = data.user
+    }
+  } catch (error) {
+    // If there's any error getting the user, clear the session and continue
+    console.log('Error getting user, clearing session:', error)
+    await supabase.auth.signOut()
+  }
 
   // If user is already logged in, redirect to their role route
   if (user) {

@@ -35,7 +35,9 @@ export async function loginAction(formData: FormData) {
   
   if (profileError || !profile) {
     console.error('Error fetching profile:', profileError)
-    return { ok: false, message: 'Failed to load user profile' }
+    // Sign out the user since they don't have an account
+    await supabase.auth.signOut()
+    return { ok: false, message: 'Access denied. You do not have an account in this portal. Please contact your administrator.' }
   }
   
   // Check if password change is required

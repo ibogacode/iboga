@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
 export function NeedAssistanceCard() {
@@ -13,11 +14,13 @@ export function NeedAssistanceCard() {
           Message your care coordinator anytime with questions.
         </p>
       </div>
-      <Button 
-        className="px-4 py-2.5 rounded-3xl bg-white text-[#6E7A46] text-sm leading-[1.193em] tracking-[-0.04em] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] hover:bg-white/90"
-      >
-        Contact Care Team
-      </Button>
+      <Link href="/messages">
+        <Button 
+          className="px-4 py-2.5 rounded-3xl bg-white text-[#6E7A46] text-sm leading-[1.193em] tracking-[-0.04em] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] hover:bg-white/90"
+        >
+          Contact Care Team
+        </Button>
+      </Link>
     </div>
   )
 }

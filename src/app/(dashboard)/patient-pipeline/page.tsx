@@ -74,11 +74,10 @@ export default function PatientPipelinePage() {
   const loadPipelineData = useCallback(async () => {
     setIsLoading(true)
     
-    // Load both partial and public forms, and scheduled count
-    const [partialResult, publicResult, scheduledResult] = await Promise.all([
+    // Load forms first (faster, don't wait for scheduled count)
+    const [partialResult, publicResult] = await Promise.all([
       getPartialIntakeForms({ limit: 50 }),
       getPublicIntakeForms({ limit: 50 }),
-      getScheduledPatientsCount({})
     ])
     
     if (partialResult?.data?.success && partialResult.data.data) {
@@ -89,32 +88,24 @@ export default function PatientPipelinePage() {
       setPublicForms(publicResult.data.data)
     }
     
-    if (scheduledResult?.data?.success && scheduledResult.data.data) {
-      setScheduledCount(scheduledResult.data.data.count)
-      
-      // Log debug info if available (always log for debugging)
-      if (scheduledResult.data.data.debug) {
-        console.log('[PatientPipeline] Scheduled Patients Debug Info:', scheduledResult.data.data.debug)
-        console.log('[PatientPipeline] Calendar emails found:', scheduledResult.data.data.debug.calendarEmails)
-        console.log('[PatientPipeline] DB emails found:', scheduledResult.data.data.debug.dbEmails)
-        console.log('[PatientPipeline] Matched emails:', scheduledResult.data.data.debug.matchedEmails)
-        console.log('[PatientPipeline] Events count:', scheduledResult.data.data.debug.eventsCount)
-        console.log('[PatientPipeline] Partial forms count:', scheduledResult.data.data.debug.partialFormsCount)
-        console.log('[PatientPipeline] Intake forms count:', scheduledResult.data.data.debug.intakeFormsCount)
-        if (scheduledResult.data.data.debug.unmatchedCalendar.length > 0) {
-          console.warn('[PatientPipeline] ⚠️ Calendar emails NOT in DB:', scheduledResult.data.data.debug.unmatchedCalendar)
-        }
-        if (scheduledResult.data.data.debug.unmatchedDB.length > 0) {
-          console.warn('[PatientPipeline] ⚠️ DB emails NOT in calendar:', scheduledResult.data.data.debug.unmatchedDB)
+    // Don't block UI - load scheduled count in background
+    setIsLoading(false)
+    
+    // Load scheduled count asynchronously (doesn't block page render)
+    getScheduledPatientsCount({}).then(scheduledResult => {
+      if (scheduledResult?.data?.success && scheduledResult.data.data) {
+        setScheduledCount(scheduledResult.data.data.count)
+        
+        // Only log debug info in development
+        if (process.env.NODE_ENV === 'development' && scheduledResult.data.data.debug) {
+          console.log('[PatientPipeline] Scheduled Patients Debug Info:', scheduledResult.data.data.debug)
         }
       }
-    } else if (scheduledResult?.data?.success === false) {
-      console.error('[PatientPipeline] Failed to get scheduled count:', scheduledResult.data.error)
-    } else {
-      console.warn('[PatientPipeline] Unexpected scheduled result:', scheduledResult)
-    }
-    
-    setIsLoading(false)
+    }).catch(error => {
+      console.error('[PatientPipeline] Failed to get scheduled count:', error)
+      // Set to 0 on error to not break UI
+      setScheduledCount(0)
+    })
   }, [])
 
   useEffect(() => {
@@ -231,19 +222,13 @@ export default function PatientPipelinePage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Patient Name
-                  </th>
-                  <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Phone
-                  </th>
-                  <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Mode
                   </th>
                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Sent To
+                  </th>
+                  <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Sent By
                   </th>
                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
@@ -260,17 +245,6 @@ export default function PatientPipelinePage() {
                 {partialForms.map((form) => (
                   <tr key={form.id} className="hover:bg-gray-50">
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <div className="text-xs sm:text-sm font-medium text-gray-900">
-                        {form.first_name} {form.last_name}
-                      </div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <div className="text-xs sm:text-sm text-gray-500 truncate max-w-[120px] sm:max-w-none">{form.email}</div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <div className="text-xs sm:text-sm text-gray-500">{form.phone_number || 'N/A'}</div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-[10px] sm:text-xs font-medium rounded-full ${
                         form.mode === 'minimal' 
                           ? 'bg-blue-100 text-blue-700' 
@@ -280,9 +254,25 @@ export default function PatientPipelinePage() {
                       </span>
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <div className="text-xs sm:text-sm text-gray-500 truncate max-w-[120px] sm:max-w-none">{form.recipient_email}</div>
+                      <div className="text-xs sm:text-sm text-gray-900 truncate max-w-[120px] sm:max-w-none">{form.recipient_name}</div>
                       {form.recipient_name && (
-                        <div className="text-[10px] sm:text-xs text-gray-400">{form.recipient_name}</div>
+                        <div className="text-[10px] sm:text-xs text-gray-400">{form.recipient_email}</div>
+                      )}
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                      {form.creator ? (
+                        <>
+                          <div className="text-xs sm:text-sm text-gray-900 font-medium">
+                            {form.creator.first_name} {form.creator.last_name}
+                          </div>
+                          {form.creator.email && (
+                            <div className="text-[10px] sm:text-xs text-gray-400 truncate max-w-[120px] sm:max-w-none">
+                              {form.creator.email}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-xs sm:text-sm text-gray-400">N/A</div>
                       )}
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
