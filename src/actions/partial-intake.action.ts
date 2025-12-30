@@ -155,7 +155,7 @@ export const getPartialIntakeForm = actionClient
   })
 
 // Helper function to send email with form link
-async function sendPartialIntakeFormEmail(
+export async function sendPartialIntakeFormEmail(
   recipientEmail: string,
   recipientName: string,
   patientFirstName: string | null,

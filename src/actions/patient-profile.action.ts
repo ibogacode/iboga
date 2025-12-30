@@ -258,10 +258,48 @@ export const getPatientProfile = authActionClient
       }
     }
 
+    // Get ibogaine consent form
+    let ibogaineConsentForm: any = null
+    if (patientId) {
+      const { data: consentData } = await adminClient
+        .from('ibogaine_consent_forms')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      
+      if (consentData && consentData.length > 0) {
+        ibogaineConsentForm = consentData[0]
+      }
+    } else if (intakeForm?.id) {
+      const { data: consentData } = await adminClient
+        .from('ibogaine_consent_forms')
+        .select('*')
+        .eq('intake_form_id', intakeForm.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      
+      if (consentData && consentData.length > 0) {
+        ibogaineConsentForm = consentData[0]
+      }
+    } else if (patientEmail) {
+      const { data: consentData } = await adminClient
+        .from('ibogaine_consent_forms')
+        .select('*')
+        .ilike('email', patientEmail)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      
+      if (consentData && consentData.length > 0) {
+        ibogaineConsentForm = consentData[0]
+      }
+    }
+
     // Determine form statuses with proper types
     const intakeStatus: 'completed' | 'pending' | 'not_started' = intakeForm ? 'completed' : partialForm ? 'pending' : 'not_started'
     const medicalHistoryStatus: 'completed' | 'not_started' = medicalHistoryForm ? 'completed' : 'not_started'
     const serviceAgreementStatus: 'completed' | 'not_started' = serviceAgreement ? 'completed' : 'not_started'
+    const ibogaineConsentStatus: 'completed' | 'not_started' = ibogaineConsentForm ? 'completed' : 'not_started'
 
     return {
       success: true,
@@ -271,10 +309,12 @@ export const getPatientProfile = authActionClient
         partialForm,
         medicalHistoryForm,
         serviceAgreement,
+        ibogaineConsentForm,
         formStatuses: {
           intake: intakeStatus,
           medicalHistory: medicalHistoryStatus,
           serviceAgreement: serviceAgreementStatus,
+          ibogaineConsent: ibogaineConsentStatus,
         },
       },
     }
@@ -360,6 +400,24 @@ export const getServiceAgreementById = authActionClient
     
     if (error || !data) {
       return { success: false, error: 'Service agreement not found' }
+    }
+    
+    return { success: true, data }
+  })
+
+export const getIbogaineConsentFormById = authActionClient
+  .schema(z.object({ formId: z.string().uuid() }))
+  .action(async ({ parsedInput, ctx }) => {
+    const adminClient = createAdminClient()
+    
+    const { data, error } = await adminClient
+      .from('ibogaine_consent_forms')
+      .select('*')
+      .eq('id', parsedInput.formId)
+      .single()
+    
+    if (error || !data) {
+      return { success: false, error: 'Ibogaine consent form not found' }
     }
     
     return { success: true, data }

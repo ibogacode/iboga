@@ -9,7 +9,7 @@ import { navigationByRole } from '@/config/navigation'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { User } from '@/types'
 import { User as SupabaseUser } from '@supabase/supabase-js'
-import { ChevronRight, User as UserIcon, MessageSquare } from 'lucide-react'
+import { ChevronRight, User as UserIcon } from 'lucide-react'
 
 interface SidebarProps {
   role?: UserRole
@@ -194,52 +194,6 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
                 </div>
               )
             })}
-          </nav>
-        </div>
-
-        {/* Pages Section */}
-        <div className="mb-6">
-          <h3 className={cn(
-            "px-4 mb-3 text-xs font-medium text-gray-500 uppercase tracking-wider transition-opacity duration-200 whitespace-nowrap",
-            showExpanded ? "opacity-100" : "opacity-0"
-          )}>
-            Pages
-          </h3>
-          <nav className="space-y-1 px-3">
-            <Link
-              href="/messages"
-              className={cn(
-                'group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative',
-                pathname === '/messages' || pathname.startsWith('/messages/')
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-700 hover:bg-white hover:shadow-sm',
-                !showExpanded && 'justify-center px-0'
-              )}
-              title={!showExpanded ? 'Messaging' : undefined}
-    >
-              {(pathname === '/messages' || pathname.startsWith('/messages/')) && showExpanded && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gray-900 rounded-r-full -ml-3" />
-              )}
-              
-              <MessageSquare className={cn(
-                'h-5 w-5 shrink-0',
-                pathname === '/messages' || pathname.startsWith('/messages/')
-                  ? 'text-white'
-                  : 'text-gray-500 group-hover:text-gray-700'
-              )} />
-              
-              {showExpanded && (
-                <>
-                  <span className="flex-1 whitespace-nowrap">Messaging</span>
-                  <ChevronRight className={cn(
-                    'h-4 w-4 shrink-0',
-                    pathname === '/messages' || pathname.startsWith('/messages/')
-                      ? 'text-white/70'
-                      : 'text-gray-400'
-                  )} />
-                </>
-              )}
-            </Link>
           </nav>
         </div>
 

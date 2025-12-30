@@ -889,3 +889,495 @@ export async function sendPatientPasswordSetupEmail(
   return result
 }
 
+// Helper function to send medical history form email
+export async function sendMedicalHistoryFormEmail(
+  recipientEmail: string,
+  recipientName: string,
+  patientFirstName: string | null,
+  patientLastName: string | null,
+  formLink: string,
+  filledBy: 'self' | 'someone_else',
+  fillerFirstName?: string | null,
+  fillerLastName?: string | null
+) {
+  const isSelf = filledBy === 'self'
+  const patientName = patientFirstName && patientLastName 
+    ? `${patientFirstName} ${patientLastName}` 
+    : 'the patient'
+  
+  const greeting = isSelf 
+    ? `Hello ${recipientName},`
+    : `Hello ${recipientName},`
+  
+  const introText = isSelf
+    ? `We need you to complete your Medical Health History form for your treatment at Iboga Wellness Institute.`
+    : `We need you to complete the Medical Health History form for ${patientName} at Iboga Wellness Institute.`
+  
+  const subject = isSelf
+    ? `Complete Your Medical Health History Form - ${patientName} | Iboga Wellness Institute`
+    : `Complete Medical Health History Form for ${patientName} | Iboga Wellness Institute`
+  
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { 
+          font-family: 'Helvetica Neue', Arial, sans-serif; 
+          line-height: 1.8; 
+          color: #333; 
+          margin: 0;
+          padding: 0;
+          background-color: #f5f5f5;
+        }
+        .container { 
+          max-width: 600px; 
+          margin: 0 auto; 
+          background: white;
+        }
+        .header { 
+          background: #5D7A5F; 
+          color: white; 
+          padding: 40px 30px; 
+          text-align: center; 
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 28px;
+          font-weight: 400;
+        }
+        .content { 
+          padding: 40px 30px; 
+          background: white; 
+        }
+        .content h2 {
+          color: #5D7A5F;
+          font-size: 24px;
+          margin-top: 0;
+        }
+        .content p {
+          font-size: 16px;
+          color: #555;
+          margin-bottom: 20px;
+        }
+        .info-box {
+          background: #f9f9f9;
+          border-left: 4px solid #5D7A5F;
+          padding: 20px;
+          margin: 20px 0;
+        }
+        .cta-button {
+          display: inline-block;
+          background: #5D7A5F;
+          color: white !important;
+          padding: 16px 32px;
+          text-decoration: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          margin: 20px 0;
+        }
+        .cta-button:hover {
+          background: #4a6350;
+        }
+        .cta-container {
+          text-align: center;
+          margin: 30px 0;
+        }
+        .footer { 
+          padding: 30px; 
+          text-align: center; 
+          font-size: 14px; 
+          color: #888;
+          background: #f9f9f9;
+          border-top: 1px solid #eee;
+        }
+        .footer a {
+          color: #5D7A5F;
+          text-decoration: none;
+        }
+        .link-fallback {
+          font-size: 12px;
+          color: #888;
+          word-break: break-all;
+          margin-top: 20px;
+          padding: 15px;
+          background: #f5f5f5;
+          border-radius: 4px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Iboga Wellness Institute</h1>
+        </div>
+        <div class="content">
+          <h2>Complete Your Medical Health History Form</h2>
+          <p>${greeting}</p>
+          <p>${introText}</p>
+          
+          <div class="info-box">
+            <p><strong>Patient Information:</strong></p>
+            <p>Name: ${patientName}</p>
+            <p>Email: ${recipientEmail}</p>
+            <p>Please complete the Medical Health History form with all required health information.</p>
+          </div>
+          
+          <div class="cta-container">
+            <a href="${formLink}" class="cta-button">Complete Medical Health History Form</a>
+          </div>
+          
+          <p class="link-fallback">If the button doesn't work, copy and paste this link into your browser:<br>${formLink}</p>
+          
+          <p><strong>Important:</strong> This form is required for your treatment preparation. Please complete it as soon as possible.</p>
+          
+          <p>If you have any questions, please contact us:</p>
+          <p>
+            <strong>Phone:</strong> +1 (800) 604-7294<br>
+            <strong>Email:</strong> contactus@theibogainstitute.org
+          </p>
+          
+          <p>Thank you,<br><strong>The Iboga Wellness Institute Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+          <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  return sendEmailDirect({
+    to: recipientEmail,
+    subject: subject,
+    body: htmlBody,
+  })
+}
+
+// Helper function to send service agreement form email
+export async function sendServiceAgreementFormEmail(
+  recipientEmail: string,
+  recipientName: string,
+  patientFirstName: string | null,
+  patientLastName: string | null,
+  formLink: string,
+  filledBy: 'self' | 'someone_else',
+  fillerFirstName?: string | null,
+  fillerLastName?: string | null
+) {
+  const isSelf = filledBy === 'self'
+  const patientName = patientFirstName && patientLastName 
+    ? `${patientFirstName} ${patientLastName}` 
+    : 'the patient'
+  
+  const greeting = isSelf 
+    ? `Hello ${recipientName},`
+    : `Hello ${recipientName},`
+  
+  const introText = isSelf
+    ? `We need you to review and sign the Service Agreement for your treatment at Iboga Wellness Institute.`
+    : `We need you to review and sign the Service Agreement for ${patientName} at Iboga Wellness Institute.`
+  
+  const subject = isSelf
+    ? `Review and Sign Service Agreement - ${patientName} | Iboga Wellness Institute`
+    : `Review and Sign Service Agreement for ${patientName} | Iboga Wellness Institute`
+  
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { 
+          font-family: 'Helvetica Neue', Arial, sans-serif; 
+          line-height: 1.8; 
+          color: #333; 
+          margin: 0;
+          padding: 0;
+          background-color: #f5f5f5;
+        }
+        .container { 
+          max-width: 600px; 
+          margin: 0 auto; 
+          background: white;
+        }
+        .header { 
+          background: #5D7A5F; 
+          color: white; 
+          padding: 40px 30px; 
+          text-align: center; 
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 28px;
+          font-weight: 400;
+        }
+        .content { 
+          padding: 40px 30px; 
+          background: white; 
+        }
+        .content h2 {
+          color: #5D7A5F;
+          font-size: 24px;
+          margin-top: 0;
+        }
+        .content p {
+          font-size: 16px;
+          color: #555;
+          margin-bottom: 20px;
+        }
+        .info-box {
+          background: #f9f9f9;
+          border-left: 4px solid #5D7A5F;
+          padding: 20px;
+          margin: 20px 0;
+        }
+        .cta-button {
+          display: inline-block;
+          background: #5D7A5F;
+          color: white !important;
+          padding: 16px 32px;
+          text-decoration: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          margin: 20px 0;
+        }
+        .cta-button:hover {
+          background: #4a6350;
+        }
+        .cta-container {
+          text-align: center;
+          margin: 30px 0;
+        }
+        .footer { 
+          padding: 30px; 
+          text-align: center; 
+          font-size: 14px; 
+          color: #888;
+          background: #f9f9f9;
+          border-top: 1px solid #eee;
+        }
+        .footer a {
+          color: #5D7A5F;
+          text-decoration: none;
+        }
+        .link-fallback {
+          font-size: 12px;
+          color: #888;
+          word-break: break-all;
+          margin-top: 20px;
+          padding: 15px;
+          background: #f5f5f5;
+          border-radius: 4px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Iboga Wellness Institute</h1>
+        </div>
+        <div class="content">
+          <h2>Review and Sign Service Agreement</h2>
+          <p>${greeting}</p>
+          <p>${introText}</p>
+          
+          <div class="info-box">
+            <p><strong>Patient Information:</strong></p>
+            <p>Name: ${patientName}</p>
+            <p>Email: ${recipientEmail}</p>
+            <p>Please review the service agreement carefully and sign it to proceed with your treatment.</p>
+          </div>
+          
+          <div class="cta-container">
+            <a href="${formLink}" class="cta-button">Review and Sign Service Agreement</a>
+          </div>
+          
+          <p class="link-fallback">If the button doesn't work, copy and paste this link into your browser:<br>${formLink}</p>
+          
+          <p><strong>Important:</strong> This agreement must be signed before treatment can begin. Please review and sign it as soon as possible.</p>
+          
+          <p>If you have any questions, please contact us:</p>
+          <p>
+            <strong>Phone:</strong> +1 (800) 604-7294<br>
+            <strong>Email:</strong> contactus@theibogainstitute.org
+          </p>
+          
+          <p>Thank you,<br><strong>The Iboga Wellness Institute Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+          <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  return sendEmailDirect({
+    to: recipientEmail,
+    subject: subject,
+    body: htmlBody,
+  })
+}
+
+
+// Helper function to send ibogaine consent form email
+export async function sendIbogaineConsentFormEmail(
+  recipientEmail: string,
+  recipientName: string,
+  patientFirstName: string | null,
+  patientLastName: string | null,
+  formLink: string,
+  filledBy: 'self' | 'someone_else',
+  fillerFirstName?: string | null,
+  fillerLastName?: string | null
+) {
+  const isSelf = filledBy === 'self'
+  const patientName = patientFirstName && patientLastName 
+    ? `${patientFirstName} ${patientLastName}` 
+    : 'the patient'
+  
+  const greeting = isSelf 
+    ? `Hello ${recipientName},`
+    : `Hello ${recipientName},`
+  
+  const introText = isSelf
+    ? `We need you to complete the Ibogaine Therapy Consent Form for your treatment at Iboga Wellness Institute.`
+    : `We need you to complete the Ibogaine Therapy Consent Form for ${patientName} at Iboga Wellness Institute.`
+  
+  const subject = isSelf
+    ? `Complete Your Ibogaine Therapy Consent Form - ${patientName} | Iboga Wellness Institute`
+    : `Complete Ibogaine Therapy Consent Form for ${patientName} | Iboga Wellness Institute`
+  
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { 
+          font-family: 'Helvetica Neue', Arial, sans-serif; 
+          line-height: 1.8; 
+          color: #333; 
+          margin: 0;
+          padding: 0;
+          background-color: #f5f5f5;
+        }
+        .container { 
+          max-width: 600px; 
+          margin: 0 auto; 
+          background: white;
+        }
+        .header { 
+          background: #5D7A5F; 
+          color: white; 
+          padding: 40px 30px; 
+          text-align: center; 
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 28px;
+          font-weight: 400;
+        }
+        .content { 
+          padding: 40px 30px; 
+          background: white; 
+        }
+        .content h2 {
+          color: #5D7A5F;
+          font-size: 24px;
+          margin-top: 0;
+        }
+        .content p {
+          font-size: 16px;
+          color: #555;
+          margin-bottom: 20px;
+        }
+        .info-box {
+          background: #f9f9f9;
+          border-left: 4px solid #5D7A5F;
+          padding: 20px;
+          margin: 20px 0;
+        }
+        .cta-button {
+          display: inline-block;
+          background: #5D7A5F;
+          color: white !important;
+          padding: 16px 32px;
+          text-decoration: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          margin: 20px 0;
+        }
+        .cta-button:hover {
+          background: #4a6350;
+        }
+        .footer {
+          background: #f5f5f5;
+          padding: 30px;
+          text-align: center;
+          color: #777;
+          font-size: 14px;
+        }
+        .footer a {
+          color: #5D7A5F;
+          text-decoration: none;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Iboga Wellness Institute</h1>
+        </div>
+        <div class="content">
+          <h2>Ibogaine Therapy Consent Form</h2>
+          
+          <p>${greeting}</p>
+          
+          <p>${introText}</p>
+          
+          <div class="info-box">
+            <p><strong>What you need to do:</strong></p>
+            <ul>
+              <li>Review the consent form carefully</li>
+              <li>Check all required consent checkboxes</li>
+              <li>Sign the form electronically</li>
+              <li>Submit the completed form</li>
+            </ul>
+          </div>
+          
+          <p>Click the button below to access and complete your consent form:</p>
+          
+          <div style="text-align: center;">
+            <a href="${formLink}" class="cta-button">Complete Consent Form</a>
+          </div>
+          
+          <p><strong>Important:</strong> This consent form must be completed before treatment can begin. Please complete it as soon as possible.</p>
+          
+          <p>If you have any questions, please contact us:</p>
+          <p>
+            <strong>Phone:</strong> +1 (800) 604-7294<br>
+            <strong>Email:</strong> contactus@theibogainstitute.org
+          </p>
+          
+          <p>Thank you,<br><strong>The Iboga Wellness Institute Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+          <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  return sendEmailDirect({
+    to: recipientEmail,
+    subject: subject,
+    body: htmlBody,
+  })
+}

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById } from '@/actions/patient-profile.action'
+import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById } from '@/actions/patient-profile.action'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
+import { sendFormEmail } from '@/actions/send-form-email.action'
 import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,6 +14,7 @@ import { format } from 'date-fns'
 import { PatientIntakeFormView } from '@/components/admin/patient-intake-form-view'
 import { MedicalHistoryFormView } from '@/components/admin/medical-history-form-view'
 import { ServiceAgreementFormView } from '@/components/admin/service-agreement-form-view'
+import { IbogaineConsentFormView } from '@/components/admin/ibogaine-consent-form-view'
 
 interface PatientProfileData {
   patient: any
@@ -20,10 +22,12 @@ interface PatientProfileData {
   partialForm: any
   medicalHistoryForm: any
   serviceAgreement: any
+  ibogaineConsentForm: any
   formStatuses: {
     intake: 'completed' | 'pending' | 'not_started'
     medicalHistory: 'completed' | 'not_started'
     serviceAgreement: 'completed' | 'not_started'
+    ibogaineConsent: 'completed' | 'not_started'
   }
 }
 
@@ -35,11 +39,11 @@ export default function PatientProfilePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [isTriggeringForm, setIsTriggeringForm] = useState(false)
+  const [triggeringForm, setTriggeringForm] = useState<'intake' | 'medical' | 'service' | null>(null)
   const [profileData, setProfileData] = useState<PatientProfileData | null>(null)
-  const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | null>(null)
+  const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   const [viewFormData, setViewFormData] = useState<any>(null)
-  const [loadingViewForm, setLoadingViewForm] = useState<'intake' | 'medical' | 'service' | null>(null)
+  const [loadingViewForm, setLoadingViewForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   
   // Form state for editing
   const [formData, setFormData] = useState({
@@ -139,35 +143,76 @@ export default function PatientProfilePage() {
     }
   }
 
-  async function handleTriggerForm(formType: 'intake' | 'medical' | 'service') {
+  async function handleTriggerForm(formType: 'intake' | 'medical' | 'service' | 'ibogaine') {
     if (!profileData) return
 
-    setIsTriggeringForm(true)
+    setTriggeringForm(formType)
     try {
       if (formType === 'intake') {
-        // Create a minimal partial intake form
-        const result = await createPartialIntakeForm({
-          mode: 'minimal',
-          first_name: profileData.patient?.first_name || profileData.intakeForm?.first_name || profileData.partialForm?.first_name || '',
-          last_name: profileData.patient?.last_name || profileData.intakeForm?.last_name || profileData.partialForm?.last_name || '',
-          email: profileData.patient?.email || profileData.intakeForm?.email || profileData.partialForm?.email || '',
-          filled_by: 'self',
-        })
-
-        if (result?.data?.success) {
-          toast.success('Intake form link sent successfully')
-          await loadPatientProfile()
+        // Check if partial form already exists
+        const partialFormId = profileData.partialForm?.id
+        
+        if (partialFormId) {
+          // Send email for existing partial form
+          const result = await sendFormEmail({
+            formType: 'intake',
+            partialFormId: partialFormId,
+          })
+          
+          if (result?.data?.success) {
+            toast.success(`Intake form link sent to ${result.data.data.recipientEmail}`)
+            await loadPatientProfile()
+          } else {
+            toast.error(result?.data?.error || 'Failed to send intake form email')
+          }
         } else {
-          toast.error(result?.data?.error || 'Failed to send intake form')
+          // Create a new minimal partial intake form
+          const result = await createPartialIntakeForm({
+            mode: 'minimal',
+            first_name: profileData.patient?.first_name || profileData.intakeForm?.first_name || profileData.partialForm?.first_name || '',
+            last_name: profileData.patient?.last_name || profileData.intakeForm?.last_name || profileData.partialForm?.last_name || '',
+            email: profileData.patient?.email || profileData.intakeForm?.email || profileData.partialForm?.email || '',
+            filled_by: profileData.partialForm?.filled_by || profileData.intakeForm?.filled_by || 'self',
+            filler_email: profileData.partialForm?.filler_email || profileData.intakeForm?.filler_email || null,
+            filler_first_name: profileData.partialForm?.filler_first_name || profileData.intakeForm?.filler_first_name || null,
+            filler_last_name: profileData.partialForm?.filler_last_name || profileData.intakeForm?.filler_last_name || null,
+          })
+
+          if (result?.data?.success) {
+            toast.success('Intake form link sent successfully')
+            await loadPatientProfile()
+          } else {
+            toast.error(result?.data?.error || 'Failed to send intake form')
+          }
         }
       } else {
-        toast.info(`${formType} form trigger not yet implemented`)
+        // For medical, service, and ibogaine forms, send email directly
+        const intakeFormId = profileData.intakeForm?.id
+        const partialFormId = profileData.partialForm?.id
+        const patientId = profileData.patient?.id
+        
+        const result = await sendFormEmail({
+          formType: formType,
+          intakeFormId: intakeFormId,
+          partialFormId: partialFormId,
+          patientId: patientId,
+        })
+        
+        if (result?.data?.success) {
+          const formName = formType === 'medical' ? 'Medical History' 
+            : formType === 'service' ? 'Service Agreement'
+            : 'Ibogaine Therapy Consent Form'
+          toast.success(`${formName} form link sent to ${result.data.data.recipientEmail}`)
+          await loadPatientProfile()
+        } else {
+          toast.error(result?.data?.error || `Failed to send ${formType} form email`)
+        }
       }
     } catch (error) {
       console.error('Error triggering form:', error)
       toast.error('Failed to trigger form')
     } finally {
-      setIsTriggeringForm(false)
+      setTriggeringForm(null)
     }
   }
 
@@ -460,10 +505,10 @@ export default function PatientProfilePage() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleTriggerForm('intake')}
-                      disabled={isTriggeringForm}
+                      disabled={triggeringForm !== null}
                       className="gap-2"
                     >
-                      {isTriggeringForm ? (
+                      {triggeringForm === 'intake' ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Send className="h-4 w-4" />
@@ -543,10 +588,10 @@ export default function PatientProfilePage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleTriggerForm('medical')}
-                        disabled={isTriggeringForm}
+                        disabled={triggeringForm !== null}
                         className="gap-2"
                       >
-                        {isTriggeringForm ? (
+                        {triggeringForm === 'medical' ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Send className="h-4 w-4" />
@@ -610,10 +655,10 @@ export default function PatientProfilePage() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleTriggerForm('service')}
-                      disabled={isTriggeringForm}
+                      disabled={triggeringForm !== null}
                       className="gap-2"
                     >
-                      {isTriggeringForm ? (
+                      {triggeringForm === 'service' ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Send className="h-4 w-4" />
@@ -650,6 +695,90 @@ export default function PatientProfilePage() {
                       disabled={loadingViewForm === 'service'}
                     >
                       {loadingViewForm === 'service' ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                      View
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Ibogaine Therapy Consent Form */}
+              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="font-medium text-gray-900">Ibogaine Therapy Consent Form</p>
+                    <p className="text-sm text-gray-500">Consent form for Ibogaine therapy treatment</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {getStatusBadge(profileData.formStatuses.ibogaineConsent)}
+                  {profileData.formStatuses.ibogaineConsent === 'not_started' ? (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Navigate to ibogaine consent form with intake form ID if available
+                          const intakeFormId = profileData.intakeForm?.id
+                          const url = intakeFormId 
+                            ? `/ibogaine-consent?intake_form_id=${intakeFormId}&admin=true`
+                            : '/ibogaine-consent?admin=true'
+                          router.push(url)
+                        }}
+                        className="gap-2"
+                      >
+                        <FileText className="h-4 w-4" />
+                        Fill
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleTriggerForm('ibogaine')}
+                        disabled={triggeringForm !== null}
+                        className="gap-2"
+                      >
+                        {triggeringForm === 'ibogaine' ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                        Send Form
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        // Load and view ibogaine consent form
+                        const ibogaineConsentFormId = profileData.ibogaineConsentForm?.id
+                        if (ibogaineConsentFormId) {
+                          setLoadingViewForm('ibogaine')
+                          try {
+                            const result = await getIbogaineConsentFormById({ formId: ibogaineConsentFormId })
+                            
+                            if (result?.data?.success && result.data.data) {
+                              setViewFormData(result.data.data)
+                              setViewingForm('ibogaine')
+                            } else {
+                              toast.error(result?.data?.error || 'Failed to load form data')
+                            }
+                          } catch (error) {
+                            console.error('Error loading form:', error)
+                            toast.error('Failed to load form data')
+                          } finally {
+                            setLoadingViewForm(null)
+                          }
+                        }
+                      }}
+                      className="gap-2"
+                      disabled={loadingViewForm === 'ibogaine'}
+                    >
+                      {loadingViewForm === 'ibogaine' ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Eye className="h-4 w-4" />
@@ -740,6 +869,33 @@ export default function PatientProfilePage() {
               </div>
               <div className="p-6">
                 <ServiceAgreementFormView form={viewFormData} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingForm === 'ibogaine' && viewFormData && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            <div className="relative w-full max-w-6xl bg-white rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+                <h2 className="text-xl font-semibold text-gray-900">View Ibogaine Therapy Consent Form</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setViewingForm(null)
+                    setViewFormData(null)
+                  }}
+                  className="gap-2"
+                >
+                  <X className="h-4 w-4" />
+                  Close
+                </Button>
+              </div>
+              <div className="p-6">
+                <IbogaineConsentFormView form={viewFormData} />
               </div>
             </div>
           </div>
