@@ -160,7 +160,8 @@ export default function PatientProfilePage() {
           })
           
           if (result?.data?.success) {
-            toast.success(`Intake form link sent to ${result.data.data.recipientEmail}`)
+            const recipientEmail = result.data.data?.recipientEmail || 'recipient'
+            toast.success(`Intake form link sent to ${recipientEmail}`)
             await loadPatientProfile()
           } else {
             toast.error(result?.data?.error || 'Failed to send intake form email')
@@ -202,7 +203,8 @@ export default function PatientProfilePage() {
           const formName = formType === 'medical' ? 'Medical History' 
             : formType === 'service' ? 'Service Agreement'
             : 'Ibogaine Therapy Consent Form'
-          toast.success(`${formName} form link sent to ${result.data.data.recipientEmail}`)
+          const recipientEmail = result.data.data?.recipientEmail || 'recipient'
+          toast.success(`${formName} form link sent to ${recipientEmail}`)
           await loadPatientProfile()
         } else {
           toast.error(result?.data?.error || `Failed to send ${formType} form email`)
