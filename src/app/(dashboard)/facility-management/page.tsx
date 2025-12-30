@@ -222,7 +222,7 @@ export default function FacilityManagementPage() {
           {/* Add Employee Dialog */}
           <Dialog open={isEmployeeDialogOpen} onOpenChange={setIsEmployeeDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="gap-2">
+              <Button className="gap-2 bg-gray-900 hover:bg-gray-800 text-white border-gray-900 hover:border-gray-800">
                 <UserPlus className="h-4 w-4" />
                 Add Employee
               </Button>

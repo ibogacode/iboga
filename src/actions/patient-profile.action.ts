@@ -295,11 +295,46 @@ export const getPatientProfile = authActionClient
       }
     }
 
+    // Check for existing patient documents (uploaded documents for existing patients)
+    let existingPatientDocuments: any[] = []
+    if (partialForm?.id) {
+      const { data: existingDocs } = await adminClient
+        .from('existing_patient_documents')
+        .select('*')
+        .eq('partial_intake_form_id', partialForm.id)
+      
+      if (existingDocs) {
+        existingPatientDocuments = existingDocs
+      }
+    }
+
     // Determine form statuses with proper types
-    const intakeStatus: 'completed' | 'pending' | 'not_started' = intakeForm ? 'completed' : partialForm ? 'pending' : 'not_started'
-    const medicalHistoryStatus: 'completed' | 'not_started' = medicalHistoryForm ? 'completed' : 'not_started'
-    const serviceAgreementStatus: 'completed' | 'not_started' = serviceAgreement ? 'completed' : 'not_started'
-    const ibogaineConsentStatus: 'completed' | 'not_started' = ibogaineConsentForm ? 'completed' : 'not_started'
+    // If there's an uploaded document for a form, mark it as completed
+    const hasIntakeDocument = existingPatientDocuments.some(doc => doc.form_type === 'intake')
+    const hasMedicalDocument = existingPatientDocuments.some(doc => doc.form_type === 'medical')
+    const hasServiceDocument = existingPatientDocuments.some(doc => doc.form_type === 'service')
+    const hasIbogaineDocument = existingPatientDocuments.some(doc => doc.form_type === 'ibogaine')
+
+    const intakeStatus: 'completed' | 'pending' | 'not_started' = 
+      intakeForm ? 'completed' : 
+      (partialForm && hasIntakeDocument) ? 'completed' :
+      partialForm ? 'pending' : 
+      'not_started'
+    
+    const medicalHistoryStatus: 'completed' | 'not_started' = 
+      medicalHistoryForm ? 'completed' : 
+      hasMedicalDocument ? 'completed' : 
+      'not_started'
+    
+    const serviceAgreementStatus: 'completed' | 'not_started' = 
+      serviceAgreement ? 'completed' : 
+      hasServiceDocument ? 'completed' : 
+      'not_started'
+    
+    const ibogaineConsentStatus: 'completed' | 'not_started' = 
+      ibogaineConsentForm ? 'completed' : 
+      hasIbogaineDocument ? 'completed' : 
+      'not_started'
 
     return {
       success: true,
@@ -310,6 +345,7 @@ export const getPatientProfile = authActionClient
         medicalHistoryForm,
         serviceAgreement,
         ibogaineConsentForm,
+        existingPatientDocuments, // Include uploaded documents
         formStatuses: {
           intake: intakeStatus,
           medicalHistory: medicalHistoryStatus,

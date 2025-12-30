@@ -102,11 +102,17 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   },
   doctor: {
     mainNav: [
-      { title: 'Dashboard', href: '/doctor', icon: LayoutDashboard },
-      { title: 'My Patients', href: '/doctor/patients', icon: Users },
-      { title: 'Treatments', href: '/doctor/treatments', icon: Stethoscope },
-      { title: 'Prescriptions', href: '/doctor/prescriptions', icon: Pill },
-      { title: 'Schedule', href: '/doctor/schedule', icon: Calendar },
+      { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
+      { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
+      {
+        title: 'Marketing',
+        href: '/marketing',
+        icon: Megaphone,
+        children: [
+          { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
+        ]
+      },
+      { title: 'Research', href: '/research', icon: Search },
       { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [
@@ -115,11 +121,17 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   },
   psych: {
     mainNav: [
-      { title: 'Dashboard', href: '/psych', icon: LayoutDashboard },
-      { title: 'My Patients', href: '/psych/patients', icon: Users },
-      { title: 'Assessments', href: '/psych/assessments', icon: Brain },
-      { title: 'Sessions', href: '/psych/sessions', icon: ClipboardList },
-      { title: 'Schedule', href: '/psych/schedule', icon: Calendar },
+      { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
+      { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
+      {
+        title: 'Marketing',
+        href: '/marketing',
+        icon: Megaphone,
+        children: [
+          { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
+        ]
+      },
+      { title: 'Research', href: '/research', icon: Search },
       { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [

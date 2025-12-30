@@ -428,7 +428,7 @@ export default function PatientTasksPage() {
                 Recommended Deadline
               </h3>
               <p className="text-base text-[#777777] leading-[1.48]">
-                Please complete required tasks by Mar 10, 2026.
+                Please complete required tasks by -
               </p>
             </div>
           </div>
