@@ -40,7 +40,6 @@ export default function FacilityManagementPage() {
       lastName: '',
       role: 'nurse',
       phone: '',
-      designation: '',
       payRatePerHour: '',
     },
   })
@@ -141,7 +140,6 @@ export default function FacilityManagementPage() {
       lastName: employee.last_name || '',
       role: editableRole,
       phone: employee.phone || '',
-      designation: employee.designation || '',
       payRatePerHour: employee.pay_rate_per_hour ? employee.pay_rate_per_hour.toString() : '',
     })
     setIsEditDialogOpen(true)
@@ -317,34 +315,19 @@ export default function FacilityManagementPage() {
                       )}
                     />
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField
-                      control={employeeForm.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone (Optional)</FormLabel>
-                          <FormControl>
-                            <Input type="tel" placeholder="(555) 123-4567" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={employeeForm.control}
-                      name="designation"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Designation (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Senior Nurse" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                  <FormField
+                    control={employeeForm.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone (Optional)</FormLabel>
+                        <FormControl>
+                          <Input type="tel" placeholder="(555) 123-4567" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={employeeForm.control}
                     name="payRatePerHour"
@@ -478,9 +461,6 @@ export default function FacilityManagementPage() {
                     Phone
                   </th>
                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Designation
-                  </th>
-                  <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Pay Rate/Hour
                   </th>
                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -513,9 +493,6 @@ export default function FacilityManagementPage() {
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <div className="text-xs sm:text-sm text-gray-500">{employee.phone || '—'}</div>
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                      <div className="text-xs sm:text-sm text-gray-500">{employee.designation || '—'}</div>
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <div className="text-xs sm:text-sm text-gray-500">
@@ -634,34 +611,19 @@ export default function FacilityManagementPage() {
                   </FormItem>
                 )}
               />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={editEmployeeForm.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone (Optional)</FormLabel>
-                      <FormControl>
-                        <Input type="tel" placeholder="(555) 123-4567" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={editEmployeeForm.control}
-                  name="designation"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Designation (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Senior Nurse" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={editEmployeeForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone (Optional)</FormLabel>
+                    <FormControl>
+                      <Input type="tel" placeholder="(555) 123-4567" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={editEmployeeForm.control}
                 name="payRatePerHour"
