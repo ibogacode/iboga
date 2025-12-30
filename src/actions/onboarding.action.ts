@@ -162,8 +162,10 @@ export const getOnboardingPatients = authActionClient
         medicalHistoryByEmailMap.set(m.patient_email.toLowerCase().trim(), true)
       })
 
-    const serviceAgreementByIntake = new Map(
-      (serviceAgreementData.data || []).map((sa: any) => [sa.intake_form_id, true]).filter(([id]) => id)
+    const serviceAgreementByIntake = new Map<string, boolean>(
+      (serviceAgreementData.data || [])
+        .map((sa: any) => [sa.intake_form_id, true] as [string, boolean])
+        .filter(([id]) => id)
     )
     const serviceAgreementByEmailMap = new Map<string, boolean>()
     ;(serviceAgreementData.data || [])
@@ -177,8 +179,10 @@ export const getOnboardingPatients = authActionClient
         serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), true)
       })
 
-    const ibogaineConsentByIntake = new Map(
-      (ibogaineConsentData.data || []).map((ic: any) => [ic.intake_form_id, true]).filter(([id]) => id)
+    const ibogaineConsentByIntake = new Map<string, boolean>(
+      (ibogaineConsentData.data || [])
+        .map((ic: any) => [ic.intake_form_id, true] as [string, boolean])
+        .filter(([id]) => id)
     )
     const ibogaineConsentByEmailMap = new Map<string, boolean>()
     ;(ibogaineConsentData.data || [])
