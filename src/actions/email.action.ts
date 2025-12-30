@@ -1381,3 +1381,314 @@ export async function sendIbogaineConsentFormEmail(
     body: htmlBody,
   })
 }
+
+// Helper function to send patient login reminder email
+export async function sendPatientLoginReminderEmail(
+  patientEmail: string,
+  firstName: string,
+  lastName: string
+) {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+    (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
+  const loginUrl = `${baseUrl}/login`
+  const forgotPasswordUrl = `${baseUrl}/forgot-password`
+
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { 
+          font-family: 'Helvetica Neue', Arial, sans-serif; 
+          line-height: 1.8; 
+          color: #333; 
+          margin: 0;
+          padding: 0;
+          background-color: #f5f5f5;
+        }
+        .container { 
+          max-width: 600px; 
+          margin: 0 auto; 
+          background: white;
+        }
+        .header { 
+          background: #5D7A5F; 
+          color: white; 
+          padding: 40px 30px; 
+          text-align: center; 
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 28px;
+          font-weight: 400;
+        }
+        .content { 
+          padding: 40px 30px; 
+          background: white; 
+        }
+        .content h2 {
+          color: #5D7A5F;
+          font-size: 24px;
+          margin-top: 0;
+        }
+        .content p {
+          font-size: 16px;
+          color: #555;
+          margin-bottom: 20px;
+        }
+        .reminder-box {
+          background: #fff3cd;
+          border-left: 4px solid #ffc107;
+          padding: 20px;
+          margin: 20px 0;
+        }
+        .cta-button {
+          display: inline-block;
+          background: #5D7A5F;
+          color: white !important;
+          padding: 16px 32px;
+          text-decoration: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          margin: 20px 0;
+        }
+        .cta-container {
+          text-align: center;
+          margin: 30px 0;
+        }
+        .footer { 
+          padding: 30px; 
+          text-align: center; 
+          font-size: 14px; 
+          color: #888;
+          background: #f9f9f9;
+          border-top: 1px solid #eee;
+        }
+        .footer a {
+          color: #5D7A5F;
+          text-decoration: none;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Iboga Wellness Institute</h1>
+        </div>
+        <div class="content">
+          <h2>Reminder: Please Login and Change Your Password, ${firstName}!</h2>
+          
+          <div class="reminder-box">
+            <p><strong>⏰ Action Required</strong></p>
+            <p>We noticed you haven't logged into your patient portal yet or haven't changed your temporary password. Please complete this important step to access your account and complete your tasks.</p>
+          </div>
+          
+          <p>To get started, please:</p>
+          <ol style="color: #555; line-height: 2;">
+            <li><strong>Login to your portal</strong> using your email and the temporary password from your original welcome email</li>
+            <li><strong>Change your password</strong> (you'll be prompted automatically after login)</li>
+            <li><strong>Complete your tasks</strong> in the patient dashboard</li>
+          </ol>
+          
+          <p>If you don't remember your temporary password, you can reset it using the link below.</p>
+          
+          <div class="cta-container">
+            <a href="${loginUrl}" class="cta-button">Login to Portal</a>
+          </div>
+          
+          <p style="text-align: center; margin-top: 20px;">
+            <a href="${forgotPasswordUrl}" style="color: #5D7A5F; text-decoration: underline;">Forgot your password? Reset it here</a>
+          </p>
+          
+          <p>If you have any questions or need assistance, please contact us:</p>
+          <p>
+            <strong>Phone:</strong> +1 (800) 604-7294<br>
+            <strong>Email:</strong> contactus@theibogainstitute.org
+          </p>
+          
+          <p>We look forward to helping you on your wellness journey!</p>
+          <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+          <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  return sendEmailDirect({
+    to: patientEmail,
+    subject: 'Reminder: Please Login and Change Your Password | Iboga Wellness Institute',
+    body: htmlBody,
+  })
+}
+
+// Helper function to send filler reminder email (when someone else filled the form)
+export async function sendFillerLoginReminderEmail(
+  fillerEmail: string,
+  fillerFirstName: string,
+  fillerLastName: string,
+  patientFirstName: string,
+  patientLastName: string,
+  patientEmail: string
+) {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+    (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
+  const loginUrl = `${baseUrl}/login`
+  const forgotPasswordUrl = `${baseUrl}/forgot-password`
+
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { 
+          font-family: 'Helvetica Neue', Arial, sans-serif; 
+          line-height: 1.8; 
+          color: #333; 
+          margin: 0;
+          padding: 0;
+          background-color: #f5f5f5;
+        }
+        .container { 
+          max-width: 600px; 
+          margin: 0 auto; 
+          background: white;
+        }
+        .header { 
+          background: #5D7A5F; 
+          color: white; 
+          padding: 40px 30px; 
+          text-align: center; 
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 28px;
+          font-weight: 400;
+        }
+        .content { 
+          padding: 40px 30px; 
+          background: white; 
+        }
+        .content h2 {
+          color: #5D7A5F;
+          font-size: 24px;
+          margin-top: 0;
+        }
+        .content p {
+          font-size: 16px;
+          color: #555;
+          margin-bottom: 20px;
+        }
+        .reminder-box {
+          background: #fff3cd;
+          border-left: 4px solid #ffc107;
+          padding: 20px;
+          margin: 20px 0;
+        }
+        .info-box {
+          background: #f9f9f9;
+          border-left: 4px solid #5D7A5F;
+          padding: 20px;
+          margin: 20px 0;
+        }
+        .info-box p {
+          margin: 10px 0;
+        }
+        .info-box strong {
+          color: #5D7A5F;
+        }
+        .cta-button {
+          display: inline-block;
+          background: #5D7A5F;
+          color: white !important;
+          padding: 16px 32px;
+          text-decoration: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          margin: 20px 0;
+        }
+        .cta-container {
+          text-align: center;
+          margin: 30px 0;
+        }
+        .footer { 
+          padding: 30px; 
+          text-align: center; 
+          font-size: 14px; 
+          color: #888;
+          background: #f9f9f9;
+          border-top: 1px solid #eee;
+        }
+        .footer a {
+          color: #5D7A5F;
+          text-decoration: none;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Iboga Wellness Institute</h1>
+        </div>
+        <div class="content">
+          <h2>Reminder: Help ${patientFirstName} Complete Portal Setup, ${fillerFirstName}!</h2>
+          
+          <div class="reminder-box">
+            <p><strong>⏰ Action Required</strong></p>
+            <p>We noticed that <strong>${patientFirstName} ${patientLastName}</strong> hasn't logged into their patient portal yet or hasn't changed their temporary password. Since you filled out the application form on their behalf, we wanted to remind you to help them complete this important step.</p>
+          </div>
+          
+          <div class="info-box">
+            <p><strong>Patient Information:</strong></p>
+            <p><strong>Name:</strong> ${patientFirstName} ${patientLastName}</p>
+            <p><strong>Email:</strong> ${patientEmail}</p>
+            <p><strong>Note:</strong> The patient portal account uses the patient's email address (${patientEmail}). The temporary password was sent to the patient in their welcome email.</p>
+          </div>
+          
+          <p>To help ${patientFirstName} get started, please:</p>
+          <ol style="color: #555; line-height: 2;">
+            <li><strong>Share the login credentials</strong> with ${patientFirstName} (from their original welcome email)</li>
+            <li><strong>Help them login</strong> to the patient portal</li>
+            <li><strong>Ensure they change their password</strong> (they'll be prompted automatically after login)</li>
+            <li><strong>Help them complete their tasks</strong> in the patient dashboard</li>
+          </ol>
+          
+          <p>If ${patientFirstName} doesn't remember their temporary password, they can reset it using the link below.</p>
+          
+          <div class="cta-container">
+            <a href="${loginUrl}" class="cta-button">Go to Login Page</a>
+          </div>
+          
+          <p style="text-align: center; margin-top: 20px;">
+            <a href="${forgotPasswordUrl}" style="color: #5D7A5F; text-decoration: underline;">Forgot password? Reset it here</a>
+          </p>
+          
+          <p>If you have any questions or need assistance, please contact us:</p>
+          <p>
+            <strong>Phone:</strong> +1 (800) 604-7294<br>
+            <strong>Email:</strong> contactus@theibogainstitute.org
+          </p>
+          
+          <p>Thank you for helping ${patientFirstName} take this important step in their wellness journey!</p>
+          <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+          <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  return sendEmailDirect({
+    to: fillerEmail,
+    subject: `Reminder: Help ${patientFirstName} ${patientLastName} Complete Portal Setup | Iboga Wellness Institute`,
+    body: htmlBody,
+  })
+}
