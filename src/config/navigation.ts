@@ -90,10 +90,17 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   manager: {
     mainNav: [
       { title: 'Dashboard', href: '/manager', icon: LayoutDashboard },
-      { title: 'Staff', href: '/manager/staff', icon: UserCog },
-      { title: 'Patients', href: '/manager/patients', icon: Users },
-      { title: 'Schedule', href: '/manager/schedule', icon: Calendar },
-      { title: 'Reports', href: '/manager/reports', icon: BarChart3 },
+      { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
+      { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
+      {
+        title: 'Marketing',
+        href: '/marketing',
+        icon: Megaphone,
+        children: [
+          { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
+        ]
+      },
+      { title: 'Research', href: '/research', icon: Search },
       { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [
