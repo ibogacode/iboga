@@ -105,7 +105,7 @@ export async function uploadDocumentClient(
   if (uploadError) {
     console.error('Upload error details:', {
       message: uploadError.message,
-      error: uploadError.error,
+      name: uploadError.name,
       bucketId,
       fileName,
     })
