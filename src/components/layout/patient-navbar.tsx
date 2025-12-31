@@ -123,28 +123,30 @@ export function PatientNavbar({ user, profile }: PatientNavbarProps) {
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
           }}
         >
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || 
-              (item.href !== '/patient' && pathname.startsWith(item.href))
-            
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'px-6 py-2 text-base font-medium transition-colors rounded-full',
-                  isActive
-                    ? 'bg-[#5D7A5F] text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
-                )}
-                style={{
-                  fontFamily: 'var(--font-sans), system-ui, sans-serif',
-                }}
-              >
-                {item.title}
-              </Link>
-            )
-          })}
+          {navItems
+            .filter((item) => item.href) // Only render items with href
+            .map((item) => {
+              const isActive = pathname === item.href || 
+                (item.href !== '/patient' && pathname.startsWith(item.href!))
+              
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href!}
+                  className={cn(
+                    'px-6 py-2 text-base font-medium transition-colors rounded-full',
+                    isActive
+                      ? 'bg-[#5D7A5F] text-white'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  )}
+                  style={{
+                    fontFamily: 'var(--font-sans), system-ui, sans-serif',
+                  }}
+                >
+                  {item.title}
+                </Link>
+              )
+            })}
         </div>
       </nav>
     </div>
