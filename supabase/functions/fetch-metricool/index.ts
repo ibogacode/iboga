@@ -77,8 +77,35 @@ serve(async (req) => {
     queryParams.append('timezone', 'America/Indianapolis')
     
     // Add date range if provided
-    if (from) queryParams.append('from', from)
-    if (to) queryParams.append('to', to)
+    // For timeline endpoints, format dates with timezone offset (-05:00 for EST/EDT)
+    if (from) {
+      if (endpoint.includes('timelines')) {
+        // Check if date already has timezone offset (format: -HH:mm or +HH:mm)
+        const hasTimezone = /[+-]\d{2}:\d{2}$/.test(from)
+        // Ensure proper format: YYYY-MM-DDTHH:mm:ss-HH:mm
+        const formattedFrom = hasTimezone
+          ? from 
+          : from.replace('T00:00:00', 'T00:00:00-05:00')
+        queryParams.append('from', formattedFrom)
+      } else {
+        queryParams.append('from', from)
+      }
+    }
+    
+    if (to) {
+      // For timeline endpoints, format dates with timezone offset (-05:00 for EST/EDT)
+      if (endpoint.includes('timelines')) {
+        // Check if date already has timezone offset (format: -HH:mm or +HH:mm)
+        const hasTimezone = /[+-]\d{2}:\d{2}$/.test(to)
+        // Ensure proper format: YYYY-MM-DDTHH:mm:ss-HH:mm
+        const formattedTo = hasTimezone
+          ? to
+          : to.replace('T23:59:59', 'T23:59:59-05:00')
+        queryParams.append('to', formattedTo)
+      } else {
+        queryParams.append('to', to)
+      }
+    }
     
     // Add any additional params
     Object.entries(params).forEach(([key, value]) => {

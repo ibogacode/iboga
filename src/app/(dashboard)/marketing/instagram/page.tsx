@@ -2,59 +2,56 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { fetchMetricoolMetrics } from '@/actions/metricool.action'
-import { FACEBOOK_METRICOOL_ENDPOINTS } from '@/config/metricool-urls'
+import { INSTAGRAM_METRICOOL_ENDPOINTS } from '@/config/metricool-urls'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
-interface FacebookPost {
-  blogId: number
-  pageId: string
+interface InstagramPost {
   postId: string
-  created: {
+  userId: string
+  type: string
+  publishedAt: {
     dateTime: string
     timezone: string
   }
-  timestamp: number
-  link: string
-  type: string
-  shares: number
+  url: string
+  content?: string
+  imageUrl?: string
+  likes: number
   comments: number
-  reactions: number
-  impressions: number
-  impressionsPaid: number
-  impressionsOrganic: number
-  impressionsUnique: number
-  impressionsUniquePaid: number
-  impressionsUniqueOrganic: number
-  clicks: number
+  shares: number
+  interactions: number
   engagement: number
-  picture?: string
-  videoViews: number
-  linkclicks: number
-  spend: number
+  reach: number
+  saved: number
+  impressionsTotal: number
+  views: number
 }
 
-interface FacebookReel {
-  pageId: string
+interface InstagramReel {
   reelId: string
-  created: {
+  userId: string
+  type: string
+  publishedAt: {
     dateTime: string
     timezone: string
   }
-  description?: string
-  videoUrl?: string
-  length?: number
-  thumbnailUrl?: string
-  reelUrl?: string
-  blueReelsPlayCount: number
-  postImpressionsUnique: number
-  postVideoAvgTimeWatchedSeconds: number
-  postVideoViewTimeSeconds: number
-  postVideoReactions: number
-  postVideoSocialActions: number
+  url: string
+  content?: string
+  imageUrl?: string
+  likes: number
+  comments: number
+  interactions: number
   engagement: number
+  views: number
+  reach: number
+  saved: number
+  shares: number
+  impressionsTotal: number
+  averageWatchTime: number
+  videoViewTotalTime: number
 }
 
 interface FollowersDataPoint {
@@ -67,9 +64,9 @@ interface FollowersTimelineResponse {
   values: FollowersDataPoint[]
 }
 
-export default function FacebookPostsPage() {
-  const [posts, setPosts] = useState<FacebookPost[]>([])
-  const [reels, setReels] = useState<FacebookReel[]>([])
+export default function InstagramPage() {
+  const [posts, setPosts] = useState<InstagramPost[]>([])
+  const [reels, setReels] = useState<InstagramReel[]>([])
   const [followersData, setFollowersData] = useState<FollowersTimelineResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingReels, setIsLoadingReels] = useState(true)
@@ -88,16 +85,15 @@ export default function FacebookPostsPage() {
   yesterday.setDate(yesterday.getDate() - 1)
   
   const maxDate = yesterday.toISOString().split('T')[0]
-  const todayDateStr = today.toISOString().split('T')[0]
 
   // Initialize with last 30 days
   useEffect(() => {
-    const toDate = new Date(yesterday)
-    const fromDate = new Date(yesterday)
-    fromDate.setDate(fromDate.getDate() - 29) // 30 days: yesterday + 29 previous days = 30 days total
+    const toDateObj = new Date(yesterday)
+    const fromDateObj = new Date(yesterday)
+    fromDateObj.setDate(fromDateObj.getDate() - 29) // 30 days: yesterday + 29 previous days = 30 days total
     
-    setFromDate(fromDate.toISOString().split('T')[0])
-    setToDate(toDate.toISOString().split('T')[0])
+    setFromDate(fromDateObj.toISOString().split('T')[0])
+    setToDate(toDateObj.toISOString().split('T')[0])
   }, [])
 
   const fetchPosts = async () => {
@@ -110,7 +106,7 @@ export default function FacebookPostsPage() {
       const toDateTime = `${toDate}T23:59:59`
 
       const result = await fetchMetricoolMetrics({
-        endpoint: FACEBOOK_METRICOOL_ENDPOINTS.posts,
+        endpoint: INSTAGRAM_METRICOOL_ENDPOINTS.posts,
         from: fromDateTime,
         to: toDateTime,
       })
@@ -139,7 +135,7 @@ export default function FacebookPostsPage() {
       const toDateTime = `${toDate}T23:59:59`
 
       const result = await fetchMetricoolMetrics({
-        endpoint: FACEBOOK_METRICOOL_ENDPOINTS.reels,
+        endpoint: INSTAGRAM_METRICOOL_ENDPOINTS.reels,
         from: fromDateTime,
         to: toDateTime,
       })
@@ -164,17 +160,16 @@ export default function FacebookPostsPage() {
 
     try {
       // Format dates for API - timelines endpoint needs timezone offset
-      // The edge function will handle the timezone formatting
       const fromDateTime = `${fromDate}T00:00:00`
       const toDateTime = `${toDate}T23:59:59`
 
       const result = await fetchMetricoolMetrics({
-        endpoint: FACEBOOK_METRICOOL_ENDPOINTS.followersTimeline,
+        endpoint: INSTAGRAM_METRICOOL_ENDPOINTS.followersTimeline,
         from: fromDateTime,
         to: toDateTime,
         params: {
-          metric: 'pageFollows',
-          network: 'facebook',
+          metric: 'followers',
+          network: 'instagram',
           subject: 'account',
         },
       })
@@ -204,15 +199,13 @@ export default function FacebookPostsPage() {
   }, [fromDate, toDate])
 
   const handleQuickSelect = (days: number) => {
-    const toDate = new Date(yesterday)
-    const fromDate = new Date(yesterday)
-    // Subtract (days - 1) to get exactly 'days' days including yesterday
-    // Example: Last 90 days from Dec 29 = Dec 29 - 89 days = Oct 1 (90 days total: Oct 1 to Dec 29)
-    toDate.setDate(toDate.getDate()  + 1)
-    fromDate.setDate(fromDate.getDate() - (days -2))
+    const toDateObj = new Date(yesterday)
+    const fromDateObj = new Date(yesterday)
+    toDateObj.setDate(toDateObj.getDate() +1)
+    fromDateObj.setDate(fromDateObj.getDate() - (days -1))
     
-    setFromDate(fromDate.toISOString().split('T')[0])
-    setToDate(toDate.toISOString().split('T')[0])
+    setFromDate(fromDateObj.toISOString().split('T')[0])
+    setToDate(toDateObj.toISOString().split('T')[0])
     setShowCustomRange(false)
   }
 
@@ -239,7 +232,7 @@ export default function FacebookPostsPage() {
     const to = parseDate(toDate)
 
     return posts.filter(post => {
-      const postDateStr = post.created.dateTime.split('T')[0]
+      const postDateStr = post.publishedAt.dateTime.split('T')[0]
       const postDate = parseDate(postDateStr)
       return postDate >= from && postDate <= to
     })
@@ -258,11 +251,54 @@ export default function FacebookPostsPage() {
     const to = parseDate(toDate)
 
     return reels.filter(reel => {
-      const reelDateStr = reel.created.dateTime.split('T')[0]
+      const reelDateStr = reel.publishedAt.dateTime.split('T')[0]
       const reelDate = parseDate(reelDateStr)
       return reelDate >= from && reelDate <= to
     })
   }, [reels, fromDate, toDate])
+
+  // Calculate total metrics from filtered posts and reels
+  const totalMetrics = useMemo(() => {
+    let totalReactions = 0
+    let totalShares = 0
+    let totalImpressions = 0
+    let totalEngagement = 0
+    let engagementCount = 0
+
+    // Sum from posts (likes = reactions for Instagram)
+    filteredPosts.forEach((post) => {
+      totalReactions += post.likes || 0
+      totalShares += post.shares || 0
+      totalImpressions += post.impressionsTotal || 0
+      // Average engagement: sum all engagement percentages
+      if (post.engagement !== undefined && post.engagement !== null) {
+        totalEngagement += post.engagement
+        engagementCount++
+      }
+    })
+
+    // Sum from reels
+    filteredReels.forEach((reel) => {
+      totalReactions += reel.likes || 0
+      totalShares += reel.shares || 0
+      totalImpressions += reel.impressionsTotal || 0
+      // Average engagement: sum all engagement percentages
+      if (reel.engagement !== undefined && reel.engagement !== null) {
+        totalEngagement += reel.engagement
+        engagementCount++
+      }
+    })
+
+    // Calculate average engagement
+    const averageEngagement = engagementCount > 0 ? totalEngagement / engagementCount : 0
+
+    return {
+      reactions: totalReactions,
+      shares: totalShares,
+      impressions: totalImpressions,
+      engagement: averageEngagement,
+    }
+  }, [filteredPosts, filteredReels])
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
@@ -322,57 +358,12 @@ export default function FacebookPostsPage() {
       .map(({ sortDate, ...rest }) => rest) // Remove sortDate after sorting
   }, [followersData, fromDate, toDate])
 
-  // Calculate total metrics from filtered posts and reels
-  const totalMetrics = useMemo(() => {
-    let totalReactions = 0
-    let totalShares = 0
-    let totalImpressions = 0
-    let totalEngagement = 0
-    let engagementCount = 0
-
-    // Sum from posts
-    filteredPosts.forEach((post) => {
-      totalReactions += post.reactions || 0
-      totalShares += post.shares || 0
-      totalImpressions += post.impressions || 0
-      // Average engagement: sum all engagement percentages
-      if (post.engagement !== undefined && post.engagement !== null) {
-        totalEngagement += post.engagement
-        engagementCount++
-      }
-    })
-
-    // Sum from reels
-    filteredReels.forEach((reel) => {
-      totalReactions += reel.postVideoReactions || 0
-      // postVideoSocialActions represents social actions (shares, comments, etc.)
-      const reelShares = reel.postVideoSocialActions || 0
-      totalShares += reelShares
-      totalImpressions += reel.postImpressionsUnique || 0
-      // Average engagement: sum all engagement percentages
-      if (reel.engagement !== undefined && reel.engagement !== null) {
-        totalEngagement += reel.engagement
-        engagementCount++
-      }
-    })
-
-    // Calculate average engagement
-    const averageEngagement = engagementCount > 0 ? totalEngagement / engagementCount : 0
-
-    return {
-      reactions: totalReactions,
-      shares: totalShares,
-      impressions: totalImpressions,
-      engagement: averageEngagement,
-    }
-  }, [filteredPosts, filteredReels])
-
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Facebook Content</h1>
-        <p className="text-gray-600 mt-2">View and analyze your Facebook posts and reels performance</p>
+        <h1 className="text-3xl font-bold text-gray-900">Instagram Content</h1>
+        <p className="text-gray-600 mt-2">View and analyze your Instagram posts and reels performance</p>
       </div>
 
       {/* Quick Action Buttons */}
@@ -482,8 +473,8 @@ export default function FacebookPostsPage() {
             <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorFollowers" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  <stop offset="5%" stopColor="#E4405F" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#E4405F" stopOpacity={0}/>
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
@@ -529,11 +520,11 @@ export default function FacebookPostsPage() {
               <Area 
                 type="monotone" 
                 dataKey="followers" 
-                stroke="#3b82f6" 
+                stroke="#E4405F" 
                 strokeWidth={2.5}
                 fill="url(#colorFollowers)"
                 dot={false}
-                activeDot={{ r: 5, fill: '#3b82f6', stroke: '#fff', strokeWidth: 2 }}
+                activeDot={{ r: 5, fill: '#E4405F', stroke: '#fff', strokeWidth: 2 }}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -597,75 +588,75 @@ export default function FacebookPostsPage() {
                   </div>
                 ) : (
                   filteredPosts.map((post) => (
-                <div
-                  key={post.postId}
-                  className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex gap-4">
-                    {/* Post Image */}
-                    {post.picture && (
-                      <img
-                        src={post.picture}
-                        alt="Post"
-                        className="w-24 h-24 object-cover rounded-lg flex-shrink-0"
-                      />
-                    )}
+                    <div
+                      key={post.postId}
+                      className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex gap-4">
+                        {/* Post Image */}
+                        {post.imageUrl && (
+                          <img
+                            src={post.imageUrl}
+                            alt="Post"
+                            className="w-24 h-24 object-cover rounded-lg flex-shrink-0"
+                          />
+                        )}
 
-                    {/* Post Details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded capitalize">
-                              {post.type}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {formatDate(post.created.dateTime)}
-                            </span>
+                        {/* Post Details */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded capitalize">
+                                  {post.type.replace('_', ' ').toLowerCase()}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {formatDate(post.publishedAt.dateTime)}
+                                </span>
+                              </div>
+                              {post.url && (
+                                <a
+                                  href={post.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-600 hover:underline"
+                                >
+                                  View on Instagram →
+                                </a>
+                              )}
+                            </div>
                           </div>
-                          {post.link && (
-                            <a
-                              href={post.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:underline"
-                            >
-                              View on Facebook →
-                            </a>
-                          )}
-                        </div>
-                      </div>
 
-                      {/* Metrics Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-4">
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Impressions</div>
-                          <div className="text-lg font-semibold">{formatNumber(post.impressions)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Reactions</div>
-                          <div className="text-lg font-semibold">{formatNumber(post.reactions)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Comments</div>
-                          <div className="text-lg font-semibold">{formatNumber(post.comments)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Shares</div>
-                          <div className="text-lg font-semibold">{formatNumber(post.shares)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Clicks</div>
-                          <div className="text-lg font-semibold">{formatNumber(post.clicks)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Engagement</div>
-                          <div className="text-lg font-semibold">{post.engagement.toFixed(1)}%</div>
+                          {/* Metrics Grid */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-4">
+                            <div>
+                              <div className="text-xs text-gray-500 mb-1">Likes</div>
+                              <div className="text-lg font-semibold">{formatNumber(post.likes)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 mb-1">Comments</div>
+                              <div className="text-lg font-semibold">{formatNumber(post.comments)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 mb-1">Shares</div>
+                              <div className="text-lg font-semibold">{formatNumber(post.shares)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 mb-1">Impressions</div>
+                              <div className="text-lg font-semibold">{formatNumber(post.impressionsTotal)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 mb-1">Reach</div>
+                              <div className="text-lg font-semibold">{formatNumber(post.reach)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 mb-1">Engagement</div>
+                              <div className="text-lg font-semibold">{post.engagement.toFixed(1)}%</div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </div>
                   ))
                 )}
               </div>
@@ -692,9 +683,9 @@ export default function FacebookPostsPage() {
                     >
                       <div className="flex gap-4">
                         {/* Reel Thumbnail */}
-                        {reel.thumbnailUrl && (
+                        {reel.imageUrl && (
                           <img
-                            src={reel.thumbnailUrl}
+                            src={reel.imageUrl}
                             alt="Reel"
                             className="w-32 h-32 object-cover rounded-lg flex-shrink-0"
                           />
@@ -709,27 +700,27 @@ export default function FacebookPostsPage() {
                                   Reel
                                 </span>
                                 <span className="text-xs text-gray-500">
-                                  {formatDate(reel.created.dateTime)}
+                                  {formatDate(reel.publishedAt.dateTime)}
                                 </span>
-                                {reel.length && (
+                                {reel.averageWatchTime && (
                                   <span className="text-xs text-gray-500">
-                                    {formatDuration(reel.length)}
+                                    {formatDuration(reel.averageWatchTime)} avg watch
                                   </span>
                                 )}
                               </div>
-                              {reel.reelUrl && (
+                              {reel.url && (
                                 <a
-                                  href={reel.reelUrl}
+                                  href={reel.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-sm text-blue-600 hover:underline"
                                 >
-                                  View on Facebook →
+                                  View on Instagram →
                                 </a>
                               )}
-                              {reel.description && (
+                              {reel.content && (
                                 <p className="text-sm text-gray-700 mt-2 line-clamp-2">
-                                  {reel.description}
+                                  {reel.content}
                                 </p>
                               )}
                             </div>
@@ -738,24 +729,24 @@ export default function FacebookPostsPage() {
                           {/* Metrics Grid */}
                           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-4">
                             <div>
-                              <div className="text-xs text-gray-500 mb-1">Plays</div>
-                              <div className="text-lg font-semibold">{formatNumber(reel.blueReelsPlayCount)}</div>
+                              <div className="text-xs text-gray-500 mb-1">Likes</div>
+                              <div className="text-lg font-semibold">{formatNumber(reel.likes)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 mb-1">Views</div>
+                              <div className="text-lg font-semibold">{formatNumber(reel.views)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 mb-1">Comments</div>
+                              <div className="text-lg font-semibold">{formatNumber(reel.comments)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500 mb-1">Shares</div>
+                              <div className="text-lg font-semibold">{formatNumber(reel.shares)}</div>
                             </div>
                             <div>
                               <div className="text-xs text-gray-500 mb-1">Impressions</div>
-                              <div className="text-lg font-semibold">{formatNumber(reel.postImpressionsUnique)}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-gray-500 mb-1">Reactions</div>
-                              <div className="text-lg font-semibold">{formatNumber(reel.postVideoReactions)}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-gray-500 mb-1">Actions</div>
-                              <div className="text-lg font-semibold">{formatNumber(reel.postVideoSocialActions)}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-gray-500 mb-1">Avg Watch Time</div>
-                              <div className="text-lg font-semibold">{formatDuration(reel.postVideoAvgTimeWatchedSeconds)}</div>
+                              <div className="text-lg font-semibold">{formatNumber(reel.impressionsTotal)}</div>
                             </div>
                             <div>
                               <div className="text-xs text-gray-500 mb-1">Engagement</div>

@@ -21,16 +21,19 @@ import {
   User,
   UserPlus,
   Search,
-  Megaphone,
   UserCheck,
+  Megaphone,
   Facebook,
+  Instagram,
+  Youtube,
+  Globe,
   type LucideIcon,
 } from 'lucide-react'
 import { UserRole } from '@/types'
 
 export interface NavItem {
   title: string
-  href: string
+  href?: string
   icon: LucideIcon
   badge?: string | number
   children?: NavItem[]
@@ -53,11 +56,13 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Research', href: '/research', icon: Search },
       {
         title: 'Marketing',
-        href: '/marketing',
         icon: Megaphone,
         children: [
           { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
-        ]
+          { title: 'Instagram', href: '/marketing/instagram', icon: Instagram },
+          { title: 'YouTube', href: '/marketing/youtube', icon: Youtube },
+          { title: 'Web', href: '/marketing/web', icon: Globe },
+        ],
       },
       { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
@@ -75,11 +80,13 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Research', href: '/research', icon: Search },
       {
         title: 'Marketing',
-        href: '/marketing',
         icon: Megaphone,
         children: [
           { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
-        ]
+          { title: 'Instagram', href: '/marketing/instagram', icon: Instagram },
+          { title: 'YouTube', href: '/marketing/youtube', icon: Youtube },
+          { title: 'Web', href: '/marketing/web', icon: Globe },
+        ],
       },
       { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],

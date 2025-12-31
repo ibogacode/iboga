@@ -80,13 +80,6 @@ export default async function OwnerDashboardPage() {
           changeLabel="Good"
           isPositive={true}
         />
-        <StatCard
-          title="Marketing Reach"
-          value="82.4K"
-          change="12%"
-          changeLabel="This month"
-          isPositive={true}
-        />
       </div>
 
       {/* Programs Section */}
@@ -96,17 +89,7 @@ export default async function OwnerDashboardPage() {
       </div>
 
       {/* Modules Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 md:gap-[25px]">
-        <ModuleCard
-          title="Marketing Module"
-          description="Followers • Posts this week • Leads this month"
-          href="/marketing"
-          metrics={[
-            { label: 'Followers', value: '82.4K' },
-            { label: 'Posts this week', value: '18' },
-            { label: 'Leads this month', value: '24' },
-          ]}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-[25px]">
         <ModuleCard
           title="Patient Management"
           description="Active patients • Daily forms • Departures"
