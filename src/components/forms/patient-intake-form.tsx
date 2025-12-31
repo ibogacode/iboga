@@ -714,7 +714,7 @@ function PatientIntakeFormContent() {
 
   return (
     <div className="min-h-screen bg-#EDE9E4">
-      <div className="max-w-4xl mx-auto bg-white  p-8">
+      <div className="max-w-4xl mx-auto bg-white p-4 md:p-8">
         {token && (
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-800 font-medium mb-2">
@@ -755,7 +755,7 @@ function PatientIntakeFormContent() {
           </div>
         ) : (
           <>
-            <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6 md:mb-8 text-center">
               Patient Application Form
             </h1>
 
@@ -773,15 +773,15 @@ function PatientIntakeFormContent() {
           </div>
         </div>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 md:space-y-8">
           {/* Step 1: Personal Information */}
           {currentStep === 1 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Personal Information</h2>
+            <div className="space-y-4 md:space-y-6">
+              <h2 className="text-xl md:text-2xl font-semibold text-gray-900">Personal Information</h2>
               
               <div className="space-y-4">
                 {/* Form Filler Section */}
-                <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+                <div className="bg-gray-50 p-3 md:p-4 rounded-lg space-y-3 md:space-y-4">
                   <Label className="text-base font-medium">
                     Are you filling out this form yourself, or is someone else filling it out for you? <span className="text-red-500">*</span>
                   </Label>
@@ -856,7 +856,7 @@ function PatientIntakeFormContent() {
                         <Label className="text-base font-medium">
                           Your Information (Person Filling Out Form) <span className="text-red-500">*</span>
                         </Label>
-                        <div className="grid grid-cols-2 gap-4 mt-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                           <div>
                             <Input
                               id="filler_first_name"
@@ -919,7 +919,7 @@ function PatientIntakeFormContent() {
                 </div>
 
                 {/* Program Type Section */}
-                <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+                <div className="bg-gray-50 p-3 md:p-4 rounded-lg space-y-3 md:space-y-4">
                   <Label className="text-base font-medium">
                     What program are you applying for? <span className="text-red-500">*</span>
                   </Label>
@@ -961,7 +961,7 @@ function PatientIntakeFormContent() {
                       <span className="ml-2 text-xs text-blue-600 font-normal">(Pre-filled)</span>
                     )}
                   </Label>
-                  <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                     <div>
                       <Input
                         id="first_name"
@@ -1023,7 +1023,7 @@ function PatientIntakeFormContent() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-4">
                   <div>
                     <Label htmlFor="date_of_birth" className="text-base font-medium">
                       Date of Birth
@@ -1040,11 +1040,11 @@ function PatientIntakeFormContent() {
                   </div>
 
                   <div>
-                    <Label className="text-base font-medium mb-2 block">Gender</Label>
+                    <Label className="text-base font-medium block mb-2">Gender</Label>
                     <RadioGroup
                       value={form.watch('gender') || ''}
                       onValueChange={(value) => form.setValue('gender', value as any)}
-                      className="flex flex-col md:flex-row gap-4 md:gap-6 mt-2"
+                      className="flex flex-row gap-6 mt-2"
                     >
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="male" id="male" />
@@ -1073,7 +1073,7 @@ function PatientIntakeFormContent() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="city" className="text-base font-medium">
                       City <span className="text-red-500">*</span>
@@ -1136,15 +1136,15 @@ function PatientIntakeFormContent() {
 
           {/* Step 2: Emergency Contact Information */}
           {currentStep === 2 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Emergency Contact Information</h2>
+            <div className="space-y-4 md:space-y-6">
+              <h2 className="text-xl md:text-2xl font-semibold text-gray-900">Emergency Contact Information</h2>
               
               <div className="space-y-4">
                 <div>
                   <Label className="text-base font-medium">
                     Emergency Contact Name <span className="text-red-500">*</span>
                   </Label>
-                  <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                     <div>
                       <Input
                         placeholder="First Name"
@@ -1168,7 +1168,7 @@ function PatientIntakeFormContent() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="emergency_contact_email" className="text-base font-medium">Email</Label>
                     <Input
@@ -1197,7 +1197,7 @@ function PatientIntakeFormContent() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="emergency_contact_address" className="text-base font-medium">Address</Label>
                     <Input
@@ -1223,10 +1223,10 @@ function PatientIntakeFormContent() {
 
           {/* Step 3: Privacy Policy */}
           {currentStep === 3 && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Privacy Policy</h2>
+            <div className="space-y-4 md:space-y-6">
+              <h2 className="text-xl md:text-2xl font-semibold text-gray-900">Privacy Policy</h2>
               
-              <div className="bg-gray-50 p-8 rounded-lg">
+              <div className="bg-gray-50 p-4 md:p-8 rounded-lg">
                 <div className="prose prose-sm max-w-none">
                   <PrivacyPolicyContent text={PRIVACY_POLICY_TEXT} />
                 </div>

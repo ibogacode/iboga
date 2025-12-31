@@ -31,6 +31,7 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
   const [providerSignature, setProviderSignature] = useState('')
   const [patientId, setPatientId] = useState<string | null>(null)
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null)
+  const [accessDenied, setAccessDenied] = useState(false)
   
   const totalSteps = 6
   
@@ -78,7 +79,7 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
         if (!isMounted) return
         
         if (result.success && result.data) {
-          const { profile, intakeForm } = result.data
+          const { profile, intakeForm, existingForm } = result.data
           
           // Set patient ID and intake form ID for linking
           if (profile.id) {
@@ -107,8 +108,31 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
           form.setValue('patient_signature_first_name', firstName)
           form.setValue('patient_signature_last_name', lastName)
           form.setValue('patient_signature_name', `${firstName} ${lastName}`.trim())
+          
+          // Pre-populate admin fields from existing form (read-only for patients)
+          if (existingForm) {
+            form.setValue('total_program_fee', existingForm.total_program_fee ? `$${Number(existingForm.total_program_fee).toLocaleString()}` : '')
+            form.setValue('deposit_amount', existingForm.deposit_amount ? `$${Number(existingForm.deposit_amount).toLocaleString()}` : '')
+            form.setValue('deposit_percentage', existingForm.deposit_percentage ? String(existingForm.deposit_percentage) : '')
+            form.setValue('remaining_balance', existingForm.remaining_balance ? String(existingForm.remaining_balance) : '0')
+            form.setValue('payment_method', existingForm.payment_method || '')
+            form.setValue('provider_signature_name', existingForm.provider_signature_name || '')
+            form.setValue('provider_signature_first_name', existingForm.provider_signature_first_name || '')
+            form.setValue('provider_signature_last_name', existingForm.provider_signature_last_name || '')
+            if (existingForm.provider_signature_date) {
+              form.setValue('provider_signature_date', new Date(existingForm.provider_signature_date).toISOString().split('T')[0])
+            }
+          }
         } else {
-          console.error('Failed to load patient data:', result.error)
+          // Show error and prevent form access
+          const errorMessage = result.error || 'Failed to load patient data'
+          toast.error(errorMessage)
+          setIsLoadingPatientData(false)
+          // Set access denied if form is not activated
+          if (errorMessage.includes('not yet activated')) {
+            setAccessDenied(true)
+          }
+          return
         }
       } catch (error) {
         console.error('Error loading patient data:', error)
@@ -204,6 +228,16 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
   const onSubmit = async (data: ServiceAgreementFormValues) => {
     setIsLoading(true)
     
+    // Check activation status before allowing submission (for patients)
+    if (prefillPatientData) {
+      const activationCheck = await getPatientDataForServiceAgreement()
+      if (!activationCheck.success) {
+        toast.error(activationCheck.error || 'Form is not activated')
+        setIsLoading(false)
+        return
+      }
+    }
+    
     // Set signature data
     if (patientSignature) {
       data.patient_signature_data = patientSignature
@@ -266,6 +300,27 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
             <span className="ml-3 text-gray-600">Loading your information...</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen bg-#EDE9E4">
+        <div className="max-w-4xl mx-auto bg-white p-8">
+          <div className="text-center py-12">
+            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">Form Not Available</h1>
+            <p className="text-gray-600 mb-8">This form is not yet activated. Please wait for admin activation.</p>
+            <Button onClick={() => router.push('/patient/tasks')} className="mt-4">
+              Go to Tasks
+            </Button>
           </div>
         </div>
       </div>
@@ -413,6 +468,7 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
               {currentStep === 3 && (
                 <div className="space-y-6">
                   <h2 className="text-2xl font-semibold text-gray-900">Fees & Payment</h2>
+                  <p className="text-sm text-gray-600">Fee amounts have been pre-filled by the administration. Please select your payment method.</p>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -421,17 +477,10 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
               </Label>
               <Input
                 id="total_program_fee"
-                placeholder="e.g., $15,000"
-                {...form.register('total_program_fee', {
-                  onChange: (e) => handleTotalChange(e.target.value)
-                })}
-                className={`h-12 ${form.formState.errors.total_program_fee ? 'border-red-500' : ''}`}
+                readOnly
+                value={form.watch('total_program_fee')}
+                className="h-12 bg-gray-50 cursor-not-allowed"
               />
-              {form.formState.errors.total_program_fee && (
-                <p className="text-sm text-red-500 mt-1">
-                  {form.formState.errors.total_program_fee.message}
-                </p>
-              )}
             </div>
 
             <div>
@@ -440,17 +489,10 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
               </Label>
               <Input
                 id="deposit_amount"
-                placeholder="e.g., $7,500"
-                {...form.register('deposit_amount', {
-                  onChange: (e) => handleDepositChange(e.target.value)
-                })}
-                className={`h-12 ${form.formState.errors.deposit_amount ? 'border-red-500' : ''}`}
+                readOnly
+                value={form.watch('deposit_amount')}
+                className="h-12 bg-gray-50 cursor-not-allowed"
               />
-              {form.formState.errors.deposit_amount && (
-                <p className="text-sm text-red-500 mt-1">
-                  {form.formState.errors.deposit_amount.message}
-                </p>
-              )}
             </div>
 
             <div>
@@ -461,13 +503,8 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
                 id="deposit_percentage"
                 readOnly
                 value={form.watch('deposit_percentage')}
-                className="h-12 bg-gray-50"
+                className="h-12 bg-gray-50 cursor-not-allowed"
               />
-              {form.formState.errors.deposit_percentage && (
-                <p className="text-sm text-red-500 mt-1">
-                  {form.formState.errors.deposit_percentage.message}
-                </p>
-              )}
             </div>
 
             <div>
@@ -478,13 +515,8 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
                 id="remaining_balance"
                 readOnly
                 value={`$${form.watch('remaining_balance')}`}
-                className="h-12 bg-gray-50"
+                className="h-12 bg-gray-50 cursor-not-allowed"
               />
-              {form.formState.errors.remaining_balance && (
-                <p className="text-sm text-red-500 mt-1">
-                  {form.formState.errors.remaining_balance.message}
-                </p>
-              )}
             </div>
 
             <div className="md:col-span-2">
@@ -608,7 +640,8 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
               {/* Step 5: Provider Signature */}
               {currentStep === 5 && (
                 <div className="space-y-6">
-                  <h2 className="text-2xl font-semibold text-gray-900">For Provider</h2>
+                  <h2 className="text-2xl font-semibold text-gray-900">Provider Signature</h2>
+                  <p className="text-sm text-gray-600">This section has been completed by the administration.</p>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -617,14 +650,10 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
                       </Label>
                       <Input
                         id="provider_signature_first_name"
-                        {...form.register('provider_signature_first_name')}
-                        className={`h-12 ${form.formState.errors.provider_signature_first_name ? 'border-red-500' : ''}`}
+                        readOnly
+                        value={form.watch('provider_signature_first_name')}
+                        className="h-12 bg-gray-50 cursor-not-allowed"
                       />
-                      {form.formState.errors.provider_signature_first_name && (
-                        <p className="text-sm text-red-500 mt-1">
-                          {form.formState.errors.provider_signature_first_name.message}
-                        </p>
-                      )}
                     </div>
 
                     <div>
@@ -633,14 +662,10 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
                       </Label>
                       <Input
                         id="provider_signature_last_name"
-                        {...form.register('provider_signature_last_name')}
-                        className={`h-12 ${form.formState.errors.provider_signature_last_name ? 'border-red-500' : ''}`}
+                        readOnly
+                        value={form.watch('provider_signature_last_name')}
+                        className="h-12 bg-gray-50 cursor-not-allowed"
                       />
-                      {form.formState.errors.provider_signature_last_name && (
-                        <p className="text-sm text-red-500 mt-1">
-                          {form.formState.errors.provider_signature_last_name.message}
-                        </p>
-                      )}
                     </div>
 
                     <div>
@@ -649,45 +674,24 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
                       </Label>
                       <Input
                         id="provider_signature_name"
-                        {...form.register('provider_signature_name')}
-                        className={`h-12 ${form.formState.errors.provider_signature_name ? 'border-red-500' : ''}`}
+                        readOnly
+                        value={form.watch('provider_signature_name')}
+                        className="h-12 bg-gray-50 cursor-not-allowed"
                       />
-                      {form.formState.errors.provider_signature_name && (
-                        <p className="text-sm text-red-500 mt-1">
-                          {form.formState.errors.provider_signature_name.message}
-                        </p>
-                      )}
                     </div>
 
                     <div>
                       <Label htmlFor="provider_signature_date" className="text-base font-medium">
                         Date Signed by Provider <span className="text-red-500">*</span>
                       </Label>
-                      <div className="relative">
-                        <Input
-                          id="provider_signature_date"
-                          type="date"
-                          {...form.register('provider_signature_date')}
-                          className={`h-12 ${form.formState.errors.provider_signature_date ? 'border-red-500' : ''}`}
-                        />
-                        <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                      </div>
-                      {form.formState.errors.provider_signature_date && (
-                        <p className="text-sm text-red-500 mt-1">
-                          {form.formState.errors.provider_signature_date.message}
-                        </p>
-                      )}
+                      <Input
+                        id="provider_signature_date"
+                        type="date"
+                        readOnly
+                        value={form.watch('provider_signature_date')}
+                        className="h-12 bg-gray-50 cursor-not-allowed"
+                      />
                     </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-base font-medium">Provider Signature</Label>
-                    <SignaturePad
-                      onChange={(signatureData) => {
-                        setProviderSignature(signatureData)
-                        form.setValue('provider_signature_data', signatureData)
-                      }}
-                    />
                   </div>
                 </div>
               )}

@@ -11,7 +11,7 @@ export interface PatientTask {
   type: 'intake' | 'medical_history' | 'service_agreement' | 'ibogaine_consent'
   title: string
   description: string
-  status: 'not_started' | 'in_progress' | 'completed'
+  status: 'not_started' | 'in_progress' | 'completed' | 'locked'
   estimatedTime: string
   isRequired: boolean
   isOptional: boolean
@@ -254,7 +254,7 @@ export const getPatientTasks = authActionClient
     if (patientId) {
       const { data: serviceByPatientId, error: patientIdError } = await supabase
         .from('service_agreements')
-        .select('id, patient_id, patient_email, created_at')
+        .select('id, patient_id, patient_email, created_at, is_activated, activated_at')
         .eq('patient_id', patientId)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -266,7 +266,7 @@ export const getPatientTasks = authActionClient
         // Fallback to email (case-insensitive)
         const { data: serviceByEmail, error: emailError } = await supabase
           .from('service_agreements')
-          .select('id, patient_id, patient_email, created_at')
+          .select('id, patient_id, patient_email, created_at, is_activated, activated_at')
           .ilike('patient_email', patientEmail)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -284,7 +284,7 @@ export const getPatientTasks = authActionClient
       // If no patient_id, try by email only
       const { data: serviceByEmail, error: emailError } = await supabase
         .from('service_agreements')
-        .select('id, patient_id, patient_email, created_at')
+        .select('id, patient_id, patient_email, created_at, is_activated, activated_at')
         .ilike('patient_email', patientEmail)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -305,31 +305,69 @@ export const getPatientTasks = authActionClient
     console.log('[getPatientTasks] Final tasks count:', tasks.length)
 
     if (serviceAgreement) {
-      tasks.push({
-        id: `service-${serviceAgreement.id}`,
-        type: 'service_agreement',
-        title: 'Service Agreement',
-        description: 'Review and sign the service agreement.',
-        status: 'completed',
-        estimatedTime: '~5 min',
-        isRequired: true,
-        isOptional: false,
-        completedAt: serviceAgreement.created_at,
-        formId: serviceAgreement.id,
-        link: `/patient/service-agreement?view=${serviceAgreement.id}`,
-      })
+      if (serviceAgreement.is_activated) {
+        // Check if patient signature fields are filled to determine if completed
+        const { data: fullServiceAgreement } = await supabase
+          .from('service_agreements')
+          .select('patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
+          .eq('id', serviceAgreement.id)
+          .single()
+
+        const isPatientSignatureComplete = fullServiceAgreement &&
+          fullServiceAgreement.patient_signature_name &&
+          fullServiceAgreement.patient_signature_name.trim() !== '' &&
+          fullServiceAgreement.patient_signature_first_name &&
+          fullServiceAgreement.patient_signature_first_name.trim() !== '' &&
+          fullServiceAgreement.patient_signature_last_name &&
+          fullServiceAgreement.patient_signature_last_name.trim() !== '' &&
+          fullServiceAgreement.patient_signature_date &&
+          fullServiceAgreement.patient_signature_data && // Signature data/image should also be present
+          fullServiceAgreement.patient_signature_data.trim() !== ''
+
+        tasks.push({
+          id: `service-${serviceAgreement.id}`,
+          type: 'service_agreement',
+          title: 'Service Agreement',
+          description: isPatientSignatureComplete 
+            ? 'Review and sign the service agreement.'
+            : 'Please review and sign the service agreement.',
+          status: isPatientSignatureComplete ? 'completed' : 'not_started',
+          estimatedTime: '~5 min',
+          isRequired: true,
+          isOptional: false,
+          completedAt: isPatientSignatureComplete ? serviceAgreement.created_at : undefined,
+          formId: serviceAgreement.id,
+          link: isPatientSignatureComplete 
+            ? `/patient/service-agreement?view=${serviceAgreement.id}`
+            : `/patient/service-agreement`,
+        })
+      } else {
+        tasks.push({
+          id: `service-${serviceAgreement.id}`,
+          type: 'service_agreement',
+          title: 'Service Agreement',
+          description: 'Waiting for admin activation. This form will be available soon.',
+          status: 'locked',
+          estimatedTime: '~5 min',
+          isRequired: true,
+          isOptional: false,
+          formId: serviceAgreement.id,
+          link: '#',
+        })
+      }
     } else {
+      // Form doesn't exist yet - show as locked until admin creates and activates it
       tasks.push({
         id: 'service-new',
         type: 'service_agreement',
         title: 'Service Agreement',
-        description: 'Review and sign the service agreement.',
-        status: 'not_started',
+        description: 'Waiting for admin activation. This form will be available soon.',
+        status: 'locked',
         estimatedTime: '~5 min',
         isRequired: true,
         isOptional: false,
         formId: '',
-        link: '/patient/service-agreement',
+        link: '#',
       })
     }
 
@@ -340,7 +378,7 @@ export const getPatientTasks = authActionClient
     if (patientId) {
       const { data: consentByPatientId, error: patientIdError } = await supabase
         .from('ibogaine_consent_forms')
-        .select('id, patient_id, email, intake_form_id, created_at')
+        .select('id, patient_id, email, intake_form_id, created_at, is_activated, activated_at')
         .eq('patient_id', patientId)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -355,7 +393,7 @@ export const getPatientTasks = authActionClient
     if (!ibogaineConsentForm && intakeForm) {
       const { data: consentByIntake, error: intakeError } = await supabase
         .from('ibogaine_consent_forms')
-        .select('id, patient_id, email, intake_form_id, created_at')
+        .select('id, patient_id, email, intake_form_id, created_at, is_activated, activated_at')
         .eq('intake_form_id', intakeForm.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -370,7 +408,7 @@ export const getPatientTasks = authActionClient
     if (!ibogaineConsentForm && patientEmail) {
       const { data: consentByEmail, error: emailError } = await supabase
         .from('ibogaine_consent_forms')
-        .select('id, patient_id, email, intake_form_id, created_at')
+        .select('id, patient_id, email, intake_form_id, created_at, is_activated, activated_at')
         .ilike('email', patientEmail)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -382,33 +420,65 @@ export const getPatientTasks = authActionClient
     }
 
     if (ibogaineConsentForm) {
-      tasks.push({
-        id: `ibogaine-consent-${ibogaineConsentForm.id}`,
-        type: 'ibogaine_consent',
-        title: 'Ibogaine Therapy Consent Form',
-        description: 'Consent form for Ibogaine therapy treatment.',
-        status: 'completed',
-        estimatedTime: '~5 min',
-        isRequired: true,
-        isOptional: false,
-        completedAt: ibogaineConsentForm.created_at,
-        formId: ibogaineConsentForm.id,
-        link: `/ibogaine-consent?view=${ibogaineConsentForm.id}`,
-      })
+      if (ibogaineConsentForm.is_activated) {
+        // Check if patient signature fields are filled to determine if completed
+        const { data: fullConsentForm } = await supabase
+          .from('ibogaine_consent_forms')
+          .select('signature_data, signature_date, signature_name')
+          .eq('id', ibogaineConsentForm.id)
+          .single()
+
+        const isPatientSignatureComplete = fullConsentForm &&
+          fullConsentForm.signature_data &&
+          fullConsentForm.signature_data.trim() !== '' &&
+          fullConsentForm.signature_date &&
+          fullConsentForm.signature_name &&
+          fullConsentForm.signature_name.trim() !== ''
+
+        tasks.push({
+          id: `ibogaine-consent-${ibogaineConsentForm.id}`,
+          type: 'ibogaine_consent',
+          title: 'Ibogaine Therapy Consent Form',
+          description: isPatientSignatureComplete
+            ? 'Consent form for Ibogaine therapy treatment.'
+            : 'Please review and complete the consent form.',
+          status: isPatientSignatureComplete ? 'completed' : 'not_started',
+          estimatedTime: '~5 min',
+          isRequired: true,
+          isOptional: false,
+          completedAt: isPatientSignatureComplete ? ibogaineConsentForm.created_at : undefined,
+          formId: ibogaineConsentForm.id,
+          link: isPatientSignatureComplete
+            ? `/ibogaine-consent?view=${ibogaineConsentForm.id}`
+            : `/ibogaine-consent`,
+        })
+      } else {
+        tasks.push({
+          id: `ibogaine-consent-${ibogaineConsentForm.id}`,
+          type: 'ibogaine_consent',
+          title: 'Ibogaine Therapy Consent Form',
+          description: 'Waiting for admin activation. This form will be available soon.',
+          status: 'locked',
+          estimatedTime: '~5 min',
+          isRequired: true,
+          isOptional: false,
+          formId: ibogaineConsentForm.id,
+          link: '#',
+        })
+      }
     } else {
-      // Link to intake form if it exists
-      const intakeFormId = intakeForm?.id || null
+      // Form doesn't exist yet - show as locked until admin creates and activates it
       tasks.push({
         id: 'ibogaine-consent-new',
         type: 'ibogaine_consent',
         title: 'Ibogaine Therapy Consent Form',
-        description: 'Consent form for Ibogaine therapy treatment.',
-        status: 'not_started',
+        description: 'Waiting for admin activation. This form will be available soon.',
+        status: 'locked',
         estimatedTime: '~5 min',
         isRequired: true,
         isOptional: false,
         formId: '',
-        link: intakeFormId ? `/ibogaine-consent?intake_form_id=${intakeFormId}` : '/ibogaine-consent',
+        link: '#',
       })
     }
 
