@@ -488,13 +488,13 @@ export default function WebPage() {
                     year: 'numeric'
                   }) : label
                 }}
-                formatter={(value: number | undefined, name: string) => {
+                formatter={(value: number | undefined, name?: string) => {
                   if (name === 'visitors') {
                     return [value?.toLocaleString() || '0', 'Visitors']
                   } else if (name === 'pageViews') {
                     return [value?.toLocaleString() || '0', 'Page Views']
                   }
-                  return [value?.toLocaleString() || '0', name]
+                  return [value?.toLocaleString() || '0', name || '']
                 }}
               />
               <Legend />
