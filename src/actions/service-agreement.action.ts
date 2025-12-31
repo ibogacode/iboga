@@ -39,6 +39,32 @@ export async function getPatientDataForServiceAgreement() {
   
   const latestIntakeForm = intakeForms && intakeForms.length > 0 ? intakeForms[0] : null
   
+  // Check if there's an existing service agreement for this patient
+  const patientEmail = (profile.email || user.email || '').trim().toLowerCase()
+  const { data: existingAgreement } = await supabase
+    .from('service_agreements')
+    .select('*')
+    .or(`patient_id.eq.${profile.id},patient_email.ilike.${patientEmail}`)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  
+  // If form exists but not activated, return error
+  if (existingAgreement && !existingAgreement.is_activated) {
+    return { 
+      success: false, 
+      error: 'This form is not yet activated. Please wait for admin activation.' 
+    }
+  }
+  
+  // If form doesn't exist, block access (admin must create and activate it first)
+  if (!existingAgreement) {
+    return { 
+      success: false, 
+      error: 'This form is not yet available. Please wait for admin to create and activate it.' 
+    }
+  }
+  
   return {
     success: true,
     data: {
@@ -55,6 +81,18 @@ export async function getPatientDataForServiceAgreement() {
         last_name: latestIntakeForm.last_name,
         email: latestIntakeForm.email,
         phone_number: latestIntakeForm.phone_number,
+      } : null,
+      existingForm: existingAgreement ? {
+        id: existingAgreement.id,
+        total_program_fee: existingAgreement.total_program_fee,
+        deposit_amount: existingAgreement.deposit_amount,
+        deposit_percentage: existingAgreement.deposit_percentage,
+        remaining_balance: existingAgreement.remaining_balance,
+        // payment_method is filled by patient, not pre-filled from admin
+        provider_signature_name: existingAgreement.provider_signature_name,
+        provider_signature_first_name: existingAgreement.provider_signature_first_name,
+        provider_signature_last_name: existingAgreement.provider_signature_last_name,
+        provider_signature_date: existingAgreement.provider_signature_date,
       } : null,
     }
   }
@@ -89,44 +127,83 @@ export const submitServiceAgreement = authActionClient
     const patientSignatureDate = new Date(parsedInput.patient_signature_date)
     const providerSignatureDate = new Date(parsedInput.provider_signature_date)
     
-    // Insert service agreement
-    const { data, error } = await supabase
+    // Check if a draft form already exists for this patient
+    const patientEmail = parsedInput.patient_email.trim().toLowerCase()
+    const { data: existingForm } = await supabase
       .from('service_agreements')
-      .insert({
-        patient_id: patientId || parsedInput.patient_id || null,
-        intake_form_id: parsedInput.intake_form_id || null,
-        patient_first_name: parsedInput.patient_first_name,
-        patient_last_name: parsedInput.patient_last_name,
-        patient_email: parsedInput.patient_email,
-        patient_phone_number: parsedInput.patient_phone_number,
-        total_program_fee: totalProgramFee,
-        deposit_amount: depositAmount,
-        deposit_percentage: depositPercentage,
-        remaining_balance: remainingBalance,
-        payment_method: parsedInput.payment_method,
-        patient_signature_name: parsedInput.patient_signature_name,
-        patient_signature_first_name: parsedInput.patient_signature_first_name,
-        patient_signature_last_name: parsedInput.patient_signature_last_name,
-        patient_signature_date: patientSignatureDate.toISOString().split('T')[0],
-        patient_signature_data: parsedInput.patient_signature_data || null,
-        provider_signature_name: parsedInput.provider_signature_name,
-        provider_signature_first_name: parsedInput.provider_signature_first_name,
-        provider_signature_last_name: parsedInput.provider_signature_last_name,
-        provider_signature_date: providerSignatureDate.toISOString().split('T')[0],
-        provider_signature_data: parsedInput.provider_signature_data || null,
-        uploaded_file_url: parsedInput.uploaded_file_url || null,
-        uploaded_file_name: parsedInput.uploaded_file_name || null,
-        created_by: ctx.user.id,
-      })
-      .select()
-      .single()
+      .select('id, is_activated')
+      .or(`patient_id.eq.${patientId || ''},patient_email.ilike.${patientEmail}`)
+      .eq('intake_form_id', parsedInput.intake_form_id || null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    
+    // If form exists and is activated, update it (patient completing their fields)
+    // If form doesn't exist or is draft, insert new one
+    if (existingForm && existingForm.is_activated) {
+      // Update existing activated form with patient's signature fields
+      const { data, error } = await supabase
+        .from('service_agreements')
+        .update({
+          patient_signature_name: parsedInput.patient_signature_name,
+          patient_signature_first_name: parsedInput.patient_signature_first_name,
+          patient_signature_last_name: parsedInput.patient_signature_last_name,
+          patient_signature_date: patientSignatureDate.toISOString().split('T')[0],
+          patient_signature_data: parsedInput.patient_signature_data || null,
+          uploaded_file_url: parsedInput.uploaded_file_url || null,
+          uploaded_file_name: parsedInput.uploaded_file_name || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingForm.id)
+        .select()
+        .single()
+      
+      if (error || !data) {
+        return { success: false, error: error?.message || 'Failed to update service agreement' }
+      }
+      
+      return { success: true, data: { id: data.id } }
+    } else {
+      // Insert new service agreement (for admin/owner creating forms, or if no draft exists)
+      const { data, error } = await supabase
+        .from('service_agreements')
+        .insert({
+          patient_id: patientId || parsedInput.patient_id || null,
+          intake_form_id: parsedInput.intake_form_id || null,
+          patient_first_name: parsedInput.patient_first_name,
+          patient_last_name: parsedInput.patient_last_name,
+          patient_email: parsedInput.patient_email,
+          patient_phone_number: parsedInput.patient_phone_number,
+          total_program_fee: totalProgramFee,
+          deposit_amount: depositAmount,
+          deposit_percentage: depositPercentage,
+          remaining_balance: remainingBalance,
+          payment_method: parsedInput.payment_method,
+          patient_signature_name: parsedInput.patient_signature_name,
+          patient_signature_first_name: parsedInput.patient_signature_first_name,
+          patient_signature_last_name: parsedInput.patient_signature_last_name,
+          patient_signature_date: patientSignatureDate.toISOString().split('T')[0],
+          patient_signature_data: parsedInput.patient_signature_data || null,
+          provider_signature_name: parsedInput.provider_signature_name,
+          provider_signature_first_name: parsedInput.provider_signature_first_name,
+          provider_signature_last_name: parsedInput.provider_signature_last_name,
+          provider_signature_date: providerSignatureDate.toISOString().split('T')[0],
+          provider_signature_data: parsedInput.provider_signature_data || null,
+          uploaded_file_url: parsedInput.uploaded_file_url || null,
+          uploaded_file_name: parsedInput.uploaded_file_name || null,
+          created_by: ctx.user.id,
+          is_activated: isAdminOrOwner ? true : false, // Admins can create activated forms
+        })
+        .select()
+        .single()
 
-    if (error || !data) {
-      console.error('Error creating service agreement:', error)
-      return { success: false, error: error?.message || 'Failed to create service agreement' }
+      if (error || !data) {
+        console.error('Error creating service agreement:', error)
+        return { success: false, error: error?.message || 'Failed to create service agreement' }
+      }
+
+      return { success: true, data: { id: data.id } }
     }
-
-    return { success: true, data: { id: data.id } }
   })
 
 /**
@@ -234,6 +311,11 @@ export const getServiceAgreementForPatient = authActionClient
       
       if (data.patient_id !== profile.id && patientEmail !== formEmail) {
         return { success: false, error: 'Unauthorized - You can only view your own forms' }
+      }
+      
+      // Check if form is activated
+      if (!data.is_activated) {
+        return { success: false, error: 'This form is not yet activated. Please wait for admin activation.' }
       }
     }
     

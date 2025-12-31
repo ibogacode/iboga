@@ -11,8 +11,9 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SignaturePad } from '@/components/forms/signature-pad'
 import { ibogaineConsentFormSchema, type IbogaineConsentFormValues } from '@/lib/validations/ibogaine-consent'
-import { submitIbogaineConsentForm, getIntakeFormDataForConsent } from '@/actions/ibogaine-consent.action'
+import { submitIbogaineConsentForm, getIntakeFormDataForConsent, checkIbogaineConsentActivation } from '@/actions/ibogaine-consent.action'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 
 // Consent section texts
 const CONSENT_SECTIONS = [
@@ -55,11 +56,15 @@ const CONSENT_SECTIONS = [
 
 export function IbogaineConsentForm() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const intakeFormId = searchParams.get('intake_form_id')
+  const isAdmin = searchParams.get('admin') === 'true'
   const [currentStep, setCurrentStep] = useState(1)
   const [signature, setSignature] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isLoadingIntake, setIsLoadingIntake] = useState(false)
+  const [isCheckingActivation, setIsCheckingActivation] = useState(!isAdmin)
+  const [isFormActivated, setIsFormActivated] = useState(false)
   
   const form = useForm<IbogaineConsentFormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -129,6 +134,71 @@ export function IbogaineConsentForm() {
     }
   }, [intakeFormId, form])
 
+  // Check activation status on mount (for patients only)
+  useEffect(() => {
+    if (isAdmin || isCheckingActivation === false) {
+      setIsCheckingActivation(false)
+      setIsFormActivated(true)
+      return
+    }
+
+    let isMounted = true
+
+    async function checkActivation() {
+      try {
+        const result = await checkIbogaineConsentActivation()
+        
+        if (!isMounted) return
+        
+        if (result.success && result.data?.isActivated) {
+          setIsFormActivated(true)
+          
+          // Pre-fill admin fields from existing form (read-only for patients)
+          if (result.data.existingForm) {
+            const existing = result.data.existingForm
+            if (existing.treatment_date) {
+              form.setValue('treatment_date', new Date(existing.treatment_date).toISOString().split('T')[0])
+            }
+            if (existing.facilitator_doctor_name) {
+              form.setValue('facilitator_doctor_name', existing.facilitator_doctor_name)
+            }
+            if (existing.date_of_birth) {
+              form.setValue('date_of_birth', new Date(existing.date_of_birth).toISOString().split('T')[0])
+            }
+            if (existing.address) {
+              form.setValue('address', existing.address)
+            }
+          }
+        } else {
+          const errorMessage = result.error || 'Form is not activated'
+          toast.error(errorMessage)
+          // Redirect back to tasks page if form is not activated
+          setTimeout(() => {
+            router.push('/patient/tasks')
+          }, 2000)
+        }
+      } catch (error) {
+        console.error('Error checking activation:', error)
+        toast.error('Failed to check form activation status')
+        if (isMounted) {
+          setTimeout(() => {
+            router.push('/patient/tasks')
+          }, 2000)
+        }
+      } finally {
+        if (isMounted) {
+          setIsCheckingActivation(false)
+        }
+      }
+    }
+
+    checkActivation()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isAdmin, router])
+
   const [isLoading, setIsLoading] = useState(false)
   const totalSteps = 4
 
@@ -159,6 +229,16 @@ export function IbogaineConsentForm() {
   async function onSubmit(data: IbogaineConsentFormValues) {
     setIsLoading(true)
     
+    // Check activation status before allowing submission (for patients only)
+    if (!isAdmin) {
+      const activationCheck = await checkIbogaineConsentActivation()
+      if (!activationCheck.success || !activationCheck.data?.isActivated) {
+        toast.error(activationCheck.error || 'Form is not activated')
+        setIsLoading(false)
+        return
+      }
+    }
+    
     try {
       // Format signature date
       const today = new Date().toISOString().split('T')[0]
@@ -184,6 +264,38 @@ export function IbogaineConsentForm() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Show loading while checking activation
+  if (isCheckingActivation) {
+    return (
+      <div className="max-w-4xl mx-auto p-6 sm:p-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 sm:p-12 text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600">Checking form access...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render form if not activated (for patients)
+  if (!isAdmin && !isFormActivated) {
+    return (
+      <div className="max-w-4xl mx-auto p-6 sm:p-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 sm:p-12 text-center">
+          <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">Form Not Available</h1>
+          <p className="text-gray-600 mb-8">This form is not yet activated. Please wait for admin activation.</p>
+          <Button onClick={() => router.push('/patient/tasks')} className="mt-4">
+            Go to Tasks
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   if (isSubmitted) {
@@ -282,16 +394,16 @@ export function IbogaineConsentForm() {
                     <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <Input
                       id="date_of_birth"
+                      type="date"
                       {...form.register('date_of_birth')}
-                      className="pl-10"
+                      readOnly={!isAdmin && isFormActivated}
+                      className={`pl-10 ${!isAdmin && isFormActivated ? 'bg-gray-50 cursor-not-allowed' : ''}`}
                       placeholder="MM-DD-YYYY"
-                      maxLength={10}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '')
-                        handleDateChange('date_of_birth', value)
-                      }}
                     />
                   </div>
+                  {!isAdmin && isFormActivated && (
+                    <p className="text-xs text-gray-500 mt-1">This field has been pre-filled by the administration.</p>
+                  )}
                   {form.formState.errors.date_of_birth && (
                     <p className="text-sm text-red-500 mt-1">{form.formState.errors.date_of_birth.message}</p>
                   )}
@@ -337,9 +449,13 @@ export function IbogaineConsentForm() {
                   <Input
                     id="address"
                     {...form.register('address')}
-                    className="mt-2"
+                    readOnly={!isAdmin && isFormActivated}
+                    className={`mt-2 ${!isAdmin && isFormActivated ? 'bg-gray-50 cursor-not-allowed' : ''}`}
                     placeholder="Enter full address"
                   />
+                  {!isAdmin && isFormActivated && (
+                    <p className="text-xs text-gray-500 mt-1">This field has been pre-filled by the administration.</p>
+                  )}
                   {form.formState.errors.address && (
                     <p className="text-sm text-red-500 mt-1">{form.formState.errors.address.message}</p>
                   )}
@@ -352,6 +468,9 @@ export function IbogaineConsentForm() {
           {currentStep === 2 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-semibold text-gray-900">Therapy Information</h2>
+              {!isAdmin && isFormActivated && (
+                <p className="text-sm text-gray-600">These fields have been pre-filled by the administration and cannot be modified.</p>
+              )}
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -362,16 +481,16 @@ export function IbogaineConsentForm() {
                     <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <Input
                       id="treatment_date"
+                      type="date"
                       {...form.register('treatment_date')}
-                      className="pl-10"
+                      readOnly={!isAdmin && isFormActivated}
+                      className={`pl-10 ${!isAdmin && isFormActivated ? 'bg-gray-50 cursor-not-allowed' : ''}`}
                       placeholder="MM-DD-YYYY"
-                      maxLength={10}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/\D/g, '')
-                        handleDateChange('treatment_date', value)
-                      }}
                     />
                   </div>
+                  {!isAdmin && isFormActivated && (
+                    <p className="text-xs text-gray-500 mt-1">This field has been pre-filled by the administration.</p>
+                  )}
                   {form.formState.errors.treatment_date && (
                     <p className="text-sm text-red-500 mt-1">{form.formState.errors.treatment_date.message}</p>
                   )}
@@ -384,9 +503,13 @@ export function IbogaineConsentForm() {
                   <Input
                     id="facilitator_doctor_name"
                     {...form.register('facilitator_doctor_name')}
-                    className="mt-2"
+                    readOnly={!isAdmin && isFormActivated}
+                    className={`mt-2 ${!isAdmin && isFormActivated ? 'bg-gray-50 cursor-not-allowed' : ''}`}
                     placeholder="Enter facilitator/doctor name"
                   />
+                  {!isAdmin && isFormActivated && (
+                    <p className="text-xs text-gray-500 mt-1">This field has been pre-filled by the administration.</p>
+                  )}
                   {form.formState.errors.facilitator_doctor_name && (
                     <p className="text-sm text-red-500 mt-1">{form.formState.errors.facilitator_doctor_name.message}</p>
                   )}

@@ -9,9 +9,11 @@ import { sendPatientLoginReminderEmail, sendFillerLoginReminderEmail } from './e
  * 
  * Logic:
  * 1. Find all patients where role = 'patient' AND must_change_password = true
- * 2. For each patient, check if their intake form was filled by someone else
- * 3. If filled by someone else, send reminder to BOTH patient AND filler
- * 4. If filled by self, send reminder only to patient
+ * 2. For each patient, generate a new temporary password
+ * 3. Update the patient's password in Supabase Auth
+ * 4. For each patient, check if their intake form was filled by someone else
+ * 5. If filled by someone else, send reminder to BOTH patient AND filler
+ * 6. If filled by self, send reminder only to patient
  */
 export async function sendPatientLoginReminders() {
   const supabase = createAdminClient()
@@ -40,6 +42,21 @@ export async function sendPatientLoginReminders() {
   
   for (const patient of patients) {
     try {
+      // Generate a new temporary password
+      const tempPassword = `Temp${Math.random().toString(36).slice(-8)}!${Math.random().toString(36).slice(-8)}`
+      
+      // Update the patient's password in Supabase Auth
+      const { error: passwordError } = await supabase.auth.admin.updateUserById(
+        patient.id,
+        { password: tempPassword }
+      )
+      
+      if (passwordError) {
+        console.error(`[sendPatientLoginReminders] Error updating password for ${patient.email}:`, passwordError)
+        failed++
+        continue
+      }
+      
       // Check if this patient's intake form was filled by someone else
       const { data: intakeForm, error: intakeError } = await supabase
         .from('patient_intake_forms')
@@ -53,11 +70,12 @@ export async function sendPatientLoginReminders() {
         console.error(`[sendPatientLoginReminders] Error fetching intake form for ${patient.email}:`, intakeError)
       }
       
-      // Send reminder to patient
+      // Send reminder to patient with email and password
       const patientReminderResult = await sendPatientLoginReminderEmail(
         patient.email,
         patient.first_name || 'Patient',
-        patient.last_name || ''
+        patient.last_name || '',
+        tempPassword
       )
       
       if (patientReminderResult?.success) {
@@ -77,7 +95,8 @@ export async function sendPatientLoginReminders() {
             intakeForm.filler_last_name || '',
             intakeForm.first_name || patient.first_name || 'Patient',
             intakeForm.last_name || patient.last_name || '',
-            patient.email
+            patient.email,
+            tempPassword
           )
           
           if (fillerReminderResult?.success) {

@@ -116,6 +116,12 @@ export default function PatientTasksPage() {
   })
 
   const handleTaskAction = async (task: PatientTask) => {
+    // Prevent action on locked tasks
+    if (task.status === 'locked') {
+      toast.error('This form is not yet activated. Please wait for admin activation.')
+      return
+    }
+    
     if (task.status === 'completed' && task.formId) {
       // Show form in modal for completed forms
       setLoadingViewForm(task.id)
@@ -169,6 +175,13 @@ export default function PatientTasksPage() {
         </span>
       )
     }
+    if (task.status === 'locked') {
+      return (
+        <span className="px-2.5 py-1 rounded-[10px] text-xs bg-[#F5F5F5] text-[#9E9E9E]">
+          Locked
+        </span>
+      )
+    }
     return (
       <span className="px-2.5 py-1 rounded-[10px] text-xs bg-[#FFF9C4] text-[#F57F17]">
         Not Started
@@ -188,30 +201,30 @@ export default function PatientTasksPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 px-4 sm:px-6 md:px-0">
       {/* Header */}
       <div className="space-y-1">
         <h1 
-          className="text-[44px] font-normal leading-[1.3]"
+          className="text-2xl sm:text-3xl md:text-4xl lg:text-[44px] font-normal leading-[1.3]"
           style={{ fontFamily: 'var(--font-instrument-serif), serif' }}
         >
           Tasks
         </h1>
-        <p className="text-base text-black leading-[1.48]" style={{ letterSpacing: '-0.04em' }}>
+        <p className="text-sm sm:text-base text-black leading-[1.48]" style={{ letterSpacing: '-0.04em' }}>
           Complete required items to finalize your preparation. You can continue anytime.
         </p>
       </div>
 
       {/* Progress Card */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+      <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-gray-100 shadow-sm">
         <div className="space-y-4">
           {/* Header */}
-          <div className="flex items-center gap-2.5">
-            <h2 className="text-lg font-medium text-black" style={{ letterSpacing: '-0.04em' }}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-2.5">
+            <h2 className="text-base sm:text-lg font-medium text-black" style={{ letterSpacing: '-0.04em' }}>
               Progress
             </h2>
-            <div className="flex-1 h-px bg-gray-300"></div>
-            <p className="text-sm text-[#777777] text-right">
+            <div className="hidden sm:block flex-1 h-px bg-gray-300"></div>
+            <p className="text-xs sm:text-sm text-[#777777] sm:text-right w-full sm:w-auto">
               {statistics.completed} of {statistics.total} required tasks completed
             </p>
           </div>
@@ -239,11 +252,11 @@ export default function PatientTasksPage() {
       {/* Search and Filters */}
       <div className="space-y-4">
         {/* Search Bar */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
           <div className="flex-1 relative">
             <Input
               type="text"
-              placeholder="Search tasks (forms, agreements, uploads)..."
+              placeholder="Search tasks..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-4 pr-10 h-12 bg-white rounded-3xl border border-gray-200 text-sm text-[#777777]"
@@ -252,21 +265,24 @@ export default function PatientTasksPage() {
           </div>
 
           {/* Category and Sort Filters */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Button
               variant="outline"
-              className="h-12 px-4 rounded-3xl bg-white border border-gray-200 text-sm text-[#777777] hover:bg-gray-50"
+              className="h-12 px-3 sm:px-4 rounded-3xl bg-white border border-gray-200 text-xs sm:text-sm text-[#777777] hover:bg-gray-50 flex-1 sm:flex-initial"
               onClick={() => setCategoryFilter(categoryFilter === 'all' ? 'forms' : 'all')}
             >
-              Category
+              <span className="hidden sm:inline">Category</span>
+              <span className="sm:hidden">Cat</span>
               <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
             <Button
               variant="outline"
-              className="h-12 px-4 rounded-3xl bg-white border border-gray-200 text-sm text-[#777777] hover:bg-gray-50"
+              className="h-12 px-3 sm:px-4 rounded-3xl bg-white border border-gray-200 text-xs sm:text-sm text-[#777777] hover:bg-gray-50 flex-1 sm:flex-initial"
               onClick={() => setSortBy(sortBy === 'required_first' ? 'name' : 'required_first')}
             >
-              Sort: Required first
+              <span className="hidden md:inline">Sort: Required first</span>
+              <span className="hidden sm:inline md:hidden">Sort</span>
+              <span className="sm:hidden">Sort</span>
               <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </div>
@@ -274,63 +290,67 @@ export default function PatientTasksPage() {
       </div>
 
       {/* Tasks Module */}
-      <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+      <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-gray-100 shadow-sm">
         <div className="space-y-6">
           {/* Module Header */}
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium text-black" style={{ letterSpacing: '-0.04em' }}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <h2 className="text-base sm:text-lg font-medium text-black" style={{ letterSpacing: '-0.04em' }}>
               Your Tasks
             </h2>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadTasks}
-              disabled={isLoading}
-              className="h-9 px-3 rounded-3xl text-sm border border-gray-200 hover:bg-gray-50"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadTasks}
+                disabled={isLoading}
+                className="h-9 px-3 rounded-3xl text-xs sm:text-sm border border-gray-200 hover:bg-gray-50"
+              >
+                <RefreshCw className={`h-4 w-4 sm:mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </Button>
 
-            {/* Filter Buttons */}
-            <div className="flex items-center gap-2">
-              <Button
-                variant={selectedFilter === 'not_started' ? 'default' : 'outline'}
-                className={`h-10 px-4 rounded-3xl text-sm border ${
-                  selectedFilter === 'not_started'
-                    ? 'bg-[#6E7A46] text-white border-[#6E7A46]'
-                    : 'bg-white text-[#777777] border-gray-200 hover:bg-gray-50'
-                }`}
-                onClick={() => setSelectedFilter('not_started')}
-              >
-                Not Started ({tasks.filter(t => t.status === 'not_started').length})
-              </Button>
-              <Button
-                variant={selectedFilter === 'completed' ? 'default' : 'outline'}
-                className={`h-10 px-4 rounded-3xl text-sm border ${
-                  selectedFilter === 'completed'
-                    ? 'bg-[#6E7A46] text-white border-[#6E7A46]'
-                    : 'bg-white text-[#777777] border-gray-200 hover:bg-gray-50'
-                }`}
-                onClick={() => setSelectedFilter('completed')}
-              >
-                Completed ({statistics.completed})
-              </Button>
-              {selectedFilter !== 'all' && (
+              {/* Filter Buttons */}
+              <div className="flex items-center gap-2 flex-1 sm:flex-initial">
                 <Button
-                  variant="outline"
-                  className="h-10 px-4 rounded-3xl text-sm border bg-white text-[#777777] border-gray-200 hover:bg-gray-50"
-                  onClick={() => {
-                    setSelectedFilter('all')
-                    setSearchQuery('')
-                    setCategoryFilter('all')
-                    setSortBy('required_first')
-                  }}
+                  variant={selectedFilter === 'not_started' ? 'default' : 'outline'}
+                  className={`h-9 sm:h-10 px-2 sm:px-4 rounded-3xl text-xs sm:text-sm border flex-1 sm:flex-initial ${
+                    selectedFilter === 'not_started'
+                      ? 'bg-[#6E7A46] text-white border-[#6E7A46]'
+                      : 'bg-white text-[#777777] border-gray-200 hover:bg-gray-50'
+                  }`}
+                  onClick={() => setSelectedFilter('not_started')}
                 >
-                  <X className="h-4 w-4 mr-1" />
-                  Clear
+                  <span className="hidden sm:inline">Not Started </span>
+                  <span>({tasks.filter(t => t.status === 'not_started').length})</span>
                 </Button>
-              )}
+                <Button
+                  variant={selectedFilter === 'completed' ? 'default' : 'outline'}
+                  className={`h-9 sm:h-10 px-2 sm:px-4 rounded-3xl text-xs sm:text-sm border flex-1 sm:flex-initial ${
+                    selectedFilter === 'completed'
+                      ? 'bg-[#6E7A46] text-white border-[#6E7A46]'
+                      : 'bg-white text-[#777777] border-gray-200 hover:bg-gray-50'
+                  }`}
+                  onClick={() => setSelectedFilter('completed')}
+                >
+                  <span className="hidden sm:inline">Completed </span>
+                  <span>({statistics.completed})</span>
+                </Button>
+                {selectedFilter !== 'all' && (
+                  <Button
+                    variant="outline"
+                    className="h-9 sm:h-10 px-2 sm:px-4 rounded-3xl text-xs sm:text-sm border bg-white text-[#777777] border-gray-200 hover:bg-gray-50"
+                    onClick={() => {
+                      setSelectedFilter('all')
+                      setSearchQuery('')
+                      setCategoryFilter('all')
+                      setSortBy('required_first')
+                    }}
+                  >
+                    <X className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Clear</span>
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -341,7 +361,8 @@ export default function PatientTasksPage() {
             </div>
           ) : (
             <div className="border border-gray-200 rounded-2xl overflow-hidden">
-              <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 p-4 border-b border-gray-200">
+              {/* Desktop Table Header */}
+              <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 p-4 border-b border-gray-200">
                 <div className="text-sm text-[#777777] font-medium">Task</div>
                 <div className="text-sm text-[#777777] font-medium">Status</div>
                 <div className="text-sm text-[#777777] font-medium">Estimated time</div>
@@ -353,64 +374,85 @@ export default function PatientTasksPage() {
                   No tasks found matching your filters.
                 </div>
               ) : (
-                sortedTasks.map((task, index) => (
-              <div
-                key={task.id}
-                className={`grid grid-cols-[2fr_1fr_1fr_1fr] gap-4 p-4 ${
-                  index < sortedTasks.length - 1 ? 'border-b border-gray-200' : ''
-                }`}
-              >
-                {/* Task Column */}
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-[#F5F4F0] rounded-[14px] flex-shrink-0"></div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-medium text-black mb-1">{task.title}</h3>
-                    <p className="text-xs text-[#777777]">{task.description}</p>
-                  </div>
-                </div>
-
-                {/* Status Column */}
-                <div className="flex items-center">
-                  <div className="flex flex-col gap-2">
-                    {getStatusBadge(task)}
-                    {getRequiredBadge(task)}
-                  </div>
-                </div>
-
-                {/* Estimated Time Column */}
-                <div className="flex items-center">
-                  <p className="text-sm text-[#2B2820]">{task.estimatedTime}</p>
-                </div>
-
-                {/* Action Column */}
-                <div className="flex items-center">
-                  {task.status === 'completed' ? (
-                    <Button
-                      variant="outline"
-                      className="h-10 px-4 rounded-3xl text-sm bg-white border border-gray-200 text-[#777777] hover:bg-gray-50"
-                      onClick={() => handleTaskAction(task)}
-                      disabled={loadingViewForm === task.id}
+                sortedTasks.map((task, index) => {
+                  return (
+                    <div
+                      key={task.id}
+                      className={`
+                        ${index < sortedTasks.length - 1 ? 'border-b border-gray-200' : ''}
+                        md:grid md:grid-cols-[2fr_1fr_1fr_1fr] md:gap-4 md:p-4
+                        flex flex-col gap-4 p-4
+                      `}
                     >
-                      {loadingViewForm === task.id ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Loading...
-                        </>
-                      ) : (
-                        'View'
-                      )}
-                    </Button>
-                  ) : (
-                    <Button
-                      className="h-10 px-4 rounded-3xl text-sm bg-[#6E7A46] text-white hover:bg-[#5a6538]"
-                      onClick={() => handleTaskAction(task)}
-                    >
-                      Start
-                    </Button>
-                  )}
-                </div>
-              </div>
-                ))
+                      {/* Task Column */}
+                      <div className="flex items-start gap-3 md:col-span-1">
+                        <div className="w-10 h-10 bg-[#F5F4F0] rounded-[14px] flex-shrink-0"></div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-medium text-black mb-1">{task.title}</h3>
+                          <p className="text-xs text-[#777777]">{task.description}</p>
+                        </div>
+                      </div>
+
+                      {/* Mobile Layout: Status and Time */}
+                      <div className="flex items-center justify-between md:hidden">
+                        <div className="flex flex-col gap-2">
+                          {getStatusBadge(task)}
+                          {getRequiredBadge(task)}
+                        </div>
+                        <p className="text-sm text-[#2B2820]">{task.estimatedTime}</p>
+                      </div>
+
+                      {/* Desktop Status Column */}
+                      <div className="hidden md:flex items-center">
+                        <div className="flex flex-col gap-2">
+                          {getStatusBadge(task)}
+                          {getRequiredBadge(task)}
+                        </div>
+                      </div>
+
+                      {/* Desktop Estimated Time Column */}
+                      <div className="hidden md:flex items-center">
+                        <p className="text-sm text-[#2B2820]">{task.estimatedTime}</p>
+                      </div>
+
+                      {/* Action Column */}
+                      <div className="flex items-center md:col-span-1">
+                        {task.status === 'completed' ? (
+                          <Button
+                            variant="outline"
+                            className="w-full md:w-auto h-10 px-4 rounded-3xl text-sm bg-white border border-gray-200 text-[#777777] hover:bg-gray-50"
+                            onClick={() => handleTaskAction(task)}
+                            disabled={loadingViewForm === task.id}
+                          >
+                            {loadingViewForm === task.id ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Loading...
+                              </>
+                            ) : (
+                              'View'
+                            )}
+                          </Button>
+                        ) : task.status === 'locked' ? (
+                          <Button
+                            variant="outline"
+                            className="w-full md:w-auto h-10 px-4 rounded-3xl text-sm bg-gray-100 border border-gray-300 text-gray-400 cursor-not-allowed"
+                            disabled
+                          >
+                            Locked
+                          </Button>
+                        ) : (
+                          <Button
+                            className="w-full md:w-auto h-10 px-4 rounded-3xl text-sm bg-[#6E7A46] text-white hover:bg-[#5a6538]"
+                            onClick={() => handleTaskAction(task)}
+                          >
+                            Start
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
               )}
             </div>
           )}
@@ -420,7 +462,7 @@ export default function PatientTasksPage() {
       {/* Bottom Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Recommended Deadline Card */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+        <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-gray-100 shadow-sm">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 bg-[#6E7A46] rounded-full flex-shrink-0"></div>
             <div className="flex-1">
@@ -435,7 +477,7 @@ export default function PatientTasksPage() {
         </div>
 
         {/* Need Assistance Card */}
-        <div className="bg-[#6E7A46] rounded-2xl p-6 border border-gray-100 shadow-sm">
+        <div className="bg-[#6E7A46] rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-gray-100 shadow-sm">
           <div className="flex flex-col">
             <h3 className="text-lg font-medium text-white mb-2" style={{ letterSpacing: '-0.04em' }}>
               Need Assistance?

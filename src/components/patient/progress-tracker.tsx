@@ -28,9 +28,9 @@ export function ProgressTracker({ formsCompleted = false }: ProgressTrackerProps
       </div>
 
       {/* Progress Bar */}
-      <div className="relative h-[100px] sm:h-[72px] overflow-x-auto">
+      <div className="relative h-[100px] sm:h-[72px] overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
         {/* Steps Container */}
-        <div className="relative flex items-start justify-between h-full min-w-[500px] sm:min-w-0">
+        <div className="relative flex items-start justify-between h-full min-w-[400px] sm:min-w-0">
           {/* Background Line - positioned to align with circle center (8px for w-4, 10px for w-5) */}
           <div className="absolute top-[8px] sm:top-[10px] left-0 right-0 h-0.5 bg-[#D6D2C8] -translate-y-1/2" />
           

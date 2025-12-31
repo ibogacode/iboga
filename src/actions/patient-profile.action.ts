@@ -232,12 +232,12 @@ export const getPatientProfile = authActionClient
       }
     }
 
-    // Get service agreement
+    // Get service agreement (include patient signature fields to check completion)
     let serviceAgreement: any = null
     if (patientId) {
       const { data: serviceData } = await adminClient
         .from('service_agreements')
-        .select('*')
+        .select('*, is_activated, activated_at, activated_by, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
         .eq('patient_id', patientId)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -248,7 +248,7 @@ export const getPatientProfile = authActionClient
     } else if (patientEmail) {
       const { data: serviceData } = await adminClient
         .from('service_agreements')
-        .select('*')
+        .select('*, is_activated, activated_at, activated_by, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
         .ilike('patient_email', patientEmail)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -258,12 +258,12 @@ export const getPatientProfile = authActionClient
       }
     }
 
-    // Get ibogaine consent form
+    // Get ibogaine consent form (include patient signature fields to check completion)
     let ibogaineConsentForm: any = null
     if (patientId) {
       const { data: consentData } = await adminClient
         .from('ibogaine_consent_forms')
-        .select('*')
+        .select('*, is_activated, activated_at, activated_by, signature_data, signature_date, signature_name')
         .eq('patient_id', patientId)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -274,7 +274,7 @@ export const getPatientProfile = authActionClient
     } else if (intakeForm?.id) {
       const { data: consentData } = await adminClient
         .from('ibogaine_consent_forms')
-        .select('*')
+        .select('*, is_activated, activated_at, activated_by, signature_data, signature_date, signature_name')
         .eq('intake_form_id', intakeForm.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -285,7 +285,7 @@ export const getPatientProfile = authActionClient
     } else if (patientEmail) {
       const { data: consentData } = await adminClient
         .from('ibogaine_consent_forms')
-        .select('*')
+        .select('*, is_activated, activated_at, activated_by, signature_data, signature_date, signature_name')
         .ilike('email', patientEmail)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -326,14 +326,32 @@ export const getPatientProfile = authActionClient
       hasMedicalDocument ? 'completed' : 
       'not_started'
     
+    // Check if service agreement is actually completed by patient (signature fields filled)
     const serviceAgreementStatus: 'completed' | 'not_started' = 
-      serviceAgreement ? 'completed' : 
+      (serviceAgreement && 
+       serviceAgreement.patient_signature_name && 
+       serviceAgreement.patient_signature_name.trim() !== '' &&
+       serviceAgreement.patient_signature_first_name && 
+       serviceAgreement.patient_signature_first_name.trim() !== '' &&
+       serviceAgreement.patient_signature_last_name && 
+       serviceAgreement.patient_signature_last_name.trim() !== '' &&
+       serviceAgreement.patient_signature_date &&
+       serviceAgreement.patient_signature_data &&
+       serviceAgreement.patient_signature_data.trim() !== '') ? 'completed' : 
       hasServiceDocument ? 'completed' : 
+      serviceAgreement ? 'not_started' : // Form exists but patient hasn't filled signature
       'not_started'
     
+    // Check if ibogaine consent is actually completed by patient (signature fields filled)
     const ibogaineConsentStatus: 'completed' | 'not_started' = 
-      ibogaineConsentForm ? 'completed' : 
+      (ibogaineConsentForm && 
+       ibogaineConsentForm.signature_data && 
+       ibogaineConsentForm.signature_data.trim() !== '' &&
+       ibogaineConsentForm.signature_date &&
+       ibogaineConsentForm.signature_name &&
+       ibogaineConsentForm.signature_name.trim() !== '') ? 'completed' : 
       hasIbogaineDocument ? 'completed' : 
+      ibogaineConsentForm ? 'not_started' : // Form exists but patient hasn't filled signature
       'not_started'
 
     return {
@@ -522,6 +540,202 @@ export const updatePatientDetails = authActionClient
 
     if (error) {
       return { success: false, error: error.message }
+    }
+
+    return { success: true, data }
+  })
+
+// Activate/Deactivate Service Agreement Form
+export const activateServiceAgreement = authActionClient
+  .schema(z.object({ 
+    formId: z.string().uuid(),
+    isActivated: z.boolean()
+  }))
+  .action(async ({ parsedInput, ctx }) => {
+    const supabase = await createClient()
+    const adminClient = createAdminClient()
+    
+    // Check if user is owner/admin
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { success: false, error: 'Unauthorized' }
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    
+    if (!profile || !hasOwnerAccess(profile.role)) {
+      return { success: false, error: 'Unauthorized - Owner or Admin access required' }
+    }
+
+    // Get form data first to get patient email and check admin fields
+    const { data: formData } = await adminClient
+      .from('service_agreements')
+      .select('patient_email, patient_first_name, patient_last_name, total_program_fee, deposit_amount, deposit_percentage, remaining_balance, payment_method, provider_signature_name, provider_signature_first_name, provider_signature_last_name, provider_signature_date')
+      .eq('id', parsedInput.formId)
+      .single()
+
+    if (!formData) {
+      return { success: false, error: 'Form not found' }
+    }
+
+    // Validate admin fields are complete before activation using database function
+    if (parsedInput.isActivated) {
+      const { data: isValid, error: checkError } = await adminClient
+        .rpc('check_service_agreement_admin_fields_complete', {
+          form_id: parsedInput.formId
+        })
+      
+      if (checkError) {
+        return { 
+          success: false, 
+          error: 'Failed to validate form fields: ' + checkError.message 
+        }
+      }
+      
+      if (!isValid) {
+        return { 
+          success: false, 
+          error: 'Cannot activate form. Please fill in all required admin fields (amounts, payment method, and provider signature) before activating. All text fields must be non-empty. Patient signature fields will be filled by the patient after activation.' 
+        }
+      }
+    }
+
+    // Update activation status
+    const updateData: any = {
+      is_activated: parsedInput.isActivated
+    }
+
+    if (parsedInput.isActivated) {
+      updateData.activated_at = new Date().toISOString()
+      updateData.activated_by = user.id
+    } else {
+      updateData.activated_at = null
+      updateData.activated_by = null
+    }
+
+    const { data, error } = await adminClient
+      .from('service_agreements')
+      .update(updateData)
+      .eq('id', parsedInput.formId)
+      .select()
+      .single()
+
+    if (error) {
+      return { success: false, error: error.message }
+    }
+
+    // Send activation email if activated
+    if (parsedInput.isActivated) {
+      const { sendFormActivationEmail } = await import('./email.action')
+      await sendFormActivationEmail(
+        formData.patient_email,
+        formData.patient_first_name || 'Patient',
+        formData.patient_last_name || '',
+        'service_agreement',
+        'Service Agreement'
+      )
+    }
+
+    return { success: true, data }
+  })
+
+// Activate/Deactivate Ibogaine Consent Form
+export const activateIbogaineConsent = authActionClient
+  .schema(z.object({ 
+    formId: z.string().uuid(),
+    isActivated: z.boolean()
+  }))
+  .action(async ({ parsedInput, ctx }) => {
+    const supabase = await createClient()
+    const adminClient = createAdminClient()
+    
+    // Check if user is owner/admin
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { success: false, error: 'Unauthorized' }
+    }
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    
+    if (!profile || !hasOwnerAccess(profile.role)) {
+      return { success: false, error: 'Unauthorized - Owner or Admin access required' }
+    }
+
+    // Get form data first to get patient email and check admin fields
+    const { data: formData } = await adminClient
+      .from('ibogaine_consent_forms')
+      .select('email, first_name, last_name, treatment_date, facilitator_doctor_name, date_of_birth, address')
+      .eq('id', parsedInput.formId)
+      .single()
+
+    if (!formData) {
+      return { success: false, error: 'Form not found' }
+    }
+
+    // Validate admin fields are complete before activation using database function
+    if (parsedInput.isActivated) {
+      const { data: isValid, error: checkError } = await adminClient
+        .rpc('check_ibogaine_consent_admin_fields_complete', {
+          form_id: parsedInput.formId
+        })
+      
+      if (checkError) {
+        return { 
+          success: false, 
+          error: 'Failed to validate form fields: ' + checkError.message 
+        }
+      }
+      
+      if (!isValid) {
+        return { 
+          success: false, 
+          error: 'Cannot activate form. Please fill in all required admin fields (treatment date, facilitator name, date of birth, and address) before activating. All text fields must be non-empty. Patient signature fields will be filled by the patient after activation.' 
+        }
+      }
+    }
+
+    // Update activation status
+    const updateData: any = {
+      is_activated: parsedInput.isActivated
+    }
+
+    if (parsedInput.isActivated) {
+      updateData.activated_at = new Date().toISOString()
+      updateData.activated_by = user.id
+    } else {
+      updateData.activated_at = null
+      updateData.activated_by = null
+    }
+
+    const { data, error } = await adminClient
+      .from('ibogaine_consent_forms')
+      .update(updateData)
+      .eq('id', parsedInput.formId)
+      .select()
+      .single()
+
+    if (error) {
+      return { success: false, error: error.message }
+    }
+
+    // Send activation email if activated
+    if (parsedInput.isActivated) {
+      const { sendFormActivationEmail } = await import('./email.action')
+      await sendFormActivationEmail(
+        formData.email,
+        formData.first_name || 'Patient',
+        formData.last_name || '',
+        'ibogaine_consent',
+        'Ibogaine Therapy Consent'
+      )
     }
 
     return { success: true, data }

@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById } from '@/actions/patient-profile.action'
+import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById, activateServiceAgreement, activateIbogaineConsent } from '@/actions/patient-profile.action'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { sendFormEmail } from '@/actions/send-form-email.action'
 import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { PatientIntakeFormView } from '@/components/admin/patient-intake-form-view'
@@ -50,6 +51,7 @@ export default function PatientProfilePage() {
   const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   const [viewFormData, setViewFormData] = useState<any>(null)
   const [loadingViewForm, setLoadingViewForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
+  const [activatingForm, setActivatingForm] = useState<'service' | 'ibogaine' | null>(null)
   
   // Form state for editing
   const [formData, setFormData] = useState({
@@ -221,6 +223,41 @@ export default function PatientProfilePage() {
       toast.error('Failed to trigger form')
     } finally {
       setTriggeringForm(null)
+    }
+  }
+
+  async function handleActivateForm(formType: 'service' | 'ibogaine', formId: string, isActivated: boolean) {
+    if (!formId) {
+      toast.error('Form ID is missing. Please create the form first.')
+      return
+    }
+    
+    console.log(`[ActivateForm] Starting activation for ${formType}:`, { formId, isActivated })
+    
+    setActivatingForm(formType)
+    try {
+      const action = formType === 'service' ? activateServiceAgreement : activateIbogaineConsent
+      console.log(`[ActivateForm] Calling action for ${formType}...`)
+      const result = await action({ formId, isActivated })
+      
+      console.log(`[ActivateForm] ${formType} result:`, JSON.stringify(result, null, 2))
+      
+      if (result?.data?.success) {
+        toast.success(`${formType === 'service' ? 'Service Agreement' : 'Ibogaine Consent'} ${isActivated ? 'activated' : 'deactivated'} successfully`)
+        // Reload profile data to reflect changes
+        console.log(`[ActivateForm] Reloading profile data...`)
+        await loadPatientProfile()
+        console.log(`[ActivateForm] Profile data reloaded`)
+      } else {
+        const errorMsg = result?.data?.error || result?.serverError || (typeof result?.validationErrors === 'string' ? result.validationErrors : `Failed to ${isActivated ? 'activate' : 'deactivate'} form`)
+        console.error(`[ActivateForm] ${formType} error:`, errorMsg, result)
+        toast.error(String(errorMsg))
+      }
+    } catch (error) {
+      console.error(`[ActivateForm] ${formType} exception:`, error)
+      toast.error(`Failed to update form activation: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setActivatingForm(null)
     }
   }
 
@@ -690,6 +727,45 @@ export default function PatientProfilePage() {
                 </div>
                 <div className="flex items-center gap-3">
                   {getStatusBadge(profileData.formStatuses.serviceAgreement)}
+                  {profileData.serviceAgreement?.id && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          router.push(`/admin/service-agreement/${profileData.serviceAgreement.id}/edit`)
+                        }}
+                        className="gap-2"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                        Edit Form
+                      </Button>
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                        <Label htmlFor="service-activate" className="text-sm font-medium text-gray-700">
+                          {profileData.serviceAgreement?.is_activated ? 'Activated' : 'Inactive'}
+                        </Label>
+                        {activatingForm === 'service' ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                        ) : (
+                          <Switch
+                            id="service-activate"
+                            checked={profileData.serviceAgreement?.is_activated || false}
+                            disabled={activatingForm !== null}
+                            onCheckedChange={(checked) => {
+                              const formId = profileData.serviceAgreement?.id
+                              console.log('[Switch] Service Agreement toggle:', { formId, checked, serviceAgreement: profileData.serviceAgreement })
+                              if (formId) {
+                                handleActivateForm('service', formId, checked)
+                              } else {
+                                console.error('[Switch] No form ID found:', profileData.serviceAgreement)
+                                toast.error('Form ID not found. Please refresh the page.')
+                              }
+                            }}
+                          />
+                        )}
+                      </div>
+                    </>
+                  )}
                   {profileData.formStatuses.serviceAgreement === 'not_started' ? (
                     <Button
                       variant="outline"
@@ -772,6 +848,45 @@ export default function PatientProfilePage() {
                 </div>
                 <div className="flex items-center gap-3">
                   {getStatusBadge(profileData.formStatuses.ibogaineConsent)}
+                  {profileData.ibogaineConsentForm?.id && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          router.push(`/admin/ibogaine-consent/${profileData.ibogaineConsentForm.id}/edit`)
+                        }}
+                        className="gap-2"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                        Edit Form
+                      </Button>
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                        <Label htmlFor="ibogaine-activate" className="text-sm font-medium text-gray-700">
+                          {profileData.ibogaineConsentForm?.is_activated ? 'Activated' : 'Inactive'}
+                        </Label>
+                        {activatingForm === 'ibogaine' ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                        ) : (
+                          <Switch
+                            id="ibogaine-activate"
+                            checked={profileData.ibogaineConsentForm?.is_activated || false}
+                            disabled={activatingForm !== null}
+                            onCheckedChange={(checked) => {
+                              const formId = profileData.ibogaineConsentForm?.id
+                              console.log('[Switch] Ibogaine Consent toggle:', { formId, checked, ibogaineConsentForm: profileData.ibogaineConsentForm })
+                              if (formId) {
+                                handleActivateForm('ibogaine', formId, checked)
+                              } else {
+                                console.error('[Switch] No form ID found:', profileData.ibogaineConsentForm)
+                                toast.error('Form ID not found. Please refresh the page.')
+                              }
+                            }}
+                          />
+                        )}
+                      </div>
+                    </>
+                  )}
                   {profileData.formStatuses.ibogaineConsent === 'not_started' ? (
                     <div className="flex gap-2">
                       <Button
