@@ -21,10 +21,10 @@ export interface FormattedMetrics {
 }
 
 /**
- * Extract metrics from Facebook posts array
+ * Extract metrics from platform posts array (generic function)
  */
-function extractFacebookMetrics(facebookData: any) {
-  if (!facebookData?.data || !Array.isArray(facebookData.data)) {
+function extractPlatformMetrics(platformData: any) {
+  if (!platformData?.data || !Array.isArray(platformData.data)) {
     return {
       totalReactions: 0,
       totalComments: 0,
@@ -38,7 +38,7 @@ function extractFacebookMetrics(facebookData: any) {
     }
   }
 
-  const posts = facebookData.data
+  const posts = platformData.data
   const now = new Date()
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
@@ -88,37 +88,23 @@ function extractFacebookMetrics(facebookData: any) {
  * Format Metricool data for display in marketing dashboard
  */
 export function formatMetricoolData(
-  facebook: any,
-  instagram: any,
   youtube: any,
   web: any
 ): FormattedMetrics {
-  // Extract Facebook metrics from posts array
-  const fbMetrics = extractFacebookMetrics(facebook)
+  // Extract YouTube metrics from posts array
+  const ytMetrics = extractPlatformMetrics(youtube)
   
   // For now, we'll use impressions as a proxy for reach/followers
-  // You may need to call a different endpoint for actual follower count
-  const fbReach = fbMetrics.totalUniqueImpressions
-  const igReach = instagram?.data ? extractFacebookMetrics(instagram).totalUniqueImpressions : 0
-  const ytReach = youtube?.data ? extractFacebookMetrics(youtube).totalUniqueImpressions : 0
+  const ytReach = ytMetrics.totalUniqueImpressions
   
   // Total "reach" across platforms (using unique impressions as proxy)
-  const totalReach = fbReach + igReach + ytReach
+  const totalReach = ytReach
 
   // Calculate average engagement rate from posts
-  const fbEngagement = fbMetrics.avgEngagement
-  const igEngagement = instagram?.data ? extractFacebookMetrics(instagram).avgEngagement : 0
-  const ytEngagement = youtube?.data ? extractFacebookMetrics(youtube).avgEngagement : 0
+  const ytEngagement = ytMetrics.avgEngagement
+  const ytPosts = ytMetrics.postsCount
   
-  // Weighted average engagement (by number of posts)
-  const fbPosts = fbMetrics.postsCount
-  const igPosts = instagram?.data ? extractFacebookMetrics(instagram).postsCount : 0
-  const ytPosts = youtube?.data ? extractFacebookMetrics(youtube).postsCount : 0
-  const totalPosts = fbPosts + igPosts + ytPosts
-  
-  const engagementRate = totalPosts > 0
-    ? (fbEngagement * fbPosts + igEngagement * igPosts + ytEngagement * ytPosts) / totalPosts
-    : 0
+  const engagementRate = ytPosts > 0 ? ytEngagement : 0
 
   // Website metrics (adjust based on actual web API response structure)
   const sessions = web?.sessions || web?.visits || web?.total_sessions || 0
@@ -151,18 +137,6 @@ export function formatMetricoolData(
     engagementChange,
     sessionsChange,
     platforms: [
-      {
-        name: 'Instagram',
-        followers: formatNumber(igReach),
-        change: '↑ 0%', // TODO: Calculate from historical data
-        posts: `${igPosts} posts`,
-      },
-      {
-        name: 'Facebook',
-        followers: formatNumber(fbReach),
-        change: '↑ 0%', // TODO: Calculate from historical data
-        posts: `${fbMetrics.postsThisWeek} posts this week`,
-      },
       {
         name: 'Youtube',
         followers: formatNumber(ytReach),

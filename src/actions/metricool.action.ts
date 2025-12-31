@@ -4,7 +4,7 @@ import { actionClient } from '@/lib/safe-action'
 import { z } from 'zod'
 
 const fetchMetricoolSchema = z.object({
-  endpoint: z.string().min(1, 'endpoint is required'), // Metricool API endpoint path (e.g., '/facebook/metrics')
+  endpoint: z.string().min(1, 'endpoint is required'), // Metricool API endpoint path
   userId: z.string().optional(),
   blogId: z.string().optional(),
   params: z.record(z.string(), z.string()).optional(), // Additional query parameters - both key and value are strings
@@ -73,8 +73,6 @@ export const fetchMetricoolMetrics = actionClient
 // Helper function to fetch all platform metrics at once
 // Requires endpoints object with platform-specific endpoint paths
 export async function fetchAllMetricoolMetrics(endpoints: {
-  facebook: string
-  instagram: string
   youtube: string
   web: string
 }, options?: {
@@ -84,7 +82,7 @@ export async function fetchAllMetricoolMetrics(endpoints: {
   to?: string
   params?: Record<string, string>
 }) {
-  const platforms = ['facebook', 'instagram', 'youtube', 'web'] as const
+  const platforms = ['youtube', 'web'] as const
   
   const results = await Promise.allSettled(
     platforms.map(platform => 
