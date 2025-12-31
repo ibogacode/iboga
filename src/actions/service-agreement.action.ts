@@ -88,7 +88,7 @@ export async function getPatientDataForServiceAgreement() {
         deposit_amount: existingAgreement.deposit_amount,
         deposit_percentage: existingAgreement.deposit_percentage,
         remaining_balance: existingAgreement.remaining_balance,
-        // payment_method is filled by patient, not pre-filled from admin
+        payment_method: existingAgreement.payment_method || null,
         provider_signature_name: existingAgreement.provider_signature_name,
         provider_signature_first_name: existingAgreement.provider_signature_first_name,
         provider_signature_last_name: existingAgreement.provider_signature_last_name,

@@ -103,7 +103,7 @@ export async function sendFormReminders() {
   console.log(`[sendFormReminders] Completed: ${sent} sent, ${failed} failed, ${total} total`)
   
   return { 
-    success: true, 
+    success: true as const, 
     data: { 
       sent, 
       failed,
@@ -111,4 +111,9 @@ export async function sendFormReminders() {
     } 
   }
 }
+
+// Type for the return value
+export type SendFormRemindersResult = 
+  | { success: true; data: { sent: number; failed: number; total: number } }
+  | { success: false; error: string }
 

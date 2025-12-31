@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sendFormReminders } from '@/actions/form-reminder.action'
+import { sendFormReminders, type SendFormRemindersResult } from '@/actions/form-reminder.action'
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
@@ -25,10 +25,11 @@ export async function GET(request: NextRequest) {
         duration: `${duration}ms`
       })
     } else {
-      console.error(`[Cron] ❌ Form reminder job failed after ${duration}ms:`, result.error)
+      const errorMessage = 'error' in result ? result.error : 'Unknown error'
+      console.error(`[Cron] ❌ Form reminder job failed after ${duration}ms:`, errorMessage)
       return NextResponse.json({ 
         success: false, 
-        error: result.error,
+        error: errorMessage,
         duration: `${duration}ms`
       }, { status: 500 })
     }
