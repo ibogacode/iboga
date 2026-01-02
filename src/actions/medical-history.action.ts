@@ -5,6 +5,7 @@ import { actionClient, authActionClient } from '@/lib/safe-action'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { medicalHistoryFormSchema } from '@/lib/validations/medical-history'
 import { headers } from 'next/headers'
+import { sendMedicalHistoryConfirmationEmail } from './email.action'
 
 /**
  * Get intake form data by ID for auto-population
@@ -101,6 +102,42 @@ export const submitMedicalHistoryForm = actionClient
     
     if (error) {
       return { success: false, error: error.message }
+    }
+    
+    // Get intake form data to check for filler details
+    let intakeFormData: any = null
+    if (parsedInput.intake_form_id) {
+      const { data: intakeData } = await supabase
+        .from('patient_intake_forms')
+        .select('filled_by, filler_email, filler_first_name, filler_last_name, first_name, last_name, email')
+        .eq('id', parsedInput.intake_form_id)
+        .maybeSingle()
+      
+      if (intakeData) {
+        intakeFormData = intakeData
+      }
+    }
+    
+    // Send confirmation email to patient (fire and forget - don't block response)
+    sendMedicalHistoryConfirmationEmail(
+      parsedInput.email,
+      parsedInput.first_name,
+      parsedInput.last_name
+    ).catch((error) => {
+      console.error('Failed to send medical history confirmation email to patient:', error)
+    })
+    
+    // Send email to filler if application has filler details
+    if (intakeFormData && intakeFormData.filled_by === 'someone_else' && intakeFormData.filler_email) {
+      sendMedicalHistoryConfirmationEmail(
+        intakeFormData.filler_email,
+        intakeFormData.filler_first_name || 'Filler',
+        intakeFormData.filler_last_name || '',
+        intakeFormData.first_name || parsedInput.first_name,
+        intakeFormData.last_name || parsedInput.last_name
+      ).catch((error) => {
+        console.error('Failed to send medical history confirmation email to filler:', error)
+      })
     }
     
     return { 

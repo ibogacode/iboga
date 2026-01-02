@@ -10,8 +10,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
+import { updateServiceAgreementAdminFields, updateIbogaineConsentAdminFields, getServiceAgreementForAdminEdit, getIbogaineConsentForAdminEdit } from '@/actions/admin-form-edit.action'
 import { PatientIntakeFormView } from '@/components/admin/patient-intake-form-view'
 import { MedicalHistoryFormView } from '@/components/admin/medical-history-form-view'
 import { ServiceAgreementFormView } from '@/components/admin/service-agreement-form-view'
@@ -52,6 +54,14 @@ export default function PatientProfilePage() {
   const [viewFormData, setViewFormData] = useState<any>(null)
   const [loadingViewForm, setLoadingViewForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   const [activatingForm, setActivatingForm] = useState<'service' | 'ibogaine' | null>(null)
+  const [showActivationModal, setShowActivationModal] = useState(false)
+  const [activationModalData, setActivationModalData] = useState<{
+    formType: 'service' | 'ibogaine'
+    formId: string
+    isActivated: boolean
+    formData: any
+  } | null>(null)
+  const [isSavingActivationFields, setIsSavingActivationFields] = useState(false)
   
   // Form state for editing
   const [formData, setFormData] = useState({
@@ -226,14 +236,50 @@ export default function PatientProfilePage() {
     }
   }
 
-  async function handleActivateForm(formType: 'service' | 'ibogaine', formId: string, isActivated: boolean) {
-    if (!formId) {
-      toast.error('Form ID is missing. Please create the form first.')
-      return
+  // Check if required fields are missing before activation
+  async function checkMissingFields(formType: 'service' | 'ibogaine', formId: string): Promise<{ missing: boolean; formData: any }> {
+    try {
+      if (formType === 'service') {
+        const result = await getServiceAgreementForAdminEdit({ formId })
+        if (!result?.data?.data) {
+          return { missing: false, formData: null }
+        }
+        const data = result.data.data
+        const missingFields: string[] = []
+        
+        if (!data.total_program_fee || data.total_program_fee === 0) missingFields.push('Total Program Fee')
+        if (!data.deposit_amount || data.deposit_amount === 0) missingFields.push('Deposit Amount')
+        if (data.deposit_percentage === null || data.deposit_percentage === undefined) missingFields.push('Deposit Percentage')
+        if (data.remaining_balance === null || data.remaining_balance === undefined) missingFields.push('Remaining Balance')
+        if (!data.provider_signature_name || data.provider_signature_name.trim() === '') missingFields.push('Provider Signature Name')
+        if (!data.provider_signature_first_name || data.provider_signature_first_name.trim() === '') missingFields.push('Provider First Name')
+        if (!data.provider_signature_last_name || data.provider_signature_last_name.trim() === '') missingFields.push('Provider Last Name')
+        if (!data.provider_signature_date) missingFields.push('Provider Signature Date')
+        
+        return { missing: missingFields.length > 0, formData: data }
+      } else {
+        const result = await getIbogaineConsentForAdminEdit({ formId })
+        if (!result?.data?.data) {
+          return { missing: false, formData: null }
+        }
+        const data = result.data.data
+        const missingFields: string[] = []
+        
+        if (!data.treatment_date) missingFields.push('Treatment Date')
+        if (!data.facilitator_doctor_name || data.facilitator_doctor_name.trim() === '') missingFields.push('Facilitator/Doctor Name')
+        if (!data.date_of_birth) missingFields.push('Date of Birth')
+        if (!data.address || data.address.trim() === '') missingFields.push('Address')
+        
+        return { missing: missingFields.length > 0, formData: data }
+      }
+    } catch (error) {
+      console.error('[checkMissingFields] Error:', error)
+      return { missing: false, formData: null }
     }
-    
-    console.log(`[ActivateForm] Starting activation for ${formType}:`, { formId, isActivated })
-    
+  }
+
+  // Internal function to actually perform activation (without field check)
+  async function performActivation(formType: 'service' | 'ibogaine', formId: string, isActivated: boolean) {
     setActivatingForm(formType)
     try {
       const action = formType === 'service' ? activateServiceAgreement : activateIbogaineConsent
@@ -244,10 +290,7 @@ export default function PatientProfilePage() {
       
       if (result?.data?.success) {
         toast.success(`${formType === 'service' ? 'Service Agreement' : 'Ibogaine Consent'} ${isActivated ? 'activated' : 'deactivated'} successfully`)
-        // Reload profile data to reflect changes
-        console.log(`[ActivateForm] Reloading profile data...`)
         await loadPatientProfile()
-        console.log(`[ActivateForm] Profile data reloaded`)
       } else {
         const errorMsg = result?.data?.error || result?.serverError || (typeof result?.validationErrors === 'string' ? result.validationErrors : `Failed to ${isActivated ? 'activate' : 'deactivate'} form`)
         console.error(`[ActivateForm] ${formType} error:`, errorMsg, result)
@@ -259,6 +302,73 @@ export default function PatientProfilePage() {
     } finally {
       setActivatingForm(null)
     }
+  }
+
+  // Check if form is completed by patient
+  function isFormCompleted(formType: 'service' | 'ibogaine'): boolean {
+    if (formType === 'service') {
+      const form = profileData?.serviceAgreement
+      if (!form) return false
+      
+      return !!(
+        form.patient_signature_name &&
+        form.patient_signature_name.trim() !== '' &&
+        form.patient_signature_first_name &&
+        form.patient_signature_first_name.trim() !== '' &&
+        form.patient_signature_last_name &&
+        form.patient_signature_last_name.trim() !== '' &&
+        form.patient_signature_date &&
+        form.patient_signature_data &&
+        form.patient_signature_data.trim() !== ''
+      )
+    } else {
+      const form = profileData?.ibogaineConsentForm
+      if (!form) return false
+      
+      return !!(
+        form.signature_data &&
+        form.signature_data.trim() !== '' &&
+        form.signature_date &&
+        form.signature_name &&
+        form.signature_name.trim() !== ''
+      )
+    }
+  }
+
+  async function handleActivateForm(formType: 'service' | 'ibogaine', formId: string, isActivated: boolean) {
+    if (!formId) {
+      toast.error('Form ID is missing. Please create the form first.')
+      return
+    }
+    
+    // If deactivating, check if form is completed
+    if (!isActivated) {
+      if (isFormCompleted(formType)) {
+        toast.error(`Cannot deactivate ${formType === 'service' ? 'Service Agreement' : 'Ibogaine Consent'} form. The form has been completed by the patient and cannot be deactivated.`)
+        return
+      }
+      await performActivation(formType, formId, isActivated)
+      return
+    }
+    
+    // If activating, check for missing fields first
+    console.log(`[ActivateForm] Checking for missing fields for ${formType}:`, { formId })
+    const { missing, formData } = await checkMissingFields(formType, formId)
+    
+    if (missing) {
+      // Show modal to fill required fields
+      setActivationModalData({
+        formType,
+        formId,
+        isActivated,
+        formData,
+      })
+      setShowActivationModal(true)
+      return
+    }
+    
+    // No missing fields, proceed with activation
+    await performActivation(formType, formId, isActivated)
   }
 
   function getStatusBadge(status: 'completed' | 'pending' | 'not_started') {
@@ -728,19 +838,7 @@ export default function PatientProfilePage() {
                 <div className="flex items-center gap-3">
                   {getStatusBadge(profileData.formStatuses.serviceAgreement)}
                   {profileData.serviceAgreement?.id && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          router.push(`/admin/service-agreement/${profileData.serviceAgreement.id}/edit`)
-                        }}
-                        className="gap-2"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                        Edit Form
-                      </Button>
-                      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
                         <Label htmlFor="service-activate" className="text-sm font-medium text-gray-700">
                           {profileData.serviceAgreement?.is_activated ? 'Activated' : 'Inactive'}
                         </Label>
@@ -750,7 +848,7 @@ export default function PatientProfilePage() {
                           <Switch
                             id="service-activate"
                             checked={profileData.serviceAgreement?.is_activated || false}
-                            disabled={activatingForm !== null}
+                            disabled={activatingForm !== null || isFormCompleted('service')}
                             onCheckedChange={(checked) => {
                               const formId = profileData.serviceAgreement?.id
                               console.log('[Switch] Service Agreement toggle:', { formId, checked, serviceAgreement: profileData.serviceAgreement })
@@ -764,7 +862,6 @@ export default function PatientProfilePage() {
                           />
                         )}
                       </div>
-                    </>
                   )}
                   {profileData.formStatuses.serviceAgreement === 'not_started' ? (
                     <Button
@@ -849,19 +946,7 @@ export default function PatientProfilePage() {
                 <div className="flex items-center gap-3">
                   {getStatusBadge(profileData.formStatuses.ibogaineConsent)}
                   {profileData.ibogaineConsentForm?.id && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          router.push(`/admin/ibogaine-consent/${profileData.ibogaineConsentForm.id}/edit`)
-                        }}
-                        className="gap-2"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                        Edit Form
-                      </Button>
-                      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
                         <Label htmlFor="ibogaine-activate" className="text-sm font-medium text-gray-700">
                           {profileData.ibogaineConsentForm?.is_activated ? 'Activated' : 'Inactive'}
                         </Label>
@@ -871,7 +956,7 @@ export default function PatientProfilePage() {
                           <Switch
                             id="ibogaine-activate"
                             checked={profileData.ibogaineConsentForm?.is_activated || false}
-                            disabled={activatingForm !== null}
+                            disabled={activatingForm !== null || isFormCompleted('ibogaine')}
                             onCheckedChange={(checked) => {
                               const formId = profileData.ibogaineConsentForm?.id
                               console.log('[Switch] Ibogaine Consent toggle:', { formId, checked, ibogaineConsentForm: profileData.ibogaineConsentForm })
@@ -885,7 +970,6 @@ export default function PatientProfilePage() {
                           />
                         )}
                       </div>
-                    </>
                   )}
                   {profileData.formStatuses.ibogaineConsent === 'not_started' ? (
                     <div className="flex gap-2">
@@ -1268,6 +1352,349 @@ export default function PatientProfilePage() {
           </div>
         </div>
       )}
+
+      {/* Activation Modal for Required Fields */}
+      <Dialog open={showActivationModal} onOpenChange={setShowActivationModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Fill Required Fields to Activate {activationModalData?.formType === 'service' ? 'Service Agreement' : 'Ibogaine Consent'} Form
+            </DialogTitle>
+            <DialogDescription>
+              Please fill in all required admin fields before activating the form.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {activationModalData && (
+            <ActivationFormFields
+              formType={activationModalData.formType}
+              formId={activationModalData.formId}
+              initialData={activationModalData.formData}
+              onSave={async (data) => {
+                setIsSavingActivationFields(true)
+                try {
+                  let result
+                  if (activationModalData.formType === 'service') {
+                    result = await updateServiceAgreementAdminFields({
+                      formId: activationModalData.formId,
+                      ...data,
+                    })
+                  } else {
+                    result = await updateIbogaineConsentAdminFields({
+                      formId: activationModalData.formId,
+                      ...data,
+                    })
+                  }
+                  
+                  if (result?.data?.success) {
+                    toast.success('Fields saved successfully')
+                    setShowActivationModal(false)
+                    setActivationModalData(null)
+                    // Now activate the form
+                    await performActivation(activationModalData.formType, activationModalData.formId, true)
+                  } else {
+                    const errorMsg = result?.data?.error || result?.serverError || 'Failed to save fields'
+                    toast.error(String(errorMsg))
+                  }
+                } catch (error) {
+                  toast.error(`Failed to save fields: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                } finally {
+                  setIsSavingActivationFields(false)
+                }
+              }}
+              onCancel={() => {
+                setShowActivationModal(false)
+                setActivationModalData(null)
+              }}
+              isSaving={isSavingActivationFields}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
+}
+
+// Activation Form Fields Component
+function ActivationFormFields({
+  formType,
+  formId,
+  initialData,
+  onSave,
+  onCancel,
+  isSaving,
+}: {
+  formType: 'service' | 'ibogaine'
+  formId: string
+  initialData: any
+  onSave: (data: any) => Promise<void>
+  onCancel: () => void
+  isSaving: boolean
+}) {
+  const [formData, setFormData] = useState<{
+    total_program_fee?: string
+    deposit_amount?: string
+    deposit_percentage?: string
+    remaining_balance?: string
+    provider_signature_name?: string
+    provider_signature_first_name?: string
+    provider_signature_last_name?: string
+    provider_signature_date?: string
+    treatment_date?: string
+    facilitator_doctor_name?: string
+    date_of_birth?: string
+    address?: string
+  }>(() => {
+    if (formType === 'service') {
+      return {
+        total_program_fee: initialData?.total_program_fee ? `$${Number(initialData.total_program_fee).toLocaleString()}` : '',
+        deposit_amount: initialData?.deposit_amount ? `$${Number(initialData.deposit_amount).toLocaleString()}` : '',
+        deposit_percentage: initialData?.deposit_percentage ? String(initialData.deposit_percentage) : '',
+        remaining_balance: initialData?.remaining_balance ? `$${Number(initialData.remaining_balance).toLocaleString()}` : '',
+        provider_signature_name: initialData?.provider_signature_name || '',
+        provider_signature_first_name: initialData?.provider_signature_first_name || '',
+        provider_signature_last_name: initialData?.provider_signature_last_name || '',
+        provider_signature_date: initialData?.provider_signature_date ? new Date(initialData.provider_signature_date).toISOString().split('T')[0] : '',
+      }
+    } else {
+      return {
+        treatment_date: initialData?.treatment_date ? new Date(initialData.treatment_date).toISOString().split('T')[0] : '',
+        facilitator_doctor_name: initialData?.facilitator_doctor_name || '',
+        date_of_birth: initialData?.date_of_birth ? new Date(initialData.date_of_birth).toISOString().split('T')[0] : '',
+        address: initialData?.address || '',
+      }
+    }
+  })
+
+  // Handle total program fee change - auto-calculate deposit (40% default) and remaining balance
+  const handleTotalChange = (value: string) => {
+    const num = parseFloat(value.replace(/[^0-9.]/g, ''))
+    if (!isNaN(num) && num > 0) {
+      // Default to 40% deposit
+      const depositPct = 40
+      const depositAmt = (num * depositPct) / 100
+      const remaining = num - depositAmt
+      
+      setFormData({
+        ...formData,
+        total_program_fee: value,
+        deposit_percentage: String(depositPct),
+        deposit_amount: `$${depositAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        remaining_balance: `$${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      })
+    } else {
+      setFormData({ ...formData, total_program_fee: value })
+    }
+  }
+
+  // Handle deposit amount change - recalculate percentage and remaining balance
+  const handleDepositChange = (value: string) => {
+    const num = parseFloat(value.replace(/[^0-9.]/g, ''))
+    const total = parseFloat((formData.total_program_fee || '').replace(/[^0-9.]/g, ''))
+    if (!isNaN(num) && !isNaN(total) && total > 0) {
+      const pct = (num / total) * 100
+      const remaining = total - num
+      
+      setFormData({
+        ...formData,
+        deposit_amount: value,
+        deposit_percentage: pct.toFixed(2),
+        remaining_balance: `$${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      })
+    } else {
+      setFormData({ ...formData, deposit_amount: value })
+    }
+  }
+
+  // Handle deposit percentage change - recalculate deposit amount and remaining balance
+  const handleDepositPercentageChange = (value: string) => {
+    const pct = parseFloat(value)
+    const total = parseFloat((formData.total_program_fee || '').replace(/[^0-9.]/g, ''))
+    if (!isNaN(pct) && !isNaN(total) && total > 0 && pct >= 0 && pct <= 100) {
+      const depositAmt = (total * pct) / 100
+      const remaining = total - depositAmt
+      
+      setFormData({
+        ...formData,
+        deposit_percentage: value,
+        deposit_amount: `$${depositAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        remaining_balance: `$${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      })
+    } else {
+      setFormData({ ...formData, deposit_percentage: value })
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await onSave(formData)
+  }
+
+  if (formType === 'service') {
+    return (
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="total_program_fee">Total Program Fee *</Label>
+            <Input
+              id="total_program_fee"
+              value={formData.total_program_fee || ''}
+              onChange={(e) => handleTotalChange(e.target.value)}
+              placeholder="$0.00"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">Entering total will auto-calculate 40% deposit</p>
+          </div>
+          <div>
+            <Label htmlFor="deposit_amount">Deposit Amount *</Label>
+            <Input
+              id="deposit_amount"
+              value={formData.deposit_amount || ''}
+              onChange={(e) => handleDepositChange(e.target.value)}
+              placeholder="$0.00"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="deposit_percentage">Deposit Percentage *</Label>
+            <Input
+              id="deposit_percentage"
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={formData.deposit_percentage || ''}
+              onChange={(e) => handleDepositPercentageChange(e.target.value)}
+              placeholder="0"
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="remaining_balance">Remaining Balance *</Label>
+            <Input
+              id="remaining_balance"
+              value={formData.remaining_balance || ''}
+              placeholder="$0.00"
+              required
+              readOnly
+              className="bg-gray-50"
+            />
+            <p className="text-xs text-gray-500 mt-1">Auto-calculated</p>
+          </div>
+          <div>
+            <Label htmlFor="provider_signature_name">Provider Signature Name *</Label>
+            <Input
+              id="provider_signature_name"
+              value={formData.provider_signature_name || ''}
+              onChange={(e) => setFormData({ ...formData, provider_signature_name: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="provider_signature_first_name">Provider First Name *</Label>
+            <Input
+              id="provider_signature_first_name"
+              value={formData.provider_signature_first_name || ''}
+              onChange={(e) => setFormData({ ...formData, provider_signature_first_name: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="provider_signature_last_name">Provider Last Name *</Label>
+            <Input
+              id="provider_signature_last_name"
+              value={formData.provider_signature_last_name || ''}
+              onChange={(e) => setFormData({ ...formData, provider_signature_last_name: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="provider_signature_date">Provider Signature Date *</Label>
+            <Input
+              id="provider_signature_date"
+              type="date"
+              value={formData.provider_signature_date || ''}
+              onChange={(e) => setFormData({ ...formData, provider_signature_date: e.target.value })}
+              required
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Saving...
+              </>
+            ) : (
+              'Save & Activate'
+            )}
+          </Button>
+        </DialogFooter>
+      </form>
+    )
+  } else {
+    return (
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="treatment_date">Treatment Date *</Label>
+            <Input
+              id="treatment_date"
+              type="date"
+              value={formData.treatment_date || ''}
+              onChange={(e) => setFormData({ ...formData, treatment_date: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="facilitator_doctor_name">Facilitator/Doctor Name *</Label>
+            <Input
+              id="facilitator_doctor_name"
+              value={formData.facilitator_doctor_name || ''}
+              onChange={(e) => setFormData({ ...formData, facilitator_doctor_name: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="date_of_birth">Date of Birth *</Label>
+            <Input
+              id="date_of_birth"
+              type="date"
+              value={formData.date_of_birth || ''}
+              onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="address">Address *</Label>
+            <Input
+              id="address"
+              value={formData.address || ''}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              required
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Saving...
+              </>
+            ) : (
+              'Save & Activate'
+            )}
+          </Button>
+        </DialogFooter>
+      </form>
+    )
+  }
 }

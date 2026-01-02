@@ -58,6 +58,39 @@ export const addExistingPatient = authActionClient
 
     const supabase = createAdminClient()
     
+    // Check if any form (partial or completed intake) already exists for this email
+    const { data: existingPartialForm } = await supabase
+      .from('partial_intake_forms')
+      .select('id, email, first_name, last_name, completed_at, created_at')
+      .eq('email', parsedInput.email)
+      .is('completed_at', null) // Only check incomplete forms
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    
+    if (existingPartialForm) {
+      return { 
+        success: false, 
+        error: `Application already exists for this email address (${parsedInput.email}). An incomplete application form is already in progress. Please use the existing form or contact the patient to complete it before adding them again.` 
+      }
+    }
+    
+    // Check for completed intake forms
+    const { data: existingIntakeForm } = await supabase
+      .from('patient_intake_forms')
+      .select('id, email, first_name, last_name, created_at')
+      .eq('email', parsedInput.email)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    
+    if (existingIntakeForm) {
+      return { 
+        success: false, 
+        error: `Application already exists for this email address (${parsedInput.email}). Cannot add a duplicate patient.` 
+      }
+    }
+    
     // Generate unique token
     const token = crypto.randomUUID()
     

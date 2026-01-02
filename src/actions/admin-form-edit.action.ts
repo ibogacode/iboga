@@ -111,14 +111,46 @@ export const updateServiceAgreementAdminFields = authActionClient
       return { success: false, error: 'Unauthorized - Owner or Admin access required' }
     }
 
-    // Parse numeric values
+    // Parse numeric values and validate
     const totalProgramFee = parseFloat(parsedInput.total_program_fee.replace(/[^0-9.]/g, ''))
     const depositAmount = parseFloat(parsedInput.deposit_amount.replace(/[^0-9.]/g, ''))
     const depositPercentage = parseFloat(parsedInput.deposit_percentage.replace(/[^0-9.]/g, ''))
     const remainingBalance = parseFloat(parsedInput.remaining_balance.replace(/[^0-9.]/g, ''))
     
-    // Parse date
+    // Validate numeric values
+    if (isNaN(totalProgramFee) || totalProgramFee <= 0) {
+      return { success: false, error: 'Total program fee must be a valid number greater than 0' }
+    }
+    if (isNaN(depositAmount) || depositAmount <= 0) {
+      return { success: false, error: 'Deposit amount must be a valid number greater than 0' }
+    }
+    if (isNaN(depositPercentage) || depositPercentage < 0 || depositPercentage > 100) {
+      return { success: false, error: 'Deposit percentage must be between 0 and 100' }
+    }
+    if (isNaN(remainingBalance) || remainingBalance < 0) {
+      return { success: false, error: 'Remaining balance must be a valid number greater than or equal to 0' }
+    }
+    
+    // Parse and validate date
     const providerSignatureDate = new Date(parsedInput.provider_signature_date)
+    if (isNaN(providerSignatureDate.getTime())) {
+      return { success: false, error: 'Provider signature date must be a valid date' }
+    }
+    
+    // Trim text fields to ensure they're not empty
+    const providerSignatureName = parsedInput.provider_signature_name.trim()
+    const providerSignatureFirstName = parsedInput.provider_signature_first_name.trim()
+    const providerSignatureLastName = parsedInput.provider_signature_last_name.trim()
+    
+    if (!providerSignatureName) {
+      return { success: false, error: 'Provider signature name is required' }
+    }
+    if (!providerSignatureFirstName) {
+      return { success: false, error: 'Provider first name is required' }
+    }
+    if (!providerSignatureLastName) {
+      return { success: false, error: 'Provider last name is required' }
+    }
 
     // Update only admin fields
     const { data, error } = await adminClient
@@ -128,9 +160,9 @@ export const updateServiceAgreementAdminFields = authActionClient
         deposit_amount: depositAmount,
         deposit_percentage: depositPercentage,
         remaining_balance: remainingBalance,
-        provider_signature_name: parsedInput.provider_signature_name,
-        provider_signature_first_name: parsedInput.provider_signature_first_name,
-        provider_signature_last_name: parsedInput.provider_signature_last_name,
+        provider_signature_name: providerSignatureName,
+        provider_signature_first_name: providerSignatureFirstName,
+        provider_signature_last_name: providerSignatureLastName,
         provider_signature_date: providerSignatureDate.toISOString().split('T')[0],
         updated_at: new Date().toISOString(),
       })

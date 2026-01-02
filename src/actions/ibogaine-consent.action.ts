@@ -5,6 +5,7 @@ import { actionClient, authActionClient } from '@/lib/safe-action'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { ibogaineConsentFormSchema } from '@/lib/validations/ibogaine-consent'
 import { headers } from 'next/headers'
+import { sendIbogaineConsentConfirmationEmail } from './email.action'
 
 /**
  * Get intake form data by ID for auto-population
@@ -54,14 +55,64 @@ export async function checkIbogaineConsentActivation() {
   }
   
   // Check if there's an existing ibogaine consent form for this patient
+  // Use multi-step approach: patient_id -> intake_form_id -> email
+  let existingForm: any = null
   const patientEmail = (profile.email || user.email || '').trim().toLowerCase()
-  const { data: existingForm } = await supabase
-    .from('ibogaine_consent_forms')
-    .select('*')
-    .or(`patient_id.eq.${profile.id},email.ilike.${patientEmail}`)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  
+  // Strategy 1: Try by patient_id first (most reliable link)
+  if (profile.id) {
+    const { data: formByPatientId } = await supabase
+      .from('ibogaine_consent_forms')
+      .select('*')
+      .eq('patient_id', profile.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    
+    if (formByPatientId) {
+      existingForm = formByPatientId
+    }
+  }
+  
+  // Strategy 2: Try by intake_form_id if available and form not found yet
+  if (!existingForm) {
+    // Get latest intake form for this patient
+    const { data: intakeForms } = await supabase
+      .from('patient_intake_forms')
+      .select('id')
+      .ilike('email', patientEmail)
+      .order('created_at', { ascending: false })
+      .limit(1)
+    
+    if (intakeForms && intakeForms.length > 0) {
+      const { data: formByIntakeId } = await supabase
+        .from('ibogaine_consent_forms')
+        .select('*')
+        .eq('intake_form_id', intakeForms[0].id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (formByIntakeId) {
+        existingForm = formByIntakeId
+      }
+    }
+  }
+  
+  // Strategy 3: Try by email if form still not found
+  if (!existingForm && patientEmail) {
+    const { data: formByEmail } = await supabase
+      .from('ibogaine_consent_forms')
+      .select('*')
+      .ilike('email', patientEmail)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    
+    if (formByEmail) {
+      existingForm = formByEmail
+    }
+  }
   
   // If form exists but not activated, return error
   if (existingForm && !existingForm.is_activated) {
@@ -86,10 +137,29 @@ export async function checkIbogaineConsentActivation() {
       isActivated: existingForm.is_activated,
       formId: existingForm.id,
       existingForm: {
-        treatment_date: existingForm.treatment_date,
-        facilitator_doctor_name: existingForm.facilitator_doctor_name,
+        // Patient information fields
+        first_name: existingForm.first_name,
+        last_name: existingForm.last_name,
+        email: existingForm.email,
+        phone_number: existingForm.phone_number,
         date_of_birth: existingForm.date_of_birth,
         address: existingForm.address,
+        patient_id: existingForm.patient_id,
+        intake_form_id: existingForm.intake_form_id,
+        // Admin fields (read-only for patients)
+        treatment_date: existingForm.treatment_date,
+        facilitator_doctor_name: existingForm.facilitator_doctor_name,
+        // Patient signature fields (if already filled)
+        signature_data: existingForm.signature_data,
+        signature_date: existingForm.signature_date,
+        signature_name: existingForm.signature_name,
+        consent_for_treatment: existingForm.consent_for_treatment,
+        risks_and_benefits: existingForm.risks_and_benefits,
+        pre_screening_health_assessment: existingForm.pre_screening_health_assessment,
+        voluntary_participation: existingForm.voluntary_participation,
+        confidentiality: existingForm.confidentiality,
+        liability_release: existingForm.liability_release,
+        payment_collection: existingForm.payment_collection,
       }
     } 
   }
@@ -152,6 +222,42 @@ export const submitIbogaineConsentForm = actionClient
         return { success: false, error: error?.message || 'Failed to update consent form' }
       }
       
+      // Get intake form data to check for filler details
+      let intakeFormData: any = null
+      if (parsedInput.intake_form_id) {
+        const { data: intakeData } = await supabase
+          .from('patient_intake_forms')
+          .select('filled_by, filler_email, filler_first_name, filler_last_name, first_name, last_name, email')
+          .eq('id', parsedInput.intake_form_id)
+          .maybeSingle()
+        
+        if (intakeData) {
+          intakeFormData = intakeData
+        }
+      }
+      
+      // Send confirmation email to patient (fire and forget - don't block response)
+      sendIbogaineConsentConfirmationEmail(
+        parsedInput.email,
+        parsedInput.first_name,
+        parsedInput.last_name
+      ).catch((error) => {
+        console.error('Failed to send ibogaine consent confirmation email to patient:', error)
+      })
+      
+      // Send email to filler if application has filler details
+      if (intakeFormData && intakeFormData.filled_by === 'someone_else' && intakeFormData.filler_email) {
+        sendIbogaineConsentConfirmationEmail(
+          intakeFormData.filler_email,
+          intakeFormData.filler_first_name || 'Filler',
+          intakeFormData.filler_last_name || '',
+          intakeFormData.first_name || parsedInput.first_name,
+          intakeFormData.last_name || parsedInput.last_name
+        ).catch((error) => {
+          console.error('Failed to send ibogaine consent confirmation email to filler:', error)
+        })
+      }
+      
       return { 
         success: true, 
         data: { 
@@ -191,6 +297,42 @@ export const submitIbogaineConsentForm = actionClient
       
       if (error) {
         return { success: false, error: error.message }
+      }
+      
+      // Get intake form data to check for filler details
+      let intakeFormData: any = null
+      if (parsedInput.intake_form_id) {
+        const { data: intakeData } = await supabase
+          .from('patient_intake_forms')
+          .select('filled_by, filler_email, filler_first_name, filler_last_name, first_name, last_name, email')
+          .eq('id', parsedInput.intake_form_id)
+          .maybeSingle()
+        
+        if (intakeData) {
+          intakeFormData = intakeData
+        }
+      }
+      
+      // Send confirmation email to patient (fire and forget - don't block response)
+      sendIbogaineConsentConfirmationEmail(
+        parsedInput.email,
+        parsedInput.first_name,
+        parsedInput.last_name
+      ).catch((error) => {
+        console.error('Failed to send ibogaine consent confirmation email to patient:', error)
+      })
+      
+      // Send email to filler if application has filler details
+      if (intakeFormData && intakeFormData.filled_by === 'someone_else' && intakeFormData.filler_email) {
+        sendIbogaineConsentConfirmationEmail(
+          intakeFormData.filler_email,
+          intakeFormData.filler_first_name || 'Filler',
+          intakeFormData.filler_last_name || '',
+          intakeFormData.first_name || parsedInput.first_name,
+          intakeFormData.last_name || parsedInput.last_name
+        ).catch((error) => {
+          console.error('Failed to send ibogaine consent confirmation email to filler:', error)
+        })
       }
       
       return { 

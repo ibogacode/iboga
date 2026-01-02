@@ -11,7 +11,7 @@ export const addEmployeeSchema = z.object({
   }),
   phone: z.string().optional(),
   designation: z.string().optional(),
-  payRatePerHour: z.string().optional().refine(
+  payRatePerDay: z.string().optional().refine(
     (val) => {
       if (!val) return true // Optional field
       const num = parseFloat(val)
@@ -31,7 +31,7 @@ export const updateEmployeeSchema = z.object({
   }),
   phone: z.string().optional(),
   designation: z.string().optional(),
-  payRatePerHour: z.string().optional().refine(
+  payRatePerDay: z.string().optional().refine(
     (val) => {
       if (!val) return true // Optional field
       const num = parseFloat(val)

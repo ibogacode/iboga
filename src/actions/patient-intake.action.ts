@@ -28,6 +28,42 @@ export const submitPatientIntakeForm = actionClient
       dateOfBirth = new Date(parsedInput.date_of_birth)
     }
     
+    // Check if an intake form already exists for this email (block all duplicates)
+    const { data: existingIntakeForm } = await supabase
+      .from('patient_intake_forms')
+      .select('id, email, first_name, last_name, created_at')
+      .eq('email', parsedInput.email)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    
+    if (existingIntakeForm) {
+      // Only allow if this is completing a partial form (expected flow)
+      if (parsedInput.partialFormId) {
+        // Verify the partial form matches this email
+        const { data: partialForm } = await supabase
+          .from('partial_intake_forms')
+          .select('id, email')
+          .eq('id', parsedInput.partialFormId)
+          .eq('email', parsedInput.email)
+          .maybeSingle()
+        
+        if (!partialForm) {
+          return { 
+            success: false, 
+            error: `The form link does not match the email address provided. Please use the correct form link sent to ${parsedInput.email}.` 
+          }
+        }
+        // Allow completion of partial form even if intake form exists (they're linked)
+      } else {
+        // Block duplicate direct applications
+        return { 
+          success: false, 
+          error: `Application already exists for this email address (${parsedInput.email}). If you need to submit a new application, please contact us at contactus@theibogainstitute.org or call +1 (800) 604-7294.` 
+        }
+      }
+    }
+    
     // Insert form submission
     const { data, error } = await supabase
       .from('patient_intake_forms')

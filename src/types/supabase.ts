@@ -554,7 +554,7 @@ export type Database = {
           last_seen_at: string | null
           must_change_password: boolean | null
           name: string | null
-          pay_rate_per_hour: number | null
+          pay_rate_per_day: number | null
           phone: string | null
           role: string
           updated_at: string | null
@@ -575,7 +575,7 @@ export type Database = {
           last_seen_at?: string | null
           must_change_password?: boolean | null
           name?: string | null
-          pay_rate_per_hour?: number | null
+          pay_rate_per_day?: number | null
           phone?: string | null
           role?: string
           updated_at?: string | null
@@ -596,7 +596,7 @@ export type Database = {
           last_seen_at?: string | null
           must_change_password?: boolean | null
           name?: string | null
-          pay_rate_per_hour?: number | null
+          pay_rate_per_day?: number | null
           phone?: string | null
           role?: string
           updated_at?: string | null

@@ -16,7 +16,7 @@ export interface User {
   last_name: string | null
   name?: string // Generated column (first_name + last_name)
   designation?: string | null
-  pay_rate_per_hour?: number | null
+  pay_rate_per_day?: number | null
   avatar_url?: string | null
   phone?: string | null
   date_of_birth?: string | null

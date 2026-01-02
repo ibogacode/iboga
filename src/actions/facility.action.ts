@@ -64,7 +64,7 @@ export const addEmployeeAction = actionClient
           role: parsedInput.role,
           phone: parsedInput.phone || null,
           designation: parsedInput.designation || null,
-          pay_rate_per_hour: parsedInput.payRatePerHour ? parseFloat(parsedInput.payRatePerHour) : null,
+          pay_rate_per_day: parsedInput.payRatePerDay ? parseFloat(parsedInput.payRatePerDay) : null,
           is_active: true,
         })
         .eq('id', authData.user.id)
@@ -85,7 +85,7 @@ export const addEmployeeAction = actionClient
           role: parsedInput.role,
           phone: parsedInput.phone || null,
           designation: parsedInput.designation || null,
-          pay_rate_per_hour: parsedInput.payRatePerHour ? parseFloat(parsedInput.payRatePerHour) : null,
+          pay_rate_per_day: parsedInput.payRatePerDay ? parseFloat(parsedInput.payRatePerDay) : null,
           is_active: true,
         })
       
@@ -163,7 +163,7 @@ export const updateEmployeeAction = authActionClient
         role: parsedInput.role,
         phone: parsedInput.phone || null,
         designation: parsedInput.designation || null,
-        pay_rate_per_hour: parsedInput.payRatePerHour ? parseFloat(parsedInput.payRatePerHour) : null,
+        pay_rate_per_day: parsedInput.payRatePerDay ? parseFloat(parsedInput.payRatePerDay) : null,
       })
       .eq('id', parsedInput.userId)
     

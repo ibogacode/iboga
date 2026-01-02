@@ -111,6 +111,15 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
           
           // Pre-populate admin fields from existing form (read-only for patients)
           if (existingForm) {
+            // Update URL to include formId if not already present
+            if (existingForm.id && prefillPatientData) {
+              const currentUrl = new URL(window.location.href)
+              if (!currentUrl.searchParams.has('formId') && !currentUrl.searchParams.has('view')) {
+                currentUrl.searchParams.set('formId', existingForm.id)
+                router.replace(currentUrl.pathname + currentUrl.search, { scroll: false })
+              }
+            }
+            
             form.setValue('total_program_fee', existingForm.total_program_fee ? `$${Number(existingForm.total_program_fee).toLocaleString()}` : '')
             form.setValue('deposit_amount', existingForm.deposit_amount ? `$${Number(existingForm.deposit_amount).toLocaleString()}` : '')
             form.setValue('deposit_percentage', existingForm.deposit_percentage ? String(existingForm.deposit_percentage) : '')
@@ -272,9 +281,11 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
       if (result?.data?.success) {
         toast.success('Service agreement created successfully!')
         setIsSubmitted(true)
-        // Don't redirect for patients - let them see success message
         if (prefillPatientData) {
-          // Patient submitted - stay on page to show success
+          // Patient submitted - redirect to home page after showing success message
+          setTimeout(() => {
+            router.push('/patient')
+          }, 1500)
         } else {
           // Admin/Owner submitted - redirect after delay
           setTimeout(() => {
