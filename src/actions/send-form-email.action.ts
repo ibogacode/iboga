@@ -191,11 +191,11 @@ export const sendFormEmail = authActionClient
     } else if (parsedInput.formType === 'ibogaine') {
       // Ibogaine consent form link - use actual intake form ID if available
       if (actualIntakeFormId) {
-        formLink = `${baseUrl}/ibogaine-consent?intake_form_id=${actualIntakeFormId}`
+        formLink = `${baseUrl}/patient/ibogaine-consent?intake_form_id=${actualIntakeFormId}`
       } else if (parsedInput.intakeFormId) {
-        formLink = `${baseUrl}/ibogaine-consent?intake_form_id=${parsedInput.intakeFormId}`
+        formLink = `${baseUrl}/patient/ibogaine-consent?intake_form_id=${parsedInput.intakeFormId}`
       } else {
-        formLink = `${baseUrl}/ibogaine-consent`
+        formLink = `${baseUrl}/patient/ibogaine-consent`
       }
       
       emailResult = await sendIbogaineConsentFormEmail(

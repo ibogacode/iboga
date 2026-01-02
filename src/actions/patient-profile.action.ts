@@ -572,9 +572,10 @@ export const activateServiceAgreement = authActionClient
     }
 
     // Get form data first to get patient email and check admin fields
+    // Note: payment_method is filled by patient, not required for activation
     const { data: formData } = await adminClient
       .from('service_agreements')
-      .select('patient_email, patient_first_name, patient_last_name, total_program_fee, deposit_amount, deposit_percentage, remaining_balance, payment_method, provider_signature_name, provider_signature_first_name, provider_signature_last_name, provider_signature_date')
+      .select('patient_email, patient_first_name, patient_last_name, total_program_fee, deposit_amount, deposit_percentage, remaining_balance, provider_signature_name, provider_signature_first_name, provider_signature_last_name, provider_signature_date')
       .eq('id', parsedInput.formId)
       .single()
 
@@ -584,12 +585,49 @@ export const activateServiceAgreement = authActionClient
 
     // Validate admin fields are complete before activation using database function
     if (parsedInput.isActivated) {
+      // First, manually check fields to provide better error messages
+      const missingFields: string[] = []
+      
+      if (!formData.total_program_fee || formData.total_program_fee === 0) {
+        missingFields.push('Total Program Fee')
+      }
+      if (!formData.deposit_amount || formData.deposit_amount === 0) {
+        missingFields.push('Deposit Amount')
+      }
+      if (formData.deposit_percentage === null || formData.deposit_percentage === undefined) {
+        missingFields.push('Deposit Percentage')
+      }
+      if (formData.remaining_balance === null || formData.remaining_balance === undefined) {
+        missingFields.push('Remaining Balance')
+      }
+      if (!formData.provider_signature_name || formData.provider_signature_name.trim() === '') {
+        missingFields.push('Provider Signature Name')
+      }
+      if (!formData.provider_signature_first_name || formData.provider_signature_first_name.trim() === '') {
+        missingFields.push('Provider First Name')
+      }
+      if (!formData.provider_signature_last_name || formData.provider_signature_last_name.trim() === '') {
+        missingFields.push('Provider Last Name')
+      }
+      if (!formData.provider_signature_date) {
+        missingFields.push('Provider Signature Date')
+      }
+      
+      if (missingFields.length > 0) {
+        return { 
+          success: false, 
+          error: `Cannot activate form. Please fill in the following required fields: ${missingFields.join(', ')}. All text fields must be non-empty.` 
+        }
+      }
+      
+      // Also check with database function for final validation
       const { data: isValid, error: checkError } = await adminClient
         .rpc('check_service_agreement_admin_fields_complete', {
           form_id: parsedInput.formId
         })
       
       if (checkError) {
+        console.error('[activateServiceAgreement] Database validation error:', checkError)
         return { 
           success: false, 
           error: 'Failed to validate form fields: ' + checkError.message 
@@ -597,9 +635,20 @@ export const activateServiceAgreement = authActionClient
       }
       
       if (!isValid) {
+        // If manual check passed but DB check failed, there might be a data type issue
+        console.error('[activateServiceAgreement] Validation failed. Form data:', {
+          total_program_fee: formData.total_program_fee,
+          deposit_amount: formData.deposit_amount,
+          deposit_percentage: formData.deposit_percentage,
+          remaining_balance: formData.remaining_balance,
+          provider_signature_name: formData.provider_signature_name,
+          provider_signature_first_name: formData.provider_signature_first_name,
+          provider_signature_last_name: formData.provider_signature_last_name,
+          provider_signature_date: formData.provider_signature_date,
+        })
         return { 
           success: false, 
-          error: 'Cannot activate form. Please fill in all required admin fields (amounts, payment method, and provider signature) before activating. All text fields must be non-empty. Patient signature fields will be filled by the patient after activation.' 
+          error: 'Cannot activate form. Please ensure all required admin fields are filled: Total Program Fee, Deposit Amount, Deposit Percentage, Remaining Balance, and Provider Signature (Name, First Name, Last Name, Date). All text fields must be non-empty.' 
         }
       }
     }

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Calendar, Loader2, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 
 export function MedicalHistoryForm() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const intakeFormId = searchParams.get('intake_form_id')
   const [currentStep, setCurrentStep] = useState(1)
   const [signature, setSignature] = useState('')
@@ -139,6 +140,10 @@ export function MedicalHistoryForm() {
       if (result?.data?.success) {
         setIsSubmitted(true)
         toast.success('Medical history form submitted successfully!')
+        // Redirect to patient homepage after a short delay
+        setTimeout(() => {
+          router.push('/patient')
+        }, 1500)
       } else if (result?.serverError) {
         toast.error(result.serverError)
       } else if (result?.data?.error) {
@@ -367,11 +372,11 @@ export function MedicalHistoryForm() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="weight" className="text-base font-medium">
-                          Weight <span className="text-red-500">*</span>
+                          Weight in lbs<span className="text-red-500">*</span>
                         </Label>
                         <Input
                           id="weight"
-                          placeholder="e.g., 23"
+                          placeholder="e.g., 100"
                           {...form.register('weight')}
                           className="h-12 mt-2"
                         />
@@ -381,11 +386,11 @@ export function MedicalHistoryForm() {
                       </div>
                       <div>
                         <Label htmlFor="height" className="text-base font-medium">
-                          Height <span className="text-red-500">*</span>
+                          Height in cm <span className="text-red-500">*</span>
                         </Label>
                         <Input
                           id="height"
-                          placeholder="e.g., 23"
+                          placeholder="e.g., 170"
                           {...form.register('height')}
                           className="h-12 mt-2"
                         />

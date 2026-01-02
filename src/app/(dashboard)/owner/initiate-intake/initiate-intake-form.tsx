@@ -61,6 +61,10 @@ export default function InitiateIntakeForm() {
       
       if (result?.data?.success) {
         toast.success('Intake form created and email sent successfully!')
+      } else if (result?.data?.error) {
+        // Show the specific error message from the action (e.g., duplicate application)
+        toast.error(result.data.error)
+        return
       } else {
         toast.error('Failed to create intake form')
         return

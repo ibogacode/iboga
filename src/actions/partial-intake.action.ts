@@ -38,6 +38,42 @@ export const createPartialIntakeForm = authActionClient
       dateOfBirth = new Date(parsedInput.date_of_birth)
     }
     
+    // Check if any form (partial or completed intake) already exists for this email
+    if (parsedInput.email) {
+      // Check for incomplete partial forms
+      const { data: existingPartialForm } = await supabase
+        .from('partial_intake_forms')
+        .select('id, email, first_name, last_name, completed_at, created_at')
+        .eq('email', parsedInput.email)
+        .is('completed_at', null) // Only check incomplete forms
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (existingPartialForm) {
+        return { 
+          success: false, 
+          error: `Application already exists for this email address (${parsedInput.email}). An incomplete application form is already in progress. Please use the existing form link or contact the patient to complete it before creating a new one.` 
+        }
+      }
+      
+      // Check for completed intake forms
+      const { data: existingIntakeForm } = await supabase
+        .from('patient_intake_forms')
+        .select('id, email, first_name, last_name, created_at')
+        .eq('email', parsedInput.email)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (existingIntakeForm) {
+        return { 
+          success: false, 
+          error: `Application already exists for this email address (${parsedInput.email}). Cannot create a new application form for an existing patient.` 
+        }
+      }
+    }
+    
     // Insert partial form
     const { data, error } = await supabase
       .from('partial_intake_forms')

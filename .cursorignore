@@ -33,7 +33,5 @@ test-results/
 .DS_Store
 Thumbs.db
 
-# Package lock (too large)
-package-lock.json
 
 

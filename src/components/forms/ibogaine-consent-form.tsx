@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SignaturePad } from '@/components/forms/signature-pad'
 import { ibogaineConsentFormSchema, type IbogaineConsentFormValues } from '@/lib/validations/ibogaine-consent'
-import { submitIbogaineConsentForm, getIntakeFormDataForConsent, checkIbogaineConsentActivation } from '@/actions/ibogaine-consent.action'
+import { submitIbogaineConsentForm, getIntakeFormDataForConsent, checkIbogaineConsentActivation, getIbogaineConsentFormForPatient } from '@/actions/ibogaine-consent.action'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
@@ -54,10 +54,15 @@ const CONSENT_SECTIONS = [
   },
 ]
 
-export function IbogaineConsentForm() {
+interface IbogaineConsentFormProps {
+  prefillPatientData?: boolean
+}
+
+export function IbogaineConsentForm({ prefillPatientData = false }: IbogaineConsentFormProps = {}) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const intakeFormId = searchParams.get('intake_form_id')
+  const formId = searchParams.get('formId') || searchParams.get('view') // Support both formId and view params
   const isAdmin = searchParams.get('admin') === 'true'
   const [currentStep, setCurrentStep] = useState(1)
   const [signature, setSignature] = useState('')
@@ -134,9 +139,144 @@ export function IbogaineConsentForm() {
     }
   }, [intakeFormId, form])
 
-  // Check activation status on mount (for patients only)
+  // Auto-fill signature name and date when patient info is available
   useEffect(() => {
-    if (isAdmin || isCheckingActivation === false) {
+    const firstName = form.watch('first_name')
+    const lastName = form.watch('last_name')
+    const currentSignatureName = form.watch('signature_name')
+    const currentSignatureDate = form.watch('signature_date')
+    
+    // Auto-fill signature name if not already set and we have first/last name
+    if (!currentSignatureName && firstName && lastName) {
+      form.setValue('signature_name', `${firstName} ${lastName}`.trim())
+    }
+    
+    // Auto-fill signature date if not already set
+    if (!currentSignatureDate) {
+      form.setValue('signature_date', new Date().toISOString().split('T')[0])
+    }
+  }, [form.watch('first_name'), form.watch('last_name'), form])
+
+  // Load existing form data if formId is provided (for viewing/editing)
+  useEffect(() => {
+    if (!formId || isAdmin) return
+
+    let isMounted = true
+
+    async function loadFormData() {
+      try {
+        const result = await getIbogaineConsentFormForPatient({ formId })
+        
+        if (!isMounted) return
+        
+        if (result?.data?.success && result.data.data) {
+          const existing = result.data.data
+          setIsFormActivated(true)
+          setIsCheckingActivation(false)
+          
+          // Update URL to include formId if not already present
+          if (existing.id && !formId) {
+            const currentUrl = new URL(window.location.href)
+            currentUrl.searchParams.set('formId', existing.id)
+            router.replace(currentUrl.pathname + currentUrl.search, { scroll: false })
+          }
+          
+          // Pre-fill all fields from existing form
+          if (existing.first_name) {
+            form.setValue('first_name', existing.first_name)
+          }
+          if (existing.last_name) {
+            form.setValue('last_name', existing.last_name)
+          }
+          if (existing.email) {
+            form.setValue('email', existing.email)
+          }
+          if (existing.phone_number) {
+            form.setValue('phone_number', existing.phone_number)
+          }
+          if (existing.date_of_birth) {
+            form.setValue('date_of_birth', new Date(existing.date_of_birth).toISOString().split('T')[0])
+          }
+          if (existing.address) {
+            form.setValue('address', existing.address)
+          }
+          if (existing.patient_id) {
+            form.setValue('patient_id', existing.patient_id)
+          }
+          if (existing.intake_form_id) {
+            form.setValue('intake_form_id', existing.intake_form_id)
+          }
+          if (existing.treatment_date) {
+            form.setValue('treatment_date', new Date(existing.treatment_date).toISOString().split('T')[0])
+          }
+          if (existing.facilitator_doctor_name) {
+            form.setValue('facilitator_doctor_name', existing.facilitator_doctor_name)
+          }
+          if (existing.consent_for_treatment !== undefined) {
+            form.setValue('consent_for_treatment', existing.consent_for_treatment)
+          }
+          if (existing.risks_and_benefits !== undefined) {
+            form.setValue('risks_and_benefits', existing.risks_and_benefits)
+          }
+          if (existing.pre_screening_health_assessment !== undefined) {
+            form.setValue('pre_screening_health_assessment', existing.pre_screening_health_assessment)
+          }
+          if (existing.voluntary_participation !== undefined) {
+            form.setValue('voluntary_participation', existing.voluntary_participation)
+          }
+          if (existing.confidentiality !== undefined) {
+            form.setValue('confidentiality', existing.confidentiality)
+          }
+          if (existing.liability_release !== undefined) {
+            form.setValue('liability_release', existing.liability_release)
+          }
+          if (existing.payment_collection !== undefined) {
+            form.setValue('payment_collection', existing.payment_collection)
+          }
+          if (existing.signature_data) {
+            setSignature(existing.signature_data)
+          }
+          if (existing.signature_date) {
+            form.setValue('signature_date', new Date(existing.signature_date).toISOString().split('T')[0])
+          }
+          if (existing.signature_name) {
+            form.setValue('signature_name', existing.signature_name)
+          }
+        } else {
+          toast.error(result?.data?.error || 'Failed to load form data')
+          setTimeout(() => {
+            router.push('/patient/tasks')
+          }, 2000)
+        }
+      } catch (error) {
+        console.error('Error loading form data:', error)
+        toast.error('Failed to load form data')
+        if (isMounted) {
+          setTimeout(() => {
+            router.push('/patient/tasks')
+          }, 2000)
+        }
+      } finally {
+        if (isMounted) {
+          setIsCheckingActivation(false)
+        }
+      }
+    }
+
+    loadFormData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [formId, isAdmin, router, form])
+
+  // Check activation status on mount (for patients only, skip if formId is provided)
+  useEffect(() => {
+    if (isAdmin || isCheckingActivation === false || formId) {
+      if (formId) {
+        // If formId is provided, we're loading it in the other useEffect
+        return
+      }
       setIsCheckingActivation(false)
       setIsFormActivated(true)
       return
@@ -153,20 +293,83 @@ export function IbogaineConsentForm() {
         if (result.success && result.data?.isActivated) {
           setIsFormActivated(true)
           
-          // Pre-fill admin fields from existing form (read-only for patients)
+          // Update URL to include formId if not already present
+          if (result.data.formId && !formId) {
+            const currentUrl = new URL(window.location.href)
+            currentUrl.searchParams.set('formId', result.data.formId)
+            router.replace(currentUrl.pathname + currentUrl.search, { scroll: false })
+          }
+          
+          // Pre-fill all fields from existing form (admin fields are read-only for patients)
           if (result.data.existingForm) {
             const existing = result.data.existingForm
-            if (existing.treatment_date) {
-              form.setValue('treatment_date', new Date(existing.treatment_date).toISOString().split('T')[0])
+            
+            // Pre-fill patient information fields
+            if (existing.first_name) {
+              form.setValue('first_name', existing.first_name)
             }
-            if (existing.facilitator_doctor_name) {
-              form.setValue('facilitator_doctor_name', existing.facilitator_doctor_name)
+            if (existing.last_name) {
+              form.setValue('last_name', existing.last_name)
+            }
+            if (existing.email) {
+              form.setValue('email', existing.email)
+            }
+            if (existing.phone_number) {
+              form.setValue('phone_number', existing.phone_number)
             }
             if (existing.date_of_birth) {
               form.setValue('date_of_birth', new Date(existing.date_of_birth).toISOString().split('T')[0])
             }
             if (existing.address) {
               form.setValue('address', existing.address)
+            }
+            if (existing.patient_id) {
+              form.setValue('patient_id', existing.patient_id)
+            }
+            if (existing.intake_form_id) {
+              form.setValue('intake_form_id', existing.intake_form_id)
+            }
+            
+            // Pre-fill admin fields (read-only for patients)
+            if (existing.treatment_date) {
+              form.setValue('treatment_date', new Date(existing.treatment_date).toISOString().split('T')[0])
+            }
+            if (existing.facilitator_doctor_name) {
+              form.setValue('facilitator_doctor_name', existing.facilitator_doctor_name)
+            }
+            
+            // Pre-fill consent checkboxes if already filled
+            if (existing.consent_for_treatment !== undefined) {
+              form.setValue('consent_for_treatment', existing.consent_for_treatment)
+            }
+            if (existing.risks_and_benefits !== undefined) {
+              form.setValue('risks_and_benefits', existing.risks_and_benefits)
+            }
+            if (existing.pre_screening_health_assessment !== undefined) {
+              form.setValue('pre_screening_health_assessment', existing.pre_screening_health_assessment)
+            }
+            if (existing.voluntary_participation !== undefined) {
+              form.setValue('voluntary_participation', existing.voluntary_participation)
+            }
+            if (existing.confidentiality !== undefined) {
+              form.setValue('confidentiality', existing.confidentiality)
+            }
+            if (existing.liability_release !== undefined) {
+              form.setValue('liability_release', existing.liability_release)
+            }
+            if (existing.payment_collection !== undefined) {
+              form.setValue('payment_collection', existing.payment_collection)
+            }
+            
+            // Pre-fill signature if already exists
+            if (existing.signature_data) {
+              setSignature(existing.signature_data)
+            }
+            if (existing.signature_date) {
+              form.setValue('signature_date', new Date(existing.signature_date).toISOString().split('T')[0])
+            }
+            if (existing.signature_name) {
+              form.setValue('signature_name', existing.signature_name)
             }
           }
         } else {
@@ -227,6 +430,14 @@ export function IbogaineConsentForm() {
   }
 
   async function onSubmit(data: IbogaineConsentFormValues) {
+    console.log('[IbogaineConsentForm] onSubmit called with data:', data)
+    console.log('[IbogaineConsentForm] Signature state:', signature ? 'present' : 'missing')
+    console.log('[IbogaineConsentForm] Form state:', {
+      isSubmitting: form.formState.isSubmitting,
+      isValid: form.formState.isValid,
+      errors: form.formState.errors,
+    })
+    
     setIsLoading(true)
     
     // Check activation status before allowing submission (for patients only)
@@ -240,26 +451,81 @@ export function IbogaineConsentForm() {
     }
     
     try {
-      // Format signature date
-      const today = new Date().toISOString().split('T')[0]
-      const result = await submitIbogaineConsentForm({
+      // Ensure signature is provided
+      if (!signature || signature.trim() === '') {
+        toast.error('Please provide a signature before submitting')
+        setIsLoading(false)
+        return
+      }
+      
+      // Ensure signature_name and signature_date are provided
+      if (!data.signature_name || data.signature_name.trim() === '') {
+        toast.error('Please enter your name for the signature')
+        setIsLoading(false)
+        return
+      }
+      
+      if (!data.signature_date || data.signature_date.trim() === '') {
+        toast.error('Please enter the signature date')
+        setIsLoading(false)
+        return
+      }
+      
+      // Ensure signature_data is set in form data
+      const formDataWithSignature = {
         ...data,
-        signature_date: today,
         signature_data: signature,
-        signature_name: `${data.first_name} ${data.last_name}`.trim(),
+      }
+      
+      console.log('[IbogaineConsentForm] Submitting form with data:', {
+        ...formDataWithSignature,
+        signature_data: signature ? 'present' : 'missing',
       })
       
+      const result = await submitIbogaineConsentForm(formDataWithSignature)
+      
+      console.log('[IbogaineConsentForm] Submit result:', result)
+      
+      if (result?.serverError) {
+        console.error('[IbogaineConsentForm] Server error:', result.serverError)
+        toast.error(result.serverError)
+        setIsLoading(false)
+        return
+      }
+
+      if (result?.validationErrors) {
+        const errors = Object.values(result.validationErrors)
+        const firstError = errors.length > 0 ? String(errors[0]) : null
+        console.error('[IbogaineConsentForm] Validation errors:', result.validationErrors)
+        toast.error(firstError || 'Validation failed')
+        setIsLoading(false)
+        return
+      }
+
       if (result?.data?.success) {
         setIsSubmitted(true)
         toast.success('Ibogaine Therapy Consent Form submitted successfully!')
-      } else if (result?.serverError) {
-        toast.error(result.serverError)
+        
+        // Redirect patient to home page after successful submission
+        if (!isAdmin && prefillPatientData) {
+          setTimeout(() => {
+            router.push('/patient')
+          }, 1500)
+        } else if (isAdmin) {
+          // Admin submitted - redirect after delay
+          setTimeout(() => {
+            router.push('/owner/ibogaine-consent')
+          }, 2000)
+        }
       } else if (result?.data?.error) {
+        console.error('[IbogaineConsentForm] Error from server:', result.data.error)
         toast.error(result.data.error)
       } else {
+        console.error('[IbogaineConsentForm] Unknown error:', result)
         toast.error('Failed to submit form')
       }
     } catch (error) {
+      console.error('[IbogaineConsentForm] Exception during submit:', error)
       toast.error('An unexpected error occurred')
     } finally {
       setIsLoading(false)
@@ -349,7 +615,16 @@ export function IbogaineConsentForm() {
           </div>
         </div>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
+          console.error('[IbogaineConsentForm] Form validation errors:', errors)
+          // Show first validation error
+          const firstError = Object.values(errors)[0]
+          if (firstError?.message) {
+            toast.error(String(firstError.message))
+          } else {
+            toast.error('Please fill in all required fields')
+          }
+        })} className="space-y-8">
           {/* Step 1: Patient Information */}
           {currentStep === 1 && (
             <div className="space-y-6">
@@ -557,6 +832,49 @@ export function IbogaineConsentForm() {
             <div className="space-y-6">
               <h2 className="text-2xl font-semibold text-gray-900">Signature</h2>
               
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <Label htmlFor="signature_name" className="text-base font-semibold text-gray-900">
+                    Your Name (Full) <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="signature_name"
+                    {...form.register('signature_name')}
+                    className={`h-12 mt-2 ${form.formState.errors.signature_name ? 'border-red-500' : ''}`}
+                    placeholder="Enter your full name"
+                    value={form.watch('signature_name') || `${form.watch('first_name')} ${form.watch('last_name')}`.trim()}
+                    onChange={(e) => {
+                      form.setValue('signature_name', e.target.value)
+                    }}
+                  />
+                  {form.formState.errors.signature_name && (
+                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.signature_name.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="signature_date" className="text-base font-semibold text-gray-900">
+                    Date Signed <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative mt-2">
+                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Input
+                      id="signature_date"
+                      type="date"
+                      {...form.register('signature_date')}
+                      className={`h-12 pl-10 ${form.formState.errors.signature_date ? 'border-red-500' : ''}`}
+                      value={form.watch('signature_date') || new Date().toISOString().split('T')[0]}
+                      onChange={(e) => {
+                        form.setValue('signature_date', e.target.value)
+                      }}
+                    />
+                  </div>
+                  {form.formState.errors.signature_date && (
+                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.signature_date.message}</p>
+                  )}
+                </div>
+              </div>
+
               <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
                 <Label className="text-base font-semibold text-gray-900 mb-4 block">
                   Please sign below <span className="text-red-500">*</span>

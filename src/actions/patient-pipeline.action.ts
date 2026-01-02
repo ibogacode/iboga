@@ -252,28 +252,39 @@ export const getPartialIntakeForms = authActionClient
       (allMedicalHistory || []).map((m: any) => m.intake_form_id)
     )
     
-    // Batch fetch all service agreements by intake_form_id
+    // Batch fetch all service agreements by intake_form_id (include signature fields)
     let allServiceAgreementsByIntake: any[] = []
     if (completedIntakeFormIds.length > 0) {
       const { data } = await adminClient
         .from('service_agreements')
-        .select('intake_form_id, patient_email')
+        .select('intake_form_id, patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
         .in('intake_form_id', completedIntakeFormIds)
       allServiceAgreementsByIntake = data || []
     }
     
     // Batch fetch all service agreements by patient_email (case-insensitive)
     // Note: Supabase doesn't support batch ILIKE, so we'll check individually but cache results
-    const serviceAgreementByIntakeMap = new Map<string, boolean>()
-    const serviceAgreementByEmailMap = new Map<string, boolean>()
+    const serviceAgreementByIntakeMap = new Map<string, any>() // intake_form_id -> service agreement object
+    const serviceAgreementByEmailMap = new Map<string, any>() // email -> service agreement object
     
     // Process service agreements by intake_form_id
     allServiceAgreementsByIntake.forEach((sa: any) => {
-      if (sa.intake_form_id) {
-        serviceAgreementByIntakeMap.set(sa.intake_form_id, true)
+      // Check if service agreement is actually completed (signature fields filled)
+      const isCompleted = sa.patient_signature_name && 
+        sa.patient_signature_name.trim() !== '' &&
+        sa.patient_signature_first_name && 
+        sa.patient_signature_first_name.trim() !== '' &&
+        sa.patient_signature_last_name && 
+        sa.patient_signature_last_name.trim() !== '' &&
+        sa.patient_signature_date &&
+        sa.patient_signature_data &&
+        sa.patient_signature_data.trim() !== ''
+      
+      if (sa.intake_form_id && isCompleted) {
+        serviceAgreementByIntakeMap.set(sa.intake_form_id, sa)
       }
-      if (sa.patient_email) {
-        serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), true)
+      if (sa.patient_email && isCompleted) {
+        serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), sa)
       }
     })
     
@@ -321,43 +332,117 @@ export const getPartialIntakeForms = authActionClient
       })
     }
     
-    // Batch fetch service agreements for intake forms found by email
+    // Batch fetch service agreements for intake forms found by email (include signature fields)
     if (intakeFormIdsFromEmail.length > 0) {
       const { data: serviceAgreementsForEmailIntakes } = await adminClient
         .from('service_agreements')
-        .select('intake_form_id, patient_email')
+        .select('intake_form_id, patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
         .in('intake_form_id', intakeFormIdsFromEmail)
       
       ;(serviceAgreementsForEmailIntakes || []).forEach((sa: any) => {
-        if (sa.intake_form_id) {
-          serviceAgreementByIntakeMap.set(sa.intake_form_id, true)
+        // Check if service agreement is actually completed (signature fields filled)
+        const isCompleted = sa.patient_signature_name && 
+          sa.patient_signature_name.trim() !== '' &&
+          sa.patient_signature_first_name && 
+          sa.patient_signature_first_name.trim() !== '' &&
+          sa.patient_signature_last_name && 
+          sa.patient_signature_last_name.trim() !== '' &&
+          sa.patient_signature_date &&
+          sa.patient_signature_data &&
+          sa.patient_signature_data.trim() !== ''
+        
+        if (sa.intake_form_id && isCompleted) {
+          serviceAgreementByIntakeMap.set(sa.intake_form_id, sa)
         }
-        if (sa.patient_email) {
-          serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), true)
+        if (sa.patient_email && isCompleted) {
+          serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), sa)
         }
       })
     }
     
-    // Batch fetch ibogaine consent forms
-    const ibogaineConsentByIntakeMap = new Map<string, boolean>()
-    const ibogaineConsentByEmailMap = new Map<string, boolean>()
+    // Batch fetch ibogaine consent forms (include signature fields)
+    const ibogaineConsentByIntakeMap = new Map<string, any>() // intake_form_id -> ibogaine consent object
+    const ibogaineConsentByEmailMap = new Map<string, any>() // email -> ibogaine consent object
     
     // Fetch ibogaine consent forms by intake_form_id
     const allIntakeFormIds = [...completedIntakeFormIds, ...intakeFormIdsFromEmail]
     if (allIntakeFormIds.length > 0) {
       const { data: ibogaineConsents } = await adminClient
         .from('ibogaine_consent_forms')
-        .select('intake_form_id, email')
+        .select('intake_form_id, email, signature_data, signature_date, signature_name')
         .in('intake_form_id', allIntakeFormIds)
       
       ;(ibogaineConsents || []).forEach((ic: any) => {
-        if (ic.intake_form_id) {
-          ibogaineConsentByIntakeMap.set(ic.intake_form_id, true)
+        // Check if ibogaine consent is actually completed (signature fields filled)
+        const isCompleted = ic.signature_data && 
+          ic.signature_data.trim() !== '' &&
+          ic.signature_date &&
+          ic.signature_name &&
+          ic.signature_name.trim() !== ''
+        
+        if (ic.intake_form_id && isCompleted) {
+          ibogaineConsentByIntakeMap.set(ic.intake_form_id, ic)
         }
-        if (ic.email) {
-          ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), true)
+        if (ic.email && isCompleted) {
+          ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), ic)
         }
       })
+    }
+    
+    // Also fetch service agreements by patient_email (case-insensitive) for forms not linked by intake_form_id
+    if (patientEmails.length > 0) {
+      // Fetch in chunks of 50 (Supabase IN clause limit)
+      const chunkSize = 50
+      for (let i = 0; i < patientEmails.length; i += chunkSize) {
+        const emailChunk = patientEmails.slice(i, i + chunkSize)
+        const { data: serviceAgreementsByEmail } = await adminClient
+          .from('service_agreements')
+          .select('patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
+          .in('patient_email', emailChunk)
+        
+        ;(serviceAgreementsByEmail || []).forEach((sa: any) => {
+          // Check if service agreement is actually completed (signature fields filled)
+          const isCompleted = sa.patient_signature_name && 
+            sa.patient_signature_name.trim() !== '' &&
+            sa.patient_signature_first_name && 
+            sa.patient_signature_first_name.trim() !== '' &&
+            sa.patient_signature_last_name && 
+            sa.patient_signature_last_name.trim() !== '' &&
+            sa.patient_signature_date &&
+            sa.patient_signature_data &&
+            sa.patient_signature_data.trim() !== ''
+          
+          if (sa.patient_email && isCompleted) {
+            serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), sa)
+          }
+        })
+      }
+    }
+    
+    // Also fetch ibogaine consent forms by email (case-insensitive) for forms not linked by intake_form_id
+    if (patientEmails.length > 0) {
+      // Fetch in chunks of 50 (Supabase IN clause limit)
+      const chunkSize = 50
+      for (let i = 0; i < patientEmails.length; i += chunkSize) {
+        const emailChunk = patientEmails.slice(i, i + chunkSize)
+        const { data: ibogaineConsentsByEmail } = await adminClient
+          .from('ibogaine_consent_forms')
+          .select('email, signature_data, signature_date, signature_name')
+          .in('email', emailChunk)
+        
+        ;(ibogaineConsentsByEmail || []).forEach((ic: any) => {
+          // Check if ibogaine consent is actually completed (signature fields filled)
+          const isCompleted = ic.signature_data && 
+            ic.signature_data.trim() !== '' &&
+            ic.signature_date &&
+            ic.signature_name &&
+            ic.signature_name.trim() !== ''
+          
+          if (ic.email && isCompleted) {
+            ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), ic)
+          }
+        })
+      }
     }
     
     // Batch fetch existing patient documents (uploaded documents)
@@ -406,7 +491,7 @@ export const getPartialIntakeForms = authActionClient
           completedCount++
         }
         
-        // Check for service agreement (form or uploaded document)
+        // Check for service agreement (form with signature or uploaded document)
         const hasServiceByIntake = serviceAgreementByIntakeMap.has(form.completed_form_id)
         const hasServiceByEmail = patientEmail && serviceAgreementByEmailMap.has(patientEmail)
         
@@ -414,7 +499,7 @@ export const getPartialIntakeForms = authActionClient
           completedCount++
         }
         
-        // Check for ibogaine consent (form or uploaded document)
+        // Check for ibogaine consent (form with signature or uploaded document)
         const hasIbogaineByIntake = ibogaineConsentByIntakeMap.has(form.completed_form_id)
         const hasIbogaineByEmail = patientEmail && ibogaineConsentByEmailMap.has(patientEmail)
         
@@ -433,7 +518,7 @@ export const getPartialIntakeForms = authActionClient
             completedCount++
           }
           
-          // Check for service agreement (form or uploaded document)
+          // Check for service agreement (form with signature or uploaded document)
           const hasServiceByIntake = intakeFormId && serviceAgreementByIntakeMap.has(intakeFormId)
           const hasServiceByEmail = serviceAgreementByEmailMap.has(patientEmail)
           
@@ -441,7 +526,7 @@ export const getPartialIntakeForms = authActionClient
             completedCount++
           }
           
-          // Check for ibogaine consent (form or uploaded document)
+          // Check for ibogaine consent (form with signature or uploaded document)
           const hasIbogaineByIntake = intakeFormId && ibogaineConsentByIntakeMap.has(intakeFormId)
           const hasIbogaineByEmail = ibogaineConsentByEmailMap.has(patientEmail)
           
@@ -557,44 +642,118 @@ export const getPublicIntakeForms = authActionClient
       (allMedicalHistory || []).map((m: any) => m.intake_form_id)
     )
     
-    // Batch fetch all service agreements by intake_form_id
+    // Batch fetch all service agreements by intake_form_id (include signature fields)
     const { data: allServiceAgreementsByIntake } = await adminClient
       .from('service_agreements')
-      .select('intake_form_id, patient_email')
+      .select('intake_form_id, patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
       .in('intake_form_id', intakeFormIds)
     
     // Create lookup maps
-    const serviceAgreementByIntakeMap = new Map<string, boolean>()
-    const serviceAgreementByEmailMap = new Map<string, boolean>()
+    const serviceAgreementByIntakeMap = new Map<string, any>() // intake_form_id -> service agreement object
+    const serviceAgreementByEmailMap = new Map<string, any>() // email -> service agreement object
     
     // Process service agreements
     ;(allServiceAgreementsByIntake || []).forEach((sa: any) => {
-      if (sa.intake_form_id) {
-        serviceAgreementByIntakeMap.set(sa.intake_form_id, true)
+      // Check if service agreement is actually completed (signature fields filled)
+      const isCompleted = sa.patient_signature_name && 
+        sa.patient_signature_name.trim() !== '' &&
+        sa.patient_signature_first_name && 
+        sa.patient_signature_first_name.trim() !== '' &&
+        sa.patient_signature_last_name && 
+        sa.patient_signature_last_name.trim() !== '' &&
+        sa.patient_signature_date &&
+        sa.patient_signature_data &&
+        sa.patient_signature_data.trim() !== ''
+      
+      if (sa.intake_form_id && isCompleted) {
+        serviceAgreementByIntakeMap.set(sa.intake_form_id, sa)
       }
-      if (sa.patient_email) {
-        serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), true)
+      if (sa.patient_email && isCompleted) {
+        serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), sa)
       }
     })
     
-    // Batch fetch ibogaine consent forms
-    const ibogaineConsentByIntakeMap = new Map<string, boolean>()
-    const ibogaineConsentByEmailMap = new Map<string, boolean>()
+    // Also fetch service agreements by patient_email (case-insensitive) for forms not linked by intake_form_id
+    if (patientEmails.length > 0) {
+      // Fetch in chunks of 50 (Supabase IN clause limit)
+      const chunkSize = 50
+      for (let i = 0; i < patientEmails.length; i += chunkSize) {
+        const emailChunk = patientEmails.slice(i, i + chunkSize)
+        const { data: serviceAgreementsByEmail } = await adminClient
+          .from('service_agreements')
+          .select('patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
+          .in('patient_email', emailChunk)
+        
+        ;(serviceAgreementsByEmail || []).forEach((sa: any) => {
+          // Check if service agreement is actually completed (signature fields filled)
+          const isCompleted = sa.patient_signature_name && 
+            sa.patient_signature_name.trim() !== '' &&
+            sa.patient_signature_first_name && 
+            sa.patient_signature_first_name.trim() !== '' &&
+            sa.patient_signature_last_name && 
+            sa.patient_signature_last_name.trim() !== '' &&
+            sa.patient_signature_date &&
+            sa.patient_signature_data &&
+            sa.patient_signature_data.trim() !== ''
+          
+          if (sa.patient_email && isCompleted) {
+            serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), sa)
+          }
+        })
+      }
+    }
+    
+    // Batch fetch ibogaine consent forms (include signature fields)
+    const ibogaineConsentByIntakeMap = new Map<string, any>() // intake_form_id -> ibogaine consent object
+    const ibogaineConsentByEmailMap = new Map<string, any>() // email -> ibogaine consent object
     
     if (intakeFormIds.length > 0) {
       const { data: ibogaineConsents } = await adminClient
         .from('ibogaine_consent_forms')
-        .select('intake_form_id, email')
+        .select('intake_form_id, email, signature_data, signature_date, signature_name')
         .in('intake_form_id', intakeFormIds)
       
       ;(ibogaineConsents || []).forEach((ic: any) => {
-        if (ic.intake_form_id) {
-          ibogaineConsentByIntakeMap.set(ic.intake_form_id, true)
+        // Check if ibogaine consent is actually completed (signature fields filled)
+        const isCompleted = ic.signature_data && 
+          ic.signature_data.trim() !== '' &&
+          ic.signature_date &&
+          ic.signature_name &&
+          ic.signature_name.trim() !== ''
+        
+        if (ic.intake_form_id && isCompleted) {
+          ibogaineConsentByIntakeMap.set(ic.intake_form_id, ic)
         }
-        if (ic.email) {
-          ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), true)
+        if (ic.email && isCompleted) {
+          ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), ic)
         }
       })
+    }
+    
+    // Also fetch ibogaine consent forms by email (case-insensitive) for forms not linked by intake_form_id
+    if (patientEmails.length > 0) {
+      // Fetch in chunks of 50 (Supabase IN clause limit)
+      const chunkSize = 50
+      for (let i = 0; i < patientEmails.length; i += chunkSize) {
+        const emailChunk = patientEmails.slice(i, i + chunkSize)
+        const { data: ibogaineConsentsByEmail } = await adminClient
+          .from('ibogaine_consent_forms')
+          .select('email, signature_data, signature_date, signature_name')
+          .in('email', emailChunk)
+        
+        ;(ibogaineConsentsByEmail || []).forEach((ic: any) => {
+          // Check if ibogaine consent is actually completed (signature fields filled)
+          const isCompleted = ic.signature_data && 
+            ic.signature_data.trim() !== '' &&
+            ic.signature_date &&
+            ic.signature_name &&
+            ic.signature_name.trim() !== ''
+          
+          if (ic.email && isCompleted) {
+            ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), ic)
+          }
+        })
+      }
     }
     
     // Calculate completion counts using lookup maps

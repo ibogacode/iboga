@@ -56,6 +56,45 @@ export async function sendEmailDirect(params: { to: string; subject: string; bod
     }
 }
 
+// Wrapper function to call email template edge function
+async function sendEmailTemplate(
+  type: string,
+  params: Record<string, any>
+) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+  try {
+    const url = `${supabaseUrl}/functions/v1/send-email-template`
+    console.log('[sendEmailTemplate] Calling edge function:', url, 'type:', type, 'to:', params.to)
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({
+        type,
+        ...params,
+      }),
+    })
+
+    const result = await response.json()
+    
+    if (!result.success) {
+      console.error('[sendEmailTemplate] Email template failed:', result.error)
+      return { success: false, error: result.error || 'Failed to send email' }
+    }
+
+    console.log('[sendEmailTemplate] Email template sent successfully')
+    return { success: true, messageId: result.messageId }
+  } catch (error) {
+    console.error('[sendEmailTemplate] Email template error:', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to send email' }
+  }
+}
+
 // Server action for client-side use
 export const sendEmail = actionClient
   .schema(sendEmailSchema)
@@ -68,43 +107,9 @@ export async function sendInquiryConfirmationEmail(
   email: string,
   firstName: string
 ) {
-  const htmlBody = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: #5D7A5F; color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; background: #f9f9f9; }
-        .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Iboga Wellness Institute</h1>
-        </div>
-        <div class="content">
-          <h2>Thank you, ${firstName}!</h2>
-          <p>We have received your inquiry and are excited to connect with you.</p>
-          <p>Our team will review your information and reach out within 24-48 hours to discuss the next steps in your wellness journey.</p>
-          <p>In the meantime, if you have any questions, feel free to reply to this email or call us at <strong>+1 (800) 604-7294</strong>.</p>
-          <p>Warm regards,<br>The Iboga Wellness Institute</p>
-        </div>
-        <div class="footer">
-          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
-          <p>https://theibogainstitute.org</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `
-
-  return sendEmailDirect({
+  return sendEmailTemplate('inquiry_confirmation', {
     to: email,
-    subject: 'Thank you for your inquiry - Iboga Wellness Institute',
-    body: htmlBody,
+    firstName,
   })
 }
 
@@ -116,153 +121,13 @@ export async function sendEmployeeWelcomeEmail(
   password: string,
   role: string
 ) {
-  // Get base URL for login link
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-    (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
-  const loginUrl = `${baseUrl}/login`
-
-  // Format role name for display
-  const roleDisplayName = role.charAt(0).toUpperCase() + role.slice(1)
-
-  const htmlBody = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { 
-          font-family: 'Helvetica Neue', Arial, sans-serif; 
-          line-height: 1.8; 
-          color: #333; 
-          margin: 0;
-          padding: 0;
-          background-color: #f5f5f5;
-        }
-        .container { 
-          max-width: 600px; 
-          margin: 0 auto; 
-          background: white;
-        }
-        .header { 
-          background: #5D7A5F; 
-          color: white; 
-          padding: 40px 30px; 
-          text-align: center; 
-        }
-        .header h1 {
-          margin: 0;
-          font-size: 28px;
-          font-weight: 400;
-        }
-        .content { 
-          padding: 40px 30px; 
-          background: white; 
-        }
-        .content h2 {
-          color: #5D7A5F;
-          font-size: 24px;
-          margin-top: 0;
-        }
-        .content p {
-          font-size: 16px;
-          color: #555;
-          margin-bottom: 20px;
-        }
-        .credentials-box {
-          background: #f9f9f9;
-          border: 2px solid #5D7A5F;
-          border-radius: 8px;
-          padding: 20px;
-          margin: 30px 0;
-        }
-        .credentials-box p {
-          margin: 10px 0;
-          font-size: 15px;
-        }
-        .credentials-box strong {
-          color: #5D7A5F;
-          display: inline-block;
-          min-width: 100px;
-        }
-        .cta-button {
-          display: inline-block;
-          background: #5D7A5F;
-          color: white !important;
-          padding: 16px 32px;
-          text-decoration: none;
-          border-radius: 8px;
-          font-size: 16px;
-          font-weight: 600;
-          margin: 20px 0;
-        }
-        .cta-button:hover {
-          background: #4a6350;
-        }
-        .cta-container {
-          text-align: center;
-          margin: 30px 0;
-        }
-        .footer { 
-          padding: 30px; 
-          text-align: center; 
-          font-size: 14px; 
-          color: #888;
-          background: #f9f9f9;
-          border-top: 1px solid #eee;
-        }
-        .footer a {
-          color: #5D7A5F;
-          text-decoration: none;
-        }
-        .security-note {
-          background: #fff3cd;
-          border-left: 4px solid #ffc107;
-          padding: 15px;
-          margin: 20px 0;
-          font-size: 14px;
-          color: #856404;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Iboga Wellness Institute</h1>
-        </div>
-        <div class="content">
-          <h2>Welcome to the Team, ${firstName}!</h2>
-          <p>Your account has been created for the Iboga Wellness Institute portal. You can now access the system with your role as <strong>${roleDisplayName}</strong>.</p>
-          
-          <div class="credentials-box">
-            <p><strong>Email:</strong> ${email}</p>
-            <p><strong>Password:</strong> ${password}</p>
-          </div>
-
-          <div class="security-note">
-            <strong>🔒 Security Note:</strong> For your security, please change your password after your first login.
-          </div>
-
-          <div class="cta-container">
-            <a href="${loginUrl}" class="cta-button">Login to Portal</a>
-          </div>
-
-          <p>If you have any questions or need assistance, please contact your administrator.</p>
-          
-          <p>Welcome aboard!<br>The Iboga Wellness Institute Team</p>
-        </div>
-        <div class="footer">
-          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
-          <p>https://theibogainstitute.org</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `
-
   console.log('[sendEmployeeWelcomeEmail] Sending welcome email to:', email)
-  const result = await sendEmailDirect({
+  const result = await sendEmailTemplate('employee_welcome', {
     to: email,
-    subject: 'Welcome to Iboga Wellness Institute - Your Portal Access',
-    body: htmlBody,
+    firstName,
+    lastName,
+    password,
+    role,
   })
   
   if (!result.success) {
@@ -1389,170 +1254,11 @@ export async function sendPatientLoginReminderEmail(
   lastName: string,
   password: string
 ) {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-    (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
-  const loginUrl = `${baseUrl}/login`
-  const forgotPasswordUrl = `${baseUrl}/forgot-password`
-
-  const htmlBody = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { 
-          font-family: 'Helvetica Neue', Arial, sans-serif; 
-          line-height: 1.8; 
-          color: #333; 
-          margin: 0;
-          padding: 0;
-          background-color: #f5f5f5;
-        }
-        .container { 
-          max-width: 600px; 
-          margin: 0 auto; 
-          background: white;
-        }
-        .header { 
-          background: #5D7A5F; 
-          color: white; 
-          padding: 40px 30px; 
-          text-align: center; 
-        }
-        .header h1 {
-          margin: 0;
-          font-size: 28px;
-          font-weight: 400;
-        }
-        .content { 
-          padding: 40px 30px; 
-          background: white; 
-        }
-        .content h2 {
-          color: #5D7A5F;
-          font-size: 24px;
-          margin-top: 0;
-        }
-        .content p {
-          font-size: 16px;
-          color: #555;
-          margin-bottom: 20px;
-        }
-        .reminder-box {
-          background: #fff3cd;
-          border-left: 4px solid #ffc107;
-          padding: 20px;
-          margin: 20px 0;
-        }
-        .credentials-box {
-          background: #f9f9f9;
-          border: 2px solid #5D7A5F;
-          border-radius: 8px;
-          padding: 20px;
-          margin: 30px 0;
-        }
-        .credentials-box p {
-          margin: 10px 0;
-          font-size: 16px;
-        }
-        .credentials-box strong {
-          color: #5D7A5F;
-        }
-        .cta-button {
-          display: inline-block;
-          background: #5D7A5F;
-          color: white !important;
-          padding: 16px 32px;
-          text-decoration: none;
-          border-radius: 8px;
-          font-size: 16px;
-          font-weight: 600;
-          margin: 20px 0;
-        }
-        .cta-container {
-          text-align: center;
-          margin: 30px 0;
-        }
-        .footer { 
-          padding: 30px; 
-          text-align: center; 
-          font-size: 14px; 
-          color: #888;
-          background: #f9f9f9;
-          border-top: 1px solid #eee;
-        }
-        .footer a {
-          color: #5D7A5F;
-          text-decoration: none;
-        }
-        .security-note {
-          background: #fff3cd;
-          border-left: 4px solid #ffc107;
-          padding: 15px;
-          margin: 20px 0;
-          font-size: 14px;
-          color: #856404;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Iboga Wellness Institute</h1>
-        </div>
-        <div class="content">
-          <h2>Reminder: Please Login and Change Your Password, ${firstName}!</h2>
-          
-          <div class="reminder-box">
-            <p><strong>⏰ Action Required</strong></p>
-            <p>We noticed you haven't logged into your patient portal yet or haven't changed your temporary password. Please complete this important step to access your account and complete your tasks.</p>
-          </div>
-          
-          <div class="credentials-box">
-            <p><strong>Email:</strong> ${patientEmail}</p>
-            <p><strong>Temporary Password:</strong> ${password}</p>
-          </div>
-          
-          <div class="security-note">
-            <strong>🔒 Security Note:</strong> For your security, you will be required to change your password after your first login. You can do this in <strong>Profile → Security</strong> settings, or you'll be prompted to change it immediately after logging in.
-          </div>
-          
-          <p>To get started, please:</p>
-          <ol style="color: #555; line-height: 2;">
-            <li><strong>Login to your portal</strong> using your email and the temporary password above</li>
-            <li><strong>Change your password</strong> (you'll be prompted automatically after login)</li>
-            <li><strong>Complete your tasks</strong> in the patient dashboard</li>
-          </ol>
-          
-          <div class="cta-container">
-            <a href="${loginUrl}" class="cta-button">Login to Portal</a>
-          </div>
-          
-          <p style="text-align: center; margin-top: 20px;">
-            <a href="${forgotPasswordUrl}" style="color: #5D7A5F; text-decoration: underline;">Forgot your password? Reset it here</a>
-          </p>
-          
-          <p>If you have any questions or need assistance, please contact us:</p>
-          <p>
-            <strong>Phone:</strong> +1 (800) 604-7294<br>
-            <strong>Email:</strong> contactus@theibogainstitute.org
-          </p>
-          
-          <p>We look forward to helping you on your wellness journey!</p>
-          <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
-        </div>
-        <div class="footer">
-          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
-          <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `
-
-  return sendEmailDirect({
+  return sendEmailTemplate('patient_login_reminder', {
     to: patientEmail,
-    subject: 'Reminder: Please Login and Change Your Password | Iboga Wellness Institute',
-    body: htmlBody,
+    firstName,
+    lastName,
+    password,
   })
 }
 
@@ -1566,190 +1272,14 @@ export async function sendFillerLoginReminderEmail(
   patientEmail: string,
   patientPassword: string
 ) {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-    (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
-  const loginUrl = `${baseUrl}/login`
-  const forgotPasswordUrl = `${baseUrl}/forgot-password`
-
-  const htmlBody = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { 
-          font-family: 'Helvetica Neue', Arial, sans-serif; 
-          line-height: 1.8; 
-          color: #333; 
-          margin: 0;
-          padding: 0;
-          background-color: #f5f5f5;
-        }
-        .container { 
-          max-width: 600px; 
-          margin: 0 auto; 
-          background: white;
-        }
-        .header { 
-          background: #5D7A5F; 
-          color: white; 
-          padding: 40px 30px; 
-          text-align: center; 
-        }
-        .header h1 {
-          margin: 0;
-          font-size: 28px;
-          font-weight: 400;
-        }
-        .content { 
-          padding: 40px 30px; 
-          background: white; 
-        }
-        .content h2 {
-          color: #5D7A5F;
-          font-size: 24px;
-          margin-top: 0;
-        }
-        .content p {
-          font-size: 16px;
-          color: #555;
-          margin-bottom: 20px;
-        }
-        .reminder-box {
-          background: #fff3cd;
-          border-left: 4px solid #ffc107;
-          padding: 20px;
-          margin: 20px 0;
-        }
-        .info-box {
-          background: #f9f9f9;
-          border-left: 4px solid #5D7A5F;
-          padding: 20px;
-          margin: 20px 0;
-        }
-        .info-box p {
-          margin: 10px 0;
-        }
-        .info-box strong {
-          color: #5D7A5F;
-        }
-        .credentials-box {
-          background: #f9f9f9;
-          border: 2px solid #5D7A5F;
-          border-radius: 8px;
-          padding: 20px;
-          margin: 30px 0;
-        }
-        .credentials-box p {
-          margin: 10px 0;
-          font-size: 16px;
-        }
-        .credentials-box strong {
-          color: #5D7A5F;
-        }
-        .cta-button {
-          display: inline-block;
-          background: #5D7A5F;
-          color: white !important;
-          padding: 16px 32px;
-          text-decoration: none;
-          border-radius: 8px;
-          font-size: 16px;
-          font-weight: 600;
-          margin: 20px 0;
-        }
-        .cta-container {
-          text-align: center;
-          margin: 30px 0;
-        }
-        .footer { 
-          padding: 30px; 
-          text-align: center; 
-          font-size: 14px; 
-          color: #888;
-          background: #f9f9f9;
-          border-top: 1px solid #eee;
-        }
-        .footer a {
-          color: #5D7A5F;
-          text-decoration: none;
-        }
-        .security-note {
-          background: #fff3cd;
-          border-left: 4px solid #ffc107;
-          padding: 15px;
-          margin: 20px 0;
-          font-size: 14px;
-          color: #856404;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Iboga Wellness Institute</h1>
-        </div>
-        <div class="content">
-          <h2>Reminder: Help ${patientFirstName} Complete Portal Setup, ${fillerFirstName}!</h2>
-          
-          <div class="reminder-box">
-            <p><strong>⏰ Action Required</strong></p>
-            <p>We noticed that <strong>${patientFirstName} ${patientLastName}</strong> hasn't logged into their patient portal yet or hasn't changed their temporary password. Since you filled out the application form on their behalf, we wanted to remind you to help them complete this important step.</p>
-          </div>
-          
-          <div class="info-box">
-            <p><strong>Patient Information:</strong></p>
-            <p><strong>Name:</strong> ${patientFirstName} ${patientLastName}</p>
-            <p><strong>Email:</strong> ${patientEmail}</p>
-          </div>
-          
-          <div class="credentials-box">
-            <p><strong>Patient Login Credentials:</strong></p>
-            <p><strong>Email:</strong> ${patientEmail}</p>
-            <p><strong>Temporary Password:</strong> ${patientPassword}</p>
-          </div>
-          
-          <div class="security-note">
-            <strong>🔒 Security Note:</strong> The patient will be required to change their password after their first login. They can do this in <strong>Profile → Security</strong> settings, or they'll be prompted to change it immediately after logging in.
-          </div>
-          
-          <p>To help ${patientFirstName} get started, please:</p>
-          <ol style="color: #555; line-height: 2;">
-            <li><strong>Share the login credentials above</strong> with ${patientFirstName}</li>
-            <li><strong>Help them login</strong> to the patient portal</li>
-            <li><strong>Ensure they change their password</strong> (they'll be prompted automatically after login)</li>
-            <li><strong>Help them complete their tasks</strong> in the patient dashboard</li>
-          </ol>
-          
-          <div class="cta-container">
-            <a href="${loginUrl}" class="cta-button">Go to Login Page</a>
-          </div>
-          
-          <p style="text-align: center; margin-top: 20px;">
-            <a href="${forgotPasswordUrl}" style="color: #5D7A5F; text-decoration: underline;">Forgot password? Reset it here</a>
-          </p>
-          
-          <p>If you have any questions or need assistance, please contact us:</p>
-          <p>
-            <strong>Phone:</strong> +1 (800) 604-7294<br>
-            <strong>Email:</strong> contactus@theibogainstitute.org
-          </p>
-          
-          <p>Thank you for helping ${patientFirstName} on their wellness journey!</p>
-          <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
-        </div>
-        <div class="footer">
-          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
-          <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `
-
-  return sendEmailDirect({
+  return sendEmailTemplate('filler_login_reminder', {
     to: fillerEmail,
-    subject: `Reminder: Help ${patientFirstName} ${patientLastName} Complete Portal Setup | Iboga Wellness Institute`,
-    body: htmlBody,
+    firstName: fillerFirstName,
+    lastName: fillerLastName,
+    patientFirstName,
+    patientLastName,
+    patientEmail,
+    password: patientPassword,
   })
 }
 
@@ -1761,132 +1291,12 @@ export async function sendFormActivationEmail(
   formType: 'service_agreement' | 'ibogaine_consent',
   formName: string
 ) {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-    (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
-  
-  const formLink = formType === 'service_agreement' 
-    ? `${baseUrl}/patient/tasks`
-    : `${baseUrl}/patient/tasks`
-
-  const htmlBody = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { 
-          font-family: 'Helvetica Neue', Arial, sans-serif; 
-          line-height: 1.8; 
-          color: #333; 
-          margin: 0;
-          padding: 0;
-          background-color: #f5f5f5;
-        }
-        .container { 
-          max-width: 600px; 
-          margin: 0 auto; 
-          background: white;
-        }
-        .header { 
-          background: #5D7A5F; 
-          color: white; 
-          padding: 40px 30px; 
-          text-align: center; 
-        }
-        .header h1 {
-          margin: 0;
-          font-size: 28px;
-          font-weight: 400;
-        }
-        .content { 
-          padding: 40px 30px; 
-          background: white; 
-        }
-        .content h2 {
-          color: #5D7A5F;
-          font-size: 24px;
-          margin-top: 0;
-        }
-        .content p {
-          font-size: 16px;
-          color: #555;
-          margin-bottom: 20px;
-        }
-        .info-box {
-          background: #f0f7f0;
-          border-left: 4px solid #5D7A5F;
-          padding: 20px;
-          margin: 20px 0;
-        }
-        .cta-button {
-          display: inline-block;
-          background: #5D7A5F;
-          color: white !important;
-          padding: 16px 32px;
-          text-decoration: none;
-          border-radius: 8px;
-          font-size: 16px;
-          font-weight: 600;
-          margin: 20px 0;
-        }
-        .cta-container {
-          text-align: center;
-          margin: 30px 0;
-        }
-        .footer { 
-          padding: 30px; 
-          text-align: center; 
-          font-size: 14px; 
-          color: #888;
-          background: #f9f9f9;
-          border-top: 1px solid #eee;
-        }
-        .footer a {
-          color: #5D7A5F;
-          text-decoration: none;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Iboga Wellness Institute</h1>
-        </div>
-        <div class="content">
-          <h2>Your ${formName} Form is Now Available, ${firstName}!</h2>
-          
-          <div class="info-box">
-            <p><strong>✅ Form Activated</strong></p>
-            <p>Your ${formName} form has been activated and is now available for you to complete in your patient portal.</p>
-          </div>
-          
-          <p>Please log in to your patient portal and complete the ${formName} form as soon as possible. This is an important step in your treatment preparation.</p>
-          
-          <div class="cta-container">
-            <a href="${formLink}" class="cta-button">Go to Patient Portal</a>
-          </div>
-          
-          <p>If you have any questions or need assistance, please contact us:</p>
-          <p>
-            <strong>Phone:</strong> +1 (800) 604-7294<br>
-            <strong>Email:</strong> contactus@theibogainstitute.org
-          </p>
-          
-          <p>We look forward to continuing your wellness journey!</p>
-          <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
-        </div>
-        <div class="footer">
-          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
-          <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `
-
-  return sendEmailDirect({
+  return sendEmailTemplate('form_activation', {
     to: patientEmail,
-    subject: `Your ${formName} Form is Now Available | Iboga Wellness Institute`,
-    body: htmlBody,
+    firstName,
+    lastName,
+    formType,
+    formName,
   })
 }
 
@@ -1898,135 +1308,89 @@ export async function sendFormActivationReminderEmail(
   formType: 'service_agreement' | 'ibogaine_consent',
   formName: string
 ) {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-    (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
-  
-  const formLink = `${baseUrl}/patient/tasks`
-
-  const htmlBody = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { 
-          font-family: 'Helvetica Neue', Arial, sans-serif; 
-          line-height: 1.8; 
-          color: #333; 
-          margin: 0;
-          padding: 0;
-          background-color: #f5f5f5;
-        }
-        .container { 
-          max-width: 600px; 
-          margin: 0 auto; 
-          background: white;
-        }
-        .header { 
-          background: #5D7A5F; 
-          color: white; 
-          padding: 40px 30px; 
-          text-align: center; 
-        }
-        .header h1 {
-          margin: 0;
-          font-size: 28px;
-          font-weight: 400;
-        }
-        .content { 
-          padding: 40px 30px; 
-          background: white; 
-        }
-        .content h2 {
-          color: #5D7A5F;
-          font-size: 24px;
-          margin-top: 0;
-        }
-        .content p {
-          font-size: 16px;
-          color: #555;
-          margin-bottom: 20px;
-        }
-        .reminder-box {
-          background: #fff3cd;
-          border-left: 4px solid #ffc107;
-          padding: 20px;
-          margin: 20px 0;
-        }
-        .cta-button {
-          display: inline-block;
-          background: #5D7A5F;
-          color: white !important;
-          padding: 16px 32px;
-          text-decoration: none;
-          border-radius: 8px;
-          font-size: 16px;
-          font-weight: 600;
-          margin: 20px 0;
-        }
-        .cta-container {
-          text-align: center;
-          margin: 30px 0;
-        }
-        .footer { 
-          padding: 30px; 
-          text-align: center; 
-          font-size: 14px; 
-          color: #888;
-          background: #f9f9f9;
-          border-top: 1px solid #eee;
-        }
-        .footer a {
-          color: #5D7A5F;
-          text-decoration: none;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Iboga Wellness Institute</h1>
-        </div>
-        <div class="content">
-          <h2>Reminder: Complete Your ${formName} Form, ${firstName}!</h2>
-          
-          <div class="reminder-box">
-            <p><strong>⏰ Action Required</strong></p>
-            <p>Your ${formName} form was activated 48 hours ago, but we noticed you haven't completed it yet. Please complete this important form to proceed with your treatment.</p>
-          </div>
-          
-          <p>To complete your ${formName} form:</p>
-          <ol style="color: #555; line-height: 2;">
-            <li><strong>Log in to your patient portal</strong></li>
-            <li><strong>Go to your Tasks page</strong></li>
-            <li><strong>Click "Start" on the ${formName} task</strong></li>
-            <li><strong>Complete and submit the form</strong></li>
-          </ol>
-          
-          <div class="cta-container">
-            <a href="${formLink}" class="cta-button">Go to Patient Portal</a>
-          </div>
-          
-          <p>If you have any questions or need assistance, please contact us:</p>
-          <p>
-            <strong>Phone:</strong> +1 (800) 604-7294<br>
-            <strong>Email:</strong> contactus@theibogainstitute.org
-          </p>
-          
-          <p>We look forward to continuing your wellness journey!</p>
-          <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
-        </div>
-        <div class="footer">
-          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
-          <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `
-
-  return sendEmailDirect({
+  return sendEmailTemplate('form_activation_reminder', {
     to: patientEmail,
-    subject: `Reminder: Complete Your ${formName} Form | Iboga Wellness Institute`,
-    body: htmlBody,
+    firstName,
+    lastName,
+    formType,
+    formName,
   })
+}
+
+// Helper function to send medical history form completion confirmation email
+export async function sendMedicalHistoryConfirmationEmail(
+  email: string,
+  firstName: string,
+  lastName: string,
+  patientFirstName?: string,
+  patientLastName?: string
+) {
+  console.log('[sendMedicalHistoryConfirmationEmail] Sending medical history confirmation email to:', email)
+  const result = await sendEmailTemplate('medical_history_confirmation', {
+    to: email,
+    firstName,
+    lastName,
+    patientFirstName,
+    patientLastName,
+  })
+  
+  if (!result.success) {
+    console.error('[sendMedicalHistoryConfirmationEmail] Failed to send email:', result.error)
+  } else {
+    console.log('[sendMedicalHistoryConfirmationEmail] Email sent successfully')
+  }
+  
+  return result
+}
+
+// Helper function to send service agreement form completion confirmation email
+export async function sendServiceAgreementConfirmationEmail(
+  email: string,
+  firstName: string,
+  lastName: string,
+  patientFirstName?: string,
+  patientLastName?: string
+) {
+  console.log('[sendServiceAgreementConfirmationEmail] Sending service agreement confirmation email to:', email)
+  const result = await sendEmailTemplate('service_agreement_confirmation', {
+    to: email,
+    firstName,
+    lastName,
+    patientFirstName,
+    patientLastName,
+  })
+  
+  if (!result.success) {
+    console.error('[sendServiceAgreementConfirmationEmail] Failed to send email:', result.error)
+  } else {
+    console.log('[sendServiceAgreementConfirmationEmail] Email sent successfully')
+  }
+  
+  return result
+}
+
+// Helper function to send ibogaine consent form completion confirmation email
+export async function sendIbogaineConsentConfirmationEmail(
+  email: string,
+  firstName: string,
+  lastName: string,
+  patientFirstName?: string,
+  patientLastName?: string
+) {
+  console.log('[sendIbogaineConsentConfirmationEmail] Sending ibogaine consent confirmation email to:', email)
+  const result = await sendEmailTemplate('ibogaine_consent_confirmation', {
+    to: email,
+    firstName,
+    lastName,
+    patientFirstName,
+    patientLastName,
+  })
+  
+  if (!result.success) {
+    console.error('[sendIbogaineConsentConfirmationEmail] Failed to send email:', result.error)
+  } else {
+    console.log('[sendIbogaineConsentConfirmationEmail] Email sent successfully')
+  }
+  
+  return result
 }

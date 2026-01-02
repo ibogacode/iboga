@@ -40,7 +40,7 @@ export default function FacilityManagementPage() {
       lastName: '',
       role: 'nurse',
       phone: '',
-      payRatePerHour: '',
+      payRatePerDay: '',
     },
   })
 
@@ -140,7 +140,7 @@ export default function FacilityManagementPage() {
       lastName: employee.last_name || '',
       role: editableRole,
       phone: employee.phone || '',
-      payRatePerHour: employee.pay_rate_per_hour ? employee.pay_rate_per_hour.toString() : '',
+      payRatePerDay: employee.pay_rate_per_day ? employee.pay_rate_per_day.toString() : '',
     })
     setIsEditDialogOpen(true)
   }
@@ -330,22 +330,26 @@ export default function FacilityManagementPage() {
                   />
                   <FormField
                     control={employeeForm.control}
-                    name="payRatePerHour"
+                    name="payRatePerDay"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Pay Rate Per Hour (Optional)</FormLabel>
+                        <FormLabel>Pay Rate Per Day (Optional)</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="number" 
-                            step="0.01" 
-                            min="0"
-                            placeholder="25.00" 
-                            {...field} 
-                          />
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                            <Input 
+                              type="number" 
+                              step="0.01" 
+                              min="0"
+                              placeholder="25.00" 
+                              className="pl-7"
+                              {...field} 
+                            />
+                          </div>
                         </FormControl>
                         <FormMessage />
                         <p className="text-xs text-gray-500 mt-1">
-                          Enter the hourly pay rate for future calculations
+                          Enter the daily pay rate for future calculations
                         </p>
                       </FormItem>
                     )}
@@ -461,7 +465,7 @@ export default function FacilityManagementPage() {
                     Phone
                   </th>
                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Pay Rate/Hour
+                    Pay Rate/Day
                   </th>
                   <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Added
@@ -496,7 +500,7 @@ export default function FacilityManagementPage() {
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <div className="text-xs sm:text-sm text-gray-500">
-                        {employee.pay_rate_per_hour ? `$${parseFloat(employee.pay_rate_per_hour.toString()).toFixed(2)}` : '—'}
+                        {employee.pay_rate_per_day ? `$${parseFloat(employee.pay_rate_per_day.toString()).toFixed(2)}` : '—'}
                       </div>
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
@@ -626,22 +630,26 @@ export default function FacilityManagementPage() {
               />
               <FormField
                 control={editEmployeeForm.control}
-                name="payRatePerHour"
+                name="payRatePerDay"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Pay Rate Per Hour (Optional)</FormLabel>
+                    <FormLabel>Pay Rate Per Day (Optional)</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number" 
-                        step="0.01" 
-                        min="0"
-                        placeholder="25.00" 
-                        {...field} 
-                      />
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          min="0"
+                          placeholder="25.00" 
+                          className="pl-7"
+                          {...field} 
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                     <p className="text-xs text-gray-500 mt-1">
-                      Enter the hourly pay rate for future calculations
+                      Enter the daily pay rate for future calculations
                     </p>
                   </FormItem>
                 )}

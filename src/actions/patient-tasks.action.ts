@@ -449,8 +449,8 @@ export const getPatientTasks = authActionClient
           completedAt: isPatientSignatureComplete ? ibogaineConsentForm.created_at : undefined,
           formId: ibogaineConsentForm.id,
           link: isPatientSignatureComplete
-            ? `/ibogaine-consent?view=${ibogaineConsentForm.id}`
-            : `/ibogaine-consent`,
+            ? `/patient/ibogaine-consent?formId=${ibogaineConsentForm.id}`
+            : `/patient/ibogaine-consent`,
         })
       } else {
         tasks.push({

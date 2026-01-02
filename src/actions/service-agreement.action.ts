@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { authActionClient } from '@/lib/safe-action'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { serviceAgreementSchema } from '@/lib/validations/service-agreement'
+import { sendServiceAgreementConfirmationEmail } from './email.action'
 
 /**
  * Get patient data for service agreement pre-population
@@ -141,10 +142,11 @@ export const submitServiceAgreement = authActionClient
     // If form exists and is activated, update it (patient completing their fields)
     // If form doesn't exist or is draft, insert new one
     if (existingForm && existingForm.is_activated) {
-      // Update existing activated form with patient's signature fields
+      // Update existing activated form with patient's signature fields and payment method
       const { data, error } = await supabase
         .from('service_agreements')
         .update({
+          payment_method: parsedInput.payment_method,
           patient_signature_name: parsedInput.patient_signature_name,
           patient_signature_first_name: parsedInput.patient_signature_first_name,
           patient_signature_last_name: parsedInput.patient_signature_last_name,
@@ -160,6 +162,42 @@ export const submitServiceAgreement = authActionClient
       
       if (error || !data) {
         return { success: false, error: error?.message || 'Failed to update service agreement' }
+      }
+      
+      // Get intake form data to check for filler details
+      let intakeFormData: any = null
+      if (parsedInput.intake_form_id) {
+        const { data: intakeData } = await supabase
+          .from('patient_intake_forms')
+          .select('filled_by, filler_email, filler_first_name, filler_last_name, first_name, last_name, email')
+          .eq('id', parsedInput.intake_form_id)
+          .maybeSingle()
+        
+        if (intakeData) {
+          intakeFormData = intakeData
+        }
+      }
+      
+      // Send confirmation email to patient (fire and forget - don't block response)
+      sendServiceAgreementConfirmationEmail(
+        parsedInput.patient_email,
+        parsedInput.patient_first_name,
+        parsedInput.patient_last_name
+      ).catch((error) => {
+        console.error('Failed to send service agreement confirmation email to patient:', error)
+      })
+      
+      // Send email to filler if application has filler details
+      if (intakeFormData && intakeFormData.filled_by === 'someone_else' && intakeFormData.filler_email) {
+        sendServiceAgreementConfirmationEmail(
+          intakeFormData.filler_email,
+          intakeFormData.filler_first_name || 'Filler',
+          intakeFormData.filler_last_name || '',
+          intakeFormData.first_name || parsedInput.patient_first_name,
+          intakeFormData.last_name || parsedInput.patient_last_name
+        ).catch((error) => {
+          console.error('Failed to send service agreement confirmation email to filler:', error)
+        })
       }
       
       return { success: true, data: { id: data.id } }
@@ -200,6 +238,45 @@ export const submitServiceAgreement = authActionClient
       if (error || !data) {
         console.error('Error creating service agreement:', error)
         return { success: false, error: error?.message || 'Failed to create service agreement' }
+      }
+
+      // Get intake form data to check for filler details
+      let intakeFormData: any = null
+      if (parsedInput.intake_form_id) {
+        const { data: intakeData } = await supabase
+          .from('patient_intake_forms')
+          .select('filled_by, filler_email, filler_first_name, filler_last_name, first_name, last_name, email')
+          .eq('id', parsedInput.intake_form_id)
+          .maybeSingle()
+        
+        if (intakeData) {
+          intakeFormData = intakeData
+        }
+      }
+      
+      // Send confirmation email to patient (fire and forget - don't block response)
+      // Only send if patient completed the form (has patient signature)
+      if (parsedInput.patient_signature_name && parsedInput.patient_signature_name.trim() !== '') {
+        sendServiceAgreementConfirmationEmail(
+          parsedInput.patient_email,
+          parsedInput.patient_first_name,
+          parsedInput.patient_last_name
+        ).catch((error) => {
+          console.error('Failed to send service agreement confirmation email to patient:', error)
+        })
+        
+        // Send email to filler if application has filler details
+        if (intakeFormData && intakeFormData.filled_by === 'someone_else' && intakeFormData.filler_email) {
+          sendServiceAgreementConfirmationEmail(
+            intakeFormData.filler_email,
+            intakeFormData.filler_first_name || 'Filler',
+            intakeFormData.filler_last_name || '',
+            intakeFormData.first_name || parsedInput.patient_first_name,
+            intakeFormData.last_name || parsedInput.patient_last_name
+          ).catch((error) => {
+            console.error('Failed to send service agreement confirmation email to filler:', error)
+          })
+        }
       }
 
       return { success: true, data: { id: data.id } }
