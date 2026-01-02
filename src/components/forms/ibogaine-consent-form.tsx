@@ -165,6 +165,8 @@ export function IbogaineConsentForm({ prefillPatientData = false }: IbogaineCons
 
     async function loadFormData() {
       try {
+        // Type guard: formId is checked above, but TypeScript needs explicit assertion
+        if (!formId) return
         const result = await getIbogaineConsentFormForPatient({ formId })
         
         if (!isMounted) return
