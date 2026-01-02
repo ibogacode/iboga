@@ -101,11 +101,13 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
       {
         title: 'Marketing',
-        href: '/marketing',
         icon: Megaphone,
         children: [
           { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
-        ]
+          { title: 'Instagram', href: '/marketing/instagram', icon: Instagram },
+          { title: 'YouTube', href: '/marketing/youtube', icon: Youtube },
+          { title: 'Web', href: '/marketing/web', icon: Globe },
+        ],
       },
       { title: 'Research', href: '/research', icon: Search },
       { title: 'Messages', href: '/messages', icon: MessageSquare },
