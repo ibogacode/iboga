@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
+import { Loader2, X, Calendar, CheckCircle2, XCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { partialIntakeFormSchema, type PartialIntakeFormSchemaValues } from '@/lib/validations/partial-intake'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { toast } from 'sonner'
@@ -21,9 +23,27 @@ const US_STATES = [
   'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
 ]
 
-export default function InitiateIntakeForm() {
+type Step = 'entry-mode' | 'details' | 'confirmation'
+
+interface InitiateIntakeFormProps {
+  onSuccess?: () => void
+  onClose?: () => void
+  onStepChange?: (step: 'entry-mode' | 'details' | 'confirmation') => void
+}
+
+export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }: InitiateIntakeFormProps = {}) {
+  const router = useRouter()
+  const [currentStep, setCurrentStep] = useState<Step>('entry-mode')
   const [mode, setMode] = useState<'minimal' | 'partial'>('minimal')
   const [isLoading, setIsLoading] = useState(false)
+  const [submittedData, setSubmittedData] = useState<{
+    recipient_name: string
+    recipient_email: string
+    mode: 'minimal' | 'partial'
+  } | null>(null)
+  const [isSuccess, setIsSuccess] = useState<boolean>(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [showErrorDialog, setShowErrorDialog] = useState(false)
 
   const form = useForm<PartialIntakeFormSchemaValues>({
     resolver: zodResolver(partialIntakeFormSchema),
@@ -47,542 +67,975 @@ export default function InitiateIntakeForm() {
     try {
       const result = await createPartialIntakeForm(data)
       
+      // Store submitted data for confirmation step (regardless of success/failure)
+      const recipientName = data.filled_by === 'self' 
+        ? `${data.first_name} ${data.last_name}`.trim()
+        : `${data.filler_first_name || ''} ${data.filler_last_name || ''}`.trim()
+      const recipientEmail = data.filled_by === 'self' 
+        ? data.email 
+        : (data.filler_email || '')
+      
+      setSubmittedData({
+        recipient_name: recipientName,
+        recipient_email: recipientEmail || '',
+        mode: data.mode
+      })
+      
       if (result?.serverError) {
-        toast.error(result.serverError)
+        setIsSuccess(false)
+        setErrorMessage(result.serverError)
+        setCurrentStep('confirmation')
+        if (onStepChange) {
+          onStepChange('confirmation')
+        }
+        setShowErrorDialog(true)
+        setIsLoading(false)
         return
       }
       
       if (result?.validationErrors) {
         const errors = Object.values(result.validationErrors)
         const firstError = errors.length > 0 ? String(errors[0]) : null
-        toast.error(firstError || 'Validation failed')
+        setIsSuccess(false)
+        setErrorMessage(firstError || 'Validation failed')
+        setCurrentStep('confirmation')
+        if (onStepChange) {
+          onStepChange('confirmation')
+        }
+        setShowErrorDialog(true)
+        setIsLoading(false)
         return
       }
       
       if (result?.data?.success) {
-        toast.success('Intake form created and email sent successfully!')
+        setIsSuccess(true)
+        setErrorMessage(null)
+        setIsLoading(false)
+        setCurrentStep('confirmation')
+        // Notify parent of step change
+        if (onStepChange) {
+          onStepChange('confirmation')
+        }
+        // DON'T call onSuccess here - it causes re-render and resets the modal
+        // onSuccess will be called when user closes the modal or navigates away
       } else if (result?.data?.error) {
-        // Show the specific error message from the action (e.g., duplicate application)
-        toast.error(result.data.error)
-        return
+        setIsSuccess(false)
+        setErrorMessage(result.data.error)
+        setCurrentStep('confirmation')
+        setIsLoading(false)
+        if (onStepChange) {
+          onStepChange('confirmation')
+        }
+        setShowErrorDialog(true)
       } else {
-        toast.error('Failed to create intake form')
-        return
+        setIsSuccess(false)
+        setErrorMessage('Failed to create intake form')
+        setCurrentStep('confirmation')
+        setIsLoading(false)
+        if (onStepChange) {
+          onStepChange('confirmation')
+        }
+        setShowErrorDialog(true)
       }
-      
-      // Reset form
-      form.reset({
-        mode: 'minimal',
-        filled_by: 'self',
-        filler_relationship: null,
-        filler_first_name: null,
-        filler_last_name: null,
-        filler_email: null,
-        filler_phone: null,
-        first_name: '',
-        last_name: '',
-        email: '',
-      })
-      setMode('minimal')
     } catch (error) {
       console.error('Error submitting form:', error)
-      toast.error('An unexpected error occurred')
-    } finally {
+      setIsSuccess(false)
+      setErrorMessage('An unexpected error occurred')
+      setCurrentStep('confirmation')
       setIsLoading(false)
+      if (onStepChange) {
+        onStepChange('confirmation')
+      }
+      setShowErrorDialog(true)
     }
   }
 
+  function handleModeSelect(selectedMode: 'minimal' | 'partial') {
+    setMode(selectedMode)
+    form.setValue('mode', selectedMode)
+    setCurrentStep('details')
+    if (onStepChange) {
+      onStepChange('details')
+    }
+  }
+
+  function handleBack() {
+    if (currentStep === 'details') {
+      setCurrentStep('entry-mode')
+      if (onStepChange) {
+        onStepChange('entry-mode')
+      }
+    }
+  }
+
+  function handleContinue() {
+    if (currentStep === 'entry-mode') {
+      setCurrentStep('details')
+      if (onStepChange) {
+        onStepChange('details')
+      }
+    }
+  }
+
+  function handleViewPatientRecord() {
+    // Close the modal first (this will trigger onSuccess in the modal)
+    if (onClose) {
+      onClose()
+    }
+    // Navigate to patient pipeline
+    router.push('/patient-pipeline')
+  }
+
+  function handleAddAnotherPatient() {
+    form.reset({
+      mode: 'minimal',
+      filled_by: 'self',
+      filler_relationship: null,
+      filler_first_name: null,
+      filler_last_name: null,
+      filler_email: null,
+      filler_phone: null,
+      first_name: '',
+      last_name: '',
+      email: '',
+    })
+    setMode('minimal')
+    setCurrentStep('entry-mode')
+    setSubmittedData(null)
+  }
+
   return (
-    <div className="min-h-screen bg-#EDE9E4">
-      <div className="max-w-4xl mx-auto bg-white p-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
-          Initiate Patient Application Form
-        </h1>
-        
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        {/* Mode Selection */}
-        <div className="space-y-6">
-          <h2 className="text-2xl font-semibold text-gray-900">Form Mode</h2>
-          <div className="space-y-4">
-            <Label className="text-base font-medium">
-              Select Form Mode <span className="text-red-500">*</span>
-            </Label>
-            <RadioGroup
-              value={mode}
-            onValueChange={(value) => {
-              const newMode = value as 'minimal' | 'partial'
-              setMode(newMode)
-              form.setValue('mode', newMode)
-              // Just update the mode, don't reset the entire form
-              // The form will handle validation based on the mode
-            }}
-              className="flex gap-6"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="minimal" id="mode_minimal" />
-                <Label htmlFor="mode_minimal" className="font-normal cursor-pointer">
-                  Minimal (Name & Email only)
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="partial" id="mode_partial" />
-                <Label htmlFor="mode_partial" className="font-normal cursor-pointer">
-                  Partial (Up to Emergency Contact)
-                </Label>
-              </div>
-            </RadioGroup>
+    <div className="p-4 sm:p-6 md:p-8 flex flex-col gap-4 sm:gap-6 md:gap-8">
+          {/* Header Section */}
+          <div className="flex flex-col gap-3 sm:gap-4 md:gap-5">
+            <div className="flex flex-col gap-[10px]">
+              <h1 
+                className="text-2xl font-medium text-black leading-[1.193em] tracking-[-0.04em]"
+                style={{ fontFamily: 'SF Pro Text, -apple-system, system-ui, sans-serif' }}
+              >
+                {currentStep === 'confirmation' ? 'Invite Sent Successfully' : 'Add Patient'}
+              </h1>
+              <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">
+                {currentStep === 'entry-mode' && 'Choose how much information you want to capture before sending the patient application.'}
+                {currentStep === 'details' && (mode === 'minimal' 
+                  ? 'Minimal mode: enter name + email. We\'ll email the patient their application form link.'
+                  : 'Partial mode: capture key details while assisting the patient. Application link is emailed with data prefilled.')}
+                {currentStep === 'confirmation' && 'The patient has received their application form via email.'}
+              </p>
+            </div>
+
+            {/* Tab Bar */}
+            <div className="flex items-center gap-[46px]">
+              <button
+                onClick={() => setCurrentStep('entry-mode')}
+                disabled={currentStep === 'confirmation'}
+                className={`w-[205px] h-[33px] rounded-full text-sm leading-[1.193em] tracking-[-0.04em] transition-all flex items-center justify-center ${
+                  currentStep === 'entry-mode'
+                    ? 'bg-white text-[#6E7A46] shadow-[0px_2px_16px_0px_rgba(0,0,0,0.08)]'
+                    : 'text-[#090909] bg-transparent'
+                } ${currentStep === 'confirmation' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                Entry Mode
+              </button>
+              <button
+                onClick={() => setCurrentStep('details')}
+                disabled={currentStep === 'confirmation'}
+                className={`w-[119px] h-[33px] rounded-full text-sm leading-[1.193em] tracking-[-0.04em] transition-all flex items-center justify-center ${
+                  currentStep === 'details'
+                    ? 'bg-white text-[#6E7A46] shadow-[0px_2px_16px_0px_rgba(0,0,0,0.08)]'
+                    : 'text-[#090909] bg-transparent'
+                } ${currentStep === 'confirmation' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                Details
+              </button>
+              <button
+                className={`w-[94px] h-[33px] rounded-full text-sm leading-[1.193em] tracking-[-0.04em] flex items-center justify-center ${
+                  currentStep === 'confirmation'
+                    ? 'bg-white text-[#6E7A46] shadow-[0px_2px_16px_0px_rgba(0,0,0,0.08)]'
+                    : 'text-[#090909] bg-transparent opacity-50'
+                }`}
+                disabled
+              >
+                Confirmation
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Form Filler Section */}
-        <div className="space-y-6 border-t pt-6">
-          <h2 className="text-2xl font-semibold text-gray-900">Who Will Fill Out This Form?</h2>
-          <div className="bg-gray-50 p-4 rounded-lg space-y-4">
-            <Label className="text-base font-medium">
-              Is the patient filling this out themselves, or will someone else fill it out for them? <span className="text-red-500">*</span>
-            </Label>
-            <RadioGroup
-              value={form.watch('filled_by')}
-              onValueChange={(value) => {
-                form.setValue('filled_by', value as 'self' | 'someone_else')
-                if (value === 'self') {
-                  // Clear filler fields when switching to self
-                  form.setValue('filler_relationship', null)
-                  form.setValue('filler_first_name', null)
-                  form.setValue('filler_last_name', null)
-                  form.setValue('filler_email', null)
-                  form.setValue('filler_phone', null)
-                } else {
-                  // Clear patient fields when switching to someone else
-                  form.setValue('first_name', '')
-                  form.setValue('last_name', '')
-                  form.setValue('email', '')
-                  form.setValue('phone_number', '')
-                  form.setValue('date_of_birth', '')
-                  form.setValue('gender', null)
-                  form.setValue('address', '')
-                  form.setValue('city', '')
-                  form.setValue('state', '')
-                  form.setValue('zip_code', '')
-                  form.setValue('program_type', null)
-                  form.setValue('emergency_contact_first_name', '')
-                  form.setValue('emergency_contact_last_name', '')
-                  form.setValue('emergency_contact_email', '')
-                  form.setValue('emergency_contact_phone', '')
-                  form.setValue('emergency_contact_address', '')
-                  form.setValue('emergency_contact_relationship', '')
-                }
-              }}
-              className="flex gap-6"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="self" id="filled_by_self" />
-                <Label htmlFor="filled_by_self" className="font-normal cursor-pointer">
-                  Patient will fill it out themselves
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="someone_else" id="filled_by_other" />
-                <Label htmlFor="filled_by_other" className="font-normal cursor-pointer">
-                  Someone else will fill it out for the patient
-                </Label>
-              </div>
-            </RadioGroup>
-            {form.formState.errors.filled_by && (
-              <p className="text-sm text-red-500">{form.formState.errors.filled_by.message}</p>
-            )}
-
-            {/* Show filler information fields if someone else is filling */}
-            {form.watch('filled_by') === 'someone_else' && (
-              <div className="mt-4 space-y-4 pt-4 border-t border-gray-200">
-                <div>
-                  <Label htmlFor="filler_relationship" className="text-base font-medium">
-                    What is their relationship to the patient? <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={form.watch('filler_relationship') || ''}
-                    onValueChange={(value) => form.setValue('filler_relationship', value)}
+          {/* Step Content */}
+          {currentStep === 'entry-mode' && (
+            <>
+              <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                {/* Minimal Card */}
+                <div className="flex-1 bg-[#F5F4F0] border border-[#D6D2C8] rounded-[10px] p-5 flex flex-col gap-[25px]">
+                  <div className="flex flex-col gap-[3px]">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-base font-normal text-black leading-[1.48em] tracking-[-0.04em]">Minimal</h3>
+                    </div>
+                    <div className="flex flex-col gap-[5px]">
+                      <p className="text-sm text-[#777777] leading-[1.5em] tracking-[-0.04em]">
+                        Enter only name and email. We email the patient their application form.
+                      </p>
+                      <p className="text-sm text-[#777777] leading-[1.5em] tracking-[-0.04em] font-medium mt-2">
+                        Name<br />Email
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => handleModeSelect('minimal')}
+                    className="w-full h-auto py-[10px] px-4 bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
                   >
-                    <SelectTrigger className="h-12 mt-2">
-                      <SelectValue placeholder="Select relationship" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="family_member">Family Member</SelectItem>
-                      <SelectItem value="spouse">Spouse/Partner</SelectItem>
-                      <SelectItem value="parent">Parent</SelectItem>
-                      <SelectItem value="guardian">Guardian</SelectItem>
-                      <SelectItem value="caregiver">Caregiver</SelectItem>
-                      <SelectItem value="friend">Friend</SelectItem>
-                      <SelectItem value="legal_representative">Legal Representative</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {form.formState.errors.filler_relationship && (
-                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_relationship.message}</p>
-                  )}
+                    Select Minimal
+                  </Button>
                 </div>
 
-                <div>
-                  <Label className="text-base font-medium">
-                    Person Filling Out Form Information <span className="text-red-500">*</span>
-                  </Label>
-                  <div className="grid grid-cols-2 gap-4 mt-2">
+                {/* Partial Card */}
+                <div className="flex-1 bg-[#F5F4F0] border border-[#D6D2C8] rounded-[10px] p-5 flex flex-col gap-[25px]">
+                  <div className="flex flex-col gap-[3px]">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-base font-normal text-black leading-[1.48em] tracking-[-0.04em]">Partial</h3>
+                    </div>
+                    <div className="flex flex-col gap-[5px]">
+                      <p className="text-sm text-[#777777] leading-[1.5em] tracking-[-0.04em]">
+                        Capture key details while assisting the patient. Application link is emailed with data prefilled.
+                      </p>
+                      <p className="text-sm text-[#777777] leading-[1.5em] tracking-[-0.04em] font-medium mt-2">
+                        Name & Email<br />Emergency contact
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => handleModeSelect('partial')}
+                    className="w-full h-auto py-[10px] px-4 bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
+                  >
+                    Select Partial
+                  </Button>
+                </div>
+              </div>
+
+              {/* What happens next */}
+              <div className="flex flex-col gap-[10px] pt-[30px] border-t border-[#D6D2C8]">
+                <h3 className="text-lg font-medium text-black leading-[1.193em] tracking-[-0.04em]">What happens next?</h3>
+                <p className="text-sm text-[#777777] leading-[2.03em] tracking-[-0.04em]">
+                  Once selected, you'll enter the required details and the system will:<br />
+                  Create a patient record in the pipeline.<br />
+                  Send the patient a secure application form link.<br />
+                  Track form completion (0/4 → 4/4)
+                </p>
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-[23px]">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (onClose) {
+                      onClose()
+                    } else {
+                      router.back()
+                    }
+                  }}
+                  className="h-auto py-[10px] px-4 bg-white border border-[#D6D2C8] text-[#777777] hover:bg-gray-50 rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleContinue}
+                  disabled={!mode}
+                  className="h-auto py-[10px] px-4 bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base"
+                >
+                  Continue
+                </Button>
+              </div>
+            </>
+          )}
+
+          {currentStep === 'details' && (
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-5">
+              {/* Patient Details Header */}
+              <div className="flex flex-col gap-[10px]">
+                <h2 className="text-lg font-medium text-black leading-[1.193em] tracking-[-0.04em]">Patient Details</h2>
+                <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Required fields are marked with *</p>
+              </div>
+
+              {/* Form Filler Section */}
+              <div className="space-y-4">
+                <Label className="text-base font-medium text-[#2B2820]">
+                  Who will fill out this form? <span className="text-red-500">*</span>
+                </Label>
+                <RadioGroup
+                  value={form.watch('filled_by')}
+                  onValueChange={(value) => {
+                    form.setValue('filled_by', value as 'self' | 'someone_else')
+                    if (value === 'self') {
+                      form.setValue('filler_relationship', null)
+                      form.setValue('filler_first_name', null)
+                      form.setValue('filler_last_name', null)
+                      form.setValue('filler_email', null)
+                      form.setValue('filler_phone', null)
+                    }
+                  }}
+                  className="flex flex-col sm:flex-row gap-4 sm:gap-6"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="self" id="filled_by_self" />
+                    <Label htmlFor="filled_by_self" className="font-normal cursor-pointer text-[#2B2820]">
+                      Patient will fill it out themselves
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="someone_else" id="filled_by_other" />
+                    <Label htmlFor="filled_by_other" className="font-normal cursor-pointer text-[#2B2820]">
+                      Someone else will fill it out for the patient
+                    </Label>
+                  </div>
+                </RadioGroup>
+                {form.formState.errors.filled_by && (
+                  <p className="text-sm text-red-500">{form.formState.errors.filled_by.message}</p>
+                )}
+
+                {/* Filler Information */}
+                {form.watch('filled_by') === 'someone_else' && (
+                  <div className="mt-4 space-y-4 pt-4 border-t border-gray-200">
                     <div>
-                      <Input
-                        id="filler_first_name"
-                        placeholder="First Name"
-                        {...form.register('filler_first_name')}
-                        className="h-12"
-                      />
-                      {form.formState.errors.filler_first_name && (
-                        <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_first_name.message}</p>
+                      <Label htmlFor="filler_relationship" className="text-base font-medium text-[#2B2820]">
+                        What is their relationship to the patient? <span className="text-red-500">*</span>
+                      </Label>
+                      <Select
+                        value={form.watch('filler_relationship') || ''}
+                        onValueChange={(value) => form.setValue('filler_relationship', value)}
+                      >
+                        <SelectTrigger className="h-12 mt-2 bg-white border border-[#D6D2C8] rounded-[14px]">
+                          <SelectValue placeholder="Select relationship" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="family_member">Family Member</SelectItem>
+                          <SelectItem value="spouse">Spouse/Partner</SelectItem>
+                          <SelectItem value="parent">Parent</SelectItem>
+                          <SelectItem value="guardian">Guardian</SelectItem>
+                          <SelectItem value="caregiver">Caregiver</SelectItem>
+                          <SelectItem value="friend">Friend</SelectItem>
+                          <SelectItem value="legal_representative">Legal Representative</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {form.formState.errors.filler_relationship && (
+                        <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_relationship.message}</p>
                       )}
                     </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="filler_first_name" className="text-base font-medium text-[#2B2820]">
+                          First Name <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="filler_first_name"
+                          placeholder="First Name"
+                          {...form.register('filler_first_name')}
+                          className="h-12 mt-2 bg-white border border-[#D6D2C8] rounded-[14px]"
+                        />
+                        {form.formState.errors.filler_first_name && (
+                          <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_first_name.message}</p>
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="filler_last_name" className="text-base font-medium text-[#2B2820]">
+                          Last Name <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="filler_last_name"
+                          placeholder="Last Name"
+                          {...form.register('filler_last_name')}
+                          className="h-12 mt-2 bg-white border border-[#D6D2C8] rounded-[14px]"
+                        />
+                        {form.formState.errors.filler_last_name && (
+                          <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_last_name.message}</p>
+                        )}
+                      </div>
+                    </div>
+
                     <div>
+                      <Label htmlFor="filler_email" className="text-base font-medium text-[#2B2820]">
+                        Their Email <span className="text-red-500">*</span>
+                      </Label>
                       <Input
-                        id="filler_last_name"
-                        placeholder="Last Name"
-                        {...form.register('filler_last_name')}
-                        className="h-12"
+                        id="filler_email"
+                        type="email"
+                        placeholder="Enter your email"
+                        {...form.register('filler_email')}
+                        className="h-12 mt-2 bg-white border border-[#D6D2C8] rounded-[14px]"
                       />
-                      {form.formState.errors.filler_last_name && (
-                        <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_last_name.message}</p>
+                      {form.formState.errors.filler_email && (
+                        <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_email.message}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="filler_phone" className="text-base font-medium text-[#2B2820]">
+                        Their Phone Number <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="filler_phone"
+                        type="tel"
+                        placeholder="(123) 000-0000"
+                        {...form.register('filler_phone')}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          const numbers = value.replace(/\D/g, '')
+                          let formatted = value
+                          if (numbers.length <= 3) formatted = numbers
+                          else if (numbers.length <= 6) formatted = `(${numbers.slice(0, 3)}) ${numbers.slice(3)}`
+                          else formatted = `(${numbers.slice(0, 3)}) ${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`
+                          form.setValue('filler_phone', formatted)
+                        }}
+                        className="h-12 mt-2 bg-white border border-[#D6D2C8] rounded-[14px]"
+                      />
+                      {form.formState.errors.filler_phone && (
+                        <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_phone.message}</p>
                       )}
                     </div>
                   </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="filler_email" className="text-base font-medium">
-                    Their Email <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="filler_email"
-                    type="email"
-                    placeholder="email@example.com"
-                    {...form.register('filler_email')}
-                    className="h-12 mt-2"
-                  />
-                  {form.formState.errors.filler_email && (
-                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_email.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="filler_phone" className="text-base font-medium">
-                    Their Phone Number <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="filler_phone"
-                    type="tel"
-                    placeholder="(000) 000-0000"
-                    {...form.register('filler_phone')}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      const numbers = value.replace(/\D/g, '')
-                      let formatted = value
-                      if (numbers.length <= 3) formatted = numbers
-                      else if (numbers.length <= 6) formatted = `(${numbers.slice(0, 3)}) ${numbers.slice(3)}`
-                      else formatted = `(${numbers.slice(0, 3)}) ${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`
-                      form.setValue('filler_phone', formatted)
-                    }}
-                    className="h-12 mt-2"
-                  />
-                  {form.formState.errors.filler_phone && (
-                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.filler_phone.message}</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Patient Information - Only show if patient is filling themselves */}
-        {form.watch('filled_by') === 'self' && (
-          <>
-            <div className="space-y-6 border-t pt-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Patient Information</h2>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="first_name">
-                    First Name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="first_name"
-                    {...form.register('first_name')}
-                    className="h-12 mt-2"
-                  />
-                  {form.formState.errors.first_name && (
-                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.first_name.message}</p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="last_name">
-                    Last Name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="last_name"
-                    {...form.register('last_name')}
-                    className="h-12 mt-2"
-                  />
-                  {form.formState.errors.last_name && (
-                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.last_name.message}</p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="email">
-                  Patient Email <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  {...form.register('email')}
-                  className="h-12 mt-2"
-                />
-                {form.formState.errors.email && (
-                  <p className="text-sm text-red-500 mt-1">{form.formState.errors.email.message}</p>
                 )}
               </div>
-            </div>
 
-            {/* Partial Mode Fields - Only show if patient is filling themselves */}
-            {mode === 'partial' && (
-          <div className="space-y-6 border-t pt-6">
-            <h2 className="text-2xl font-semibold text-gray-900">Additional Patient Details</h2>
-            
-            <div>
-              <Label htmlFor="phone_number">
-                Phone Number <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="phone_number"
-                type="tel"
-                placeholder="(000) 000-0000"
-                {...form.register('phone_number')}
-                className="h-12 mt-2"
-              />
-              {(form.formState.errors as any).phone_number && (
-                <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).phone_number.message}</p>
+              {/* Patient Information - Only show if patient is filling themselves */}
+              {form.watch('filled_by') === 'self' && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-3">
+                      <Label htmlFor="first_name" className="text-base font-medium text-[#2B2820]">
+                        First Name*
+                      </Label>
+                      <Input
+                        id="first_name"
+                        placeholder="First Name"
+                        {...form.register('first_name')}
+                        className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]"
+                      />
+                      {form.formState.errors.first_name && (
+                        <p className="text-sm text-red-500">{form.formState.errors.first_name.message}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <Label htmlFor="last_name" className="text-base opacity-0 sm:opacity-100">Last Name*</Label>
+                      <Input
+                        id="last_name"
+                        placeholder="Last Name"
+                        {...form.register('last_name')}
+                        className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]"
+                      />
+                      {form.formState.errors.last_name && (
+                        <p className="text-sm text-red-500">{form.formState.errors.last_name.message}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <Label htmlFor="email" className="text-base font-medium text-[#2B2820]">
+                      Email*
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Enter your email"
+                      {...form.register('email')}
+                      className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]"
+                    />
+                    {form.formState.errors.email && (
+                      <p className="text-sm text-red-500">{form.formState.errors.email.message}</p>
+                    )}
+                  </div>
+
+                  {/* Partial Mode Fields */}
+                  {mode === 'partial' && (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-3">
+                          <Label htmlFor="phone_number" className="text-base font-medium text-[#2B2820]">
+                            Phone number*
+                          </Label>
+                          <Input
+                            id="phone_number"
+                            type="tel"
+                            placeholder="(123) 000-0000"
+                            {...form.register('phone_number')}
+                            className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]"
+                          />
+                          {(form.formState.errors as any).phone_number && (
+                            <p className="text-sm text-red-500">{(form.formState.errors as any).phone_number.message}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-3">
+                          <Label htmlFor="date_of_birth" className="text-base font-medium text-[#2B2820]">
+                            Date of Birth
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              id="date_of_birth"
+                              type="date"
+                              {...form.register('date_of_birth')}
+                              className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)] pr-10"
+                            />
+                            <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 text-[#777777] pointer-events-none" />
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-3">
+                          <Label htmlFor="gender" className="text-base font-medium text-[#2B2820]">
+                            Gender
+                          </Label>
+                          <Select
+                            value={form.watch('gender') || ''}
+                            onValueChange={(value) => form.setValue('gender', value as any)}
+                          >
+                            <SelectTrigger className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]">
+                              <SelectValue placeholder="Select your gender" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="male">Male</SelectItem>
+                              <SelectItem value="female">Female</SelectItem>
+                              <SelectItem value="other">Other</SelectItem>
+                              <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <Label htmlFor="address" className="text-base font-medium text-[#2B2820]">
+                          Address*
+                        </Label>
+                        <Input
+                          id="address"
+                          placeholder="Street Address"
+                          {...form.register('address')}
+                          className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]"
+                        />
+                        {(form.formState.errors as any).address && (
+                          <p className="text-sm text-red-500">{(form.formState.errors as any).address.message}</p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="flex flex-col gap-3">
+                          <Input
+                            placeholder="City"
+                            {...form.register('city')}
+                            className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]"
+                          />
+                          {(form.formState.errors as any).city && (
+                            <p className="text-sm text-red-500">{(form.formState.errors as any).city.message}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-3">
+                          <Select
+                            value={form.watch('state') || ''}
+                            onValueChange={(value) => form.setValue('state', value)}
+                          >
+                            <SelectTrigger className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]">
+                              <SelectValue placeholder="State" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {US_STATES.map((state) => (
+                                <SelectItem key={state} value={state}>
+                                  {state}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {(form.formState.errors as any).state && (
+                            <p className="text-sm text-red-500">{(form.formState.errors as any).state.message}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-3">
+                          <Input
+                            placeholder="Zip Code"
+                            {...form.register('zip_code')}
+                            className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]"
+                          />
+                          {(form.formState.errors as any).zip_code && (
+                            <p className="text-sm text-red-500">{(form.formState.errors as any).zip_code.message}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="program_type" className="text-base font-medium text-[#2B2820]">
+                          Program Type <span className="text-red-500">*</span>
+                        </Label>
+                        <Select
+                          value={form.watch('program_type') || ''}
+                          onValueChange={(value) => form.setValue('program_type', value as any)}
+                        >
+                          <SelectTrigger className="h-12 mt-2 bg-white border border-[#D6D2C8] rounded-[14px]">
+                            <SelectValue placeholder="Select program type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="neurological">Neurological</SelectItem>
+                            <SelectItem value="mental_health">Mental Health</SelectItem>
+                            <SelectItem value="addiction">Addiction</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {(form.formState.errors as any).program_type && (
+                          <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).program_type.message}</p>
+                        )}
+                      </div>
+
+                      {/* Emergency Contact */}
+                      <div className="border-t border-[#D6D2C8] pt-6 mt-6">
+                        <h3 className="text-lg font-medium mb-4 text-[#2B2820]">Emergency Contact</h3>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="emergency_contact_first_name" className="text-base font-medium text-[#2B2820]">
+                              First Name <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                              id="emergency_contact_first_name"
+                              {...form.register('emergency_contact_first_name')}
+                              className="h-12 mt-2 bg-white border border-[#D6D2C8] rounded-[14px]"
+                            />
+                            {(form.formState.errors as any).emergency_contact_first_name && (
+                              <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).emergency_contact_first_name.message}</p>
+                            )}
+                          </div>
+                          <div>
+                            <Label htmlFor="emergency_contact_last_name" className="text-base font-medium text-[#2B2820]">
+                              Last Name <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                              id="emergency_contact_last_name"
+                              {...form.register('emergency_contact_last_name')}
+                              className="h-12 mt-2 bg-white border border-[#D6D2C8] rounded-[14px]"
+                            />
+                            {(form.formState.errors as any).emergency_contact_last_name && (
+                              <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).emergency_contact_last_name.message}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                          <div>
+                            <Label htmlFor="emergency_contact_email" className="text-base font-medium text-[#2B2820]">Email</Label>
+                            <Input
+                              id="emergency_contact_email"
+                              type="email"
+                              {...form.register('emergency_contact_email')}
+                              className="h-12 mt-2 bg-white border border-[#D6D2C8] rounded-[14px]"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="emergency_contact_phone" className="text-base font-medium text-[#2B2820]">
+                              Phone Number <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                              id="emergency_contact_phone"
+                              type="tel"
+                              placeholder="(000) 000-0000"
+                              {...form.register('emergency_contact_phone')}
+                              className="h-12 mt-2 bg-white border border-[#D6D2C8] rounded-[14px]"
+                            />
+                            {(form.formState.errors as any).emergency_contact_phone && (
+                              <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).emergency_contact_phone.message}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
+                          <Label htmlFor="emergency_contact_address" className="text-base font-medium text-[#2B2820]">Address</Label>
+                          <Input
+                            id="emergency_contact_address"
+                            {...form.register('emergency_contact_address')}
+                            className="h-12 mt-2 bg-white border border-[#D6D2C8] rounded-[14px]"
+                          />
+                        </div>
+
+                        <div className="mt-4">
+                          <Label htmlFor="emergency_contact_relationship" className="text-base font-medium text-[#2B2820]">Relationship</Label>
+                          <Input
+                            id="emergency_contact_relationship"
+                            {...form.register('emergency_contact_relationship')}
+                            className="h-12 mt-2 bg-white border border-[#D6D2C8] rounded-[14px]"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
               )}
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="date_of_birth">Date of Birth</Label>
-                <Input
-                  id="date_of_birth"
-                  type="date"
-                  {...form.register('date_of_birth')}
-                  className="h-12 mt-2"
-                />
+              {/* Invite Email Preview Card */}
+              {mode === 'minimal' && form.watch('filled_by') === 'self' && (
+                <div className="bg-[#F5F4F0] border border-[#D6D2C8] rounded-[10px] p-5 flex flex-col gap-[25px]">
+                  <div className="flex flex-col gap-[3px]">
+                    <h3 className="text-base font-normal text-black leading-[1.48em] tracking-[-0.04em]">Invite Email Preview</h3>
+                    <p className="text-sm text-[#2B2820] leading-[1.5em] tracking-[-0.04em]">
+                      Recipient: {form.watch('email') || '(Email above)'} • Template: Patient Application Link • Tracking: Opened / Completed
+                    </p>
+                    <div className="pt-[10px] border-t border-[#D6D2C8] mt-[10px]">
+                      <p className="text-sm text-[#777777] leading-[2.03em] tracking-[-0.04em]">
+                        The patient will receive a secure link to complete the full application and required forms (0/4 → 4/4).
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer Buttons */}
+              <div className="flex flex-col gap-3 pt-4 sm:pt-5 border-t border-[#D6D2C8]">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-[23px]">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-[23px]">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleBack}
+                      className="h-auto py-[10px] px-4 bg-white border border-[#D6D2C8] text-[#777777] hover:bg-gray-50 rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled
+                      className="h-auto py-[10px] px-4 bg-white border border-[#D6D2C8] text-[#777777] rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base opacity-50"
+                    >
+                      Save Draft
+                    </Button>
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={isLoading}
+                    className="h-auto py-[10px] px-4 bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base w-full sm:w-auto"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      'Create Form & Send Invite'
+                    )}
+                  </Button>
+                </div>
+                <p className="text-sm text-[#777777] leading-[2.03em] tracking-[-0.04em]">
+                  Tip: If email exists, system will suggest "Link to existing lead" instead of creating duplicate.
+                </p>
               </div>
-              <div>
-                <Label htmlFor="gender">Gender</Label>
-                <Select
-                  value={form.watch('gender') || ''}
-                  onValueChange={(value) => form.setValue('gender', value as any)}
+            </form>
+          )}
+
+          {currentStep === 'confirmation' && submittedData && !isLoading && (
+            <>
+              {/* Success/Error Icon */}
+              <div className="flex flex-col items-center gap-[10px]">
+                <div className="w-[159px] h-[159px] bg-[#F5F4F0] rounded-full flex items-center justify-center">
+                  {isSuccess ? (
+                    <CheckCircle2 className="w-24 h-24 text-[#10B981]" strokeWidth={1.5} />
+                  ) : (
+                    <XCircle className="w-24 h-24 text-red-500" strokeWidth={1.5} />
+                  )}
+                </div>
+                <div className="flex flex-col items-center gap-[10px]">
+                  <h1 
+                    className="text-[40px] font-normal text-black leading-[1.3em] text-center"
+                    style={{ fontFamily: 'Instrument Serif, serif' }}
+                  >
+                    {isSuccess ? 'Invite Sent Successfully' : 'Failed to Send Invite'}
+                  </h1>
+                  <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em] text-center">
+                    {isSuccess 
+                      ? 'The patient has received their application form via email.'
+                      : (errorMessage || 'There was an error sending the invite. Please try again or contact support.')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Patient Info Card - Only show on success */}
+              {isSuccess && (
+                <div className="bg-[#F5F4F0] border border-[#D6D2C8] rounded-[10px] p-[15px] flex flex-col gap-[10px]">
+                  <div className="flex justify-between items-center pb-5 border-b border-[#D6D2C8]">
+                    <div className="flex flex-col gap-[10px]">
+                      <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Patient</p>
+                      <p className="text-base font-semibold text-[#2B2820] leading-[1.193em] tracking-[-0.04em]">
+                        {submittedData.recipient_name}<br />
+                        {submittedData.recipient_email}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center gap-[10px]">
+                      <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Mode</p>
+                      <span className="px-3 py-0 h-[26px] rounded-[10px] bg-[#DEF8EE] text-[#10B981] text-xs leading-[1.193em] tracking-[-0.04em] flex items-center justify-center">
+                        {submittedData.mode.charAt(0).toUpperCase() + submittedData.mode.slice(1)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex flex-col gap-[10px]">
+                      <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Next Step</p>
+                      <p className="text-xs text-[#2B2820] leading-[1.193em] tracking-[-0.04em]">
+                        Waiting for patient to complete the application (0/4)
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center gap-[10px]">
+                      <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Status</p>
+                      <span className="px-3 py-0 h-[26px] rounded-[10px] bg-[#FFFBD4] text-[#F59E0B] text-xs leading-[1.193em] tracking-[-0.04em] flex items-center justify-center">
+                        Pending
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Info Card - Show on failure */}
+              {!isSuccess && (
+                <div className="bg-[#F5F4F0] border border-[#D6D2C8] rounded-[10px] p-[15px] flex flex-col gap-[10px]">
+                  <div className="flex justify-between items-center pb-5 border-b border-[#D6D2C8]">
+                    <div className="flex flex-col gap-[10px]">
+                      <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Patient</p>
+                      <p className="text-base font-semibold text-[#2B2820] leading-[1.193em] tracking-[-0.04em]">
+                        {submittedData.recipient_name}<br />
+                        {submittedData.recipient_email}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center gap-[10px]">
+                      <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Mode</p>
+                      <span className="px-3 py-0 h-[26px] rounded-[10px] bg-[#DEF8EE] text-[#10B981] text-xs leading-[1.193em] tracking-[-0.04em] flex items-center justify-center">
+                        {submittedData.mode.charAt(0).toUpperCase() + submittedData.mode.slice(1)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-[10px]">
+                    <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Error Reason</p>
+                    <p className="text-sm text-red-600 leading-[1.193em] tracking-[-0.04em]">
+                      {errorMessage || 'An error occurred while sending the invite.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Email Tracking Card - Only show on success */}
+              {isSuccess && (
+                <div className="bg-white border border-[#D6D2C8] rounded-[10px] p-5 flex flex-col gap-[25px]">
+                  <div className="flex flex-col gap-[3px]">
+                    <h3 className="text-base font-normal text-black leading-[1.48em] tracking-[-0.04em]">Email Tracking</h3>
+                    <p className="text-sm text-[#2B2820] leading-[1.5em] tracking-[-0.04em]">
+                      Status: Sent • Opens and completion will update automatically.
+                    </p>
+                    <div className="pt-[10px] border-t border-[#D6D2C8] mt-[10px]">
+                      <p className="text-sm text-[#777777] leading-[2.03em] tracking-[-0.04em]">
+                        If the patient doesn't respond, you can resend the invite or follow up manually.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer Buttons */}
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-[23px]">
+                  {isSuccess ? (
+                    <>
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-[23px]">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            if (onClose) {
+                              onClose()
+                            }
+                            router.push('/patient-pipeline')
+                          }}
+                          className="h-auto py-[10px] px-4 bg-white border border-[#D6D2C8] text-[#777777] hover:bg-gray-50 rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base w-full sm:w-auto"
+                        >
+                          Resend Invite
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleAddAnotherPatient}
+                          className="h-auto py-[10px] px-4 bg-white border border-[#D6D2C8] text-[#777777] hover:bg-gray-50 rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base w-full sm:w-auto"
+                        >
+                          + Add Another Patient
+                        </Button>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={handleViewPatientRecord}
+                        className="h-auto py-[10px] px-4 bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base w-full sm:w-auto"
+                      >
+                        View Patient Record
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-[23px]">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleAddAnotherPatient}
+                          className="h-auto py-[10px] px-4 bg-white border border-[#D6D2C8] text-[#777777] hover:bg-gray-50 rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base w-full sm:w-auto"
+                        >
+                          + Add Another Patient
+                        </Button>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setShowErrorDialog(false)
+                          setCurrentStep('details')
+                          if (onStepChange) {
+                            onStepChange('details')
+                          }
+                        }}
+                        className="h-auto py-[10px] px-4 bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base w-full sm:w-auto"
+                      >
+                        Try Again
+                      </Button>
+                    </>
+                  )}
+                </div>
+                {isSuccess && (
+                  <p className="text-sm text-[#777777] leading-[2.03em] tracking-[-0.04em]">
+                    Tip: You can track completion progress in the Patient Pipeline dashboard.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Error Dialog */}
+          <Dialog open={showErrorDialog} onOpenChange={setShowErrorDialog}>
+            <DialogContent className="max-w-md">
+              <DialogTitle className="flex items-center gap-3">
+                <XCircle className="w-6 h-6 text-red-500" />
+                Error Sending Invite
+              </DialogTitle>
+              <DialogDescription className="pt-2">
+                {errorMessage || 'An error occurred while sending the invite. Please try again.'}
+              </DialogDescription>
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowErrorDialog(false)}
                 >
-                  <SelectTrigger className="h-12 mt-2">
-                    <SelectValue placeholder="Select gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                    <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="address">
-                Address <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="address"
-                {...form.register('address')}
-                className="h-12 mt-2"
-              />
-              {(form.formState.errors as any).address && (
-                <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).address.message}</p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="city">
-                  City <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="city"
-                  {...form.register('city')}
-                  className="h-12 mt-2"
-                />
-                {(form.formState.errors as any).city && (
-                  <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).city.message}</p>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="state">
-                  State <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={form.watch('state') || ''}
-                  onValueChange={(value) => form.setValue('state', value)}
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowErrorDialog(false)
+                    setCurrentStep('details')
+                  }}
                 >
-                  <SelectTrigger className="h-12 mt-2">
-                    <SelectValue placeholder="Select state" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {US_STATES.map((state) => (
-                      <SelectItem key={state} value={state}>
-                        {state}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {(form.formState.errors as any).state && (
-                  <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).state.message}</p>
-                )}
+                  Try Again
+                </Button>
               </div>
-              <div>
-                <Label htmlFor="zip_code">
-                  Zip Code <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="zip_code"
-                  {...form.register('zip_code')}
-                  className="h-12 mt-2"
-                />
-                {(form.formState.errors as any).zip_code && (
-                  <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).zip_code.message}</p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="program_type">
-                Program Type <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={form.watch('program_type') || ''}
-                onValueChange={(value) => form.setValue('program_type', value as any)}
-              >
-                <SelectTrigger className="h-12 mt-2">
-                  <SelectValue placeholder="Select program type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="neurological">Neurological</SelectItem>
-                  <SelectItem value="mental_health">Mental Health</SelectItem>
-                  <SelectItem value="addiction">Addiction</SelectItem>
-                </SelectContent>
-              </Select>
-              {(form.formState.errors as any).program_type && (
-                <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).program_type.message}</p>
-              )}
-            </div>
-
-            {/* Emergency Contact */}
-            <div className="border-t pt-6 mt-6">
-              <h3 className="text-xl font-semibold mb-4">Emergency Contact</h3>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="emergency_contact_first_name">
-                    First Name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="emergency_contact_first_name"
-                    {...form.register('emergency_contact_first_name')}
-                    className="h-12 mt-2"
-                  />
-                  {(form.formState.errors as any).emergency_contact_first_name && (
-                    <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).emergency_contact_first_name.message}</p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="emergency_contact_last_name">
-                    Last Name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="emergency_contact_last_name"
-                    {...form.register('emergency_contact_last_name')}
-                    className="h-12 mt-2"
-                  />
-                  {(form.formState.errors as any).emergency_contact_last_name && (
-                    <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).emergency_contact_last_name.message}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mt-4">
-                <div>
-                  <Label htmlFor="emergency_contact_email">Email</Label>
-                  <Input
-                    id="emergency_contact_email"
-                    type="email"
-                    {...form.register('emergency_contact_email')}
-                    className="h-12 mt-2"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="emergency_contact_phone">
-                    Phone Number <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="emergency_contact_phone"
-                    type="tel"
-                    placeholder="(000) 000-0000"
-                    {...form.register('emergency_contact_phone')}
-                    className="h-12 mt-2"
-                  />
-                  {(form.formState.errors as any).emergency_contact_phone && (
-                    <p className="text-sm text-red-500 mt-1">{(form.formState.errors as any).emergency_contact_phone.message}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <Label htmlFor="emergency_contact_address">Address</Label>
-                <Input
-                  id="emergency_contact_address"
-                  {...form.register('emergency_contact_address')}
-                  className="h-12 mt-2"
-                />
-              </div>
-
-              <div className="mt-4">
-                <Label htmlFor="emergency_contact_relationship">Relationship</Label>
-                <Input
-                  id="emergency_contact_relationship"
-                  {...form.register('emergency_contact_relationship')}
-                  className="h-12 mt-2"
-                />
-              </div>
-            </div>
-          </div>
-            )}
-          </>
-        )}
-
-        <div className="flex justify-end pt-6 border-t">
-          <Button type="submit" disabled={isLoading} className="px-8 py-6 text-base">
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating Form...
-              </>
-            ) : (
-              'Create Form & Send Email'
-            )}
-          </Button>
+            </DialogContent>
+          </Dialog>
         </div>
-      </form>
-      </div>
-    </div>
   )
 }

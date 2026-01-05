@@ -97,6 +97,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   manager: {
     mainNav: [
       { title: 'Dashboard', href: '/manager', icon: LayoutDashboard },
+      { title: 'Patient Pipeline', href: '/patient-pipeline', icon: Users },
       { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
       {

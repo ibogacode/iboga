@@ -232,6 +232,21 @@ export const getPartialIntakeForms = authActionClient
       .map((f: any) => f.completed_form_id)
       .filter(Boolean)
     
+    // Fetch program_type from completed forms (this is the authoritative source when candidate fills out form)
+    const completedFormsProgramTypeMap = new Map<string, string>()
+    if (completedIntakeFormIds.length > 0) {
+      const { data: completedForms } = await adminClient
+        .from('patient_intake_forms')
+        .select('id, program_type')
+        .in('id', completedIntakeFormIds)
+      
+      ;(completedForms || []).forEach((form: any) => {
+        if (form.program_type) {
+          completedFormsProgramTypeMap.set(form.id, form.program_type)
+        }
+      })
+    }
+    
     // Collect all patient emails
     const patientEmails = forms
       .map((f: any) => f.email?.toLowerCase().trim())
@@ -468,6 +483,16 @@ export const getPartialIntakeForms = authActionClient
     const data = forms.map((form: any) => {
       const creator = creators.find((c: any) => c.id === form.created_by)
       const patientEmail = form.email?.toLowerCase().trim()
+      
+      // Get program_type from completed form if available, otherwise use partial form's program_type
+      let programType = form.program_type
+      if (form.completed_form_id) {
+        const completedFormProgramType = completedFormsProgramTypeMap.get(form.completed_form_id)
+        if (completedFormProgramType) {
+          programType = completedFormProgramType
+        }
+      }
+      
       let completedCount = 0
       const totalForms = 4 // Intake, Medical History, Service Agreement, Ibogaine Consent
       
@@ -550,6 +575,7 @@ export const getPartialIntakeForms = authActionClient
       
       return {
         ...form,
+        program_type: programType, // Use program_type from completed form if available
         creator: creator || null,
         formCompletion: {
           completed: completedCount,
