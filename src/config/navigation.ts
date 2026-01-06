@@ -50,7 +50,14 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
     mainNav: [
       { title: 'Home', href: '/owner', icon: Home },
       { title: 'Facility Management', href: '/facility-management', icon: Building2 },
-      { title: 'Patient Pipeline', href: '/patient-pipeline', icon: Users },
+      {
+        title: 'Patient Pipeline',
+        href: '/patient-pipeline',
+        icon: Users,
+        children: [
+          { title: 'Consult Scheduling', href: '/patient-pipeline/consult-scheduling', icon: Calendar },
+        ],
+      },
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
       { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
       { title: 'Research', href: '/research', icon: Search },
@@ -74,7 +81,14 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
     mainNav: [
       { title: 'Home', href: '/owner', icon: Home },
       { title: 'Facility Management', href: '/facility-management', icon: Building2 },
-      { title: 'Patient Pipeline', href: '/patient-pipeline', icon: Users },
+      {
+        title: 'Patient Pipeline',
+        href: '/patient-pipeline',
+        icon: Users,
+        children: [
+          { title: 'Consult Scheduling', href: '/patient-pipeline/consult-scheduling', icon: Calendar },
+        ],
+      },
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
       { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
       { title: 'Research', href: '/research', icon: Search },

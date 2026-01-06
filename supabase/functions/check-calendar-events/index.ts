@@ -85,17 +85,18 @@ async function checkCalendarEvents(accessToken: string, email: string, startDate
   }
 }
 
-// Get all calendar events (for scheduled patients count)
-async function getAllCalendarEvents(accessToken: string, startDate?: string) {
-  const timeMin = startDate || new Date().toISOString()
-  const timeMax = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString() // 90 days ahead
+// Get all calendar events (for scheduled patients count and consult scheduling)
+async function getAllCalendarEvents(accessToken: string, startDate?: string, endDate?: string) {
+  // Fetch events from 1 year ago to 1 year ahead for comprehensive view
+  const timeMin = startDate || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year ago
+  const timeMax = endDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year ahead
 
   const url = new URL('https://www.googleapis.com/calendar/v3/calendars/primary/events')
   url.searchParams.set('timeMin', timeMin)
   url.searchParams.set('timeMax', timeMax)
   url.searchParams.set('singleEvents', 'true')
   url.searchParams.set('orderBy', 'startTime')
-  url.searchParams.set('maxResults', '250')
+  url.searchParams.set('maxResults', '2500') // Increased to show more events
 
   const response = await fetch(url.toString(), {
     headers: {
@@ -129,7 +130,7 @@ serve(async (req) => {
     const accessToken = await getAccessToken()
 
     // If getAllEvents is true, return all events
-    if (getAllEvents === true || getAllEvents === 'true') {
+    if (getAllEvents === true || String(getAllEvents) === 'true') {
       console.log('[check-calendar-events] Getting all calendar events')
       const allEvents = await getAllCalendarEvents(accessToken, startDate)
       console.log('[check-calendar-events] Found', allEvents.length, 'events')
