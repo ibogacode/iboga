@@ -49,3 +49,44 @@ export const checkCalendarBooking = actionClient
     }
   })
 
+// Get all calendar events for consult scheduling
+export const getAllCalendarEvents = actionClient
+  .schema(z.object({}))
+  .action(async () => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+    try {
+      const url = `${supabaseUrl}/functions/v1/check-calendar-events`
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          getAllEvents: true,
+        }),
+      })
+
+      const responseText = await response.text()
+
+      let result
+      try {
+        result = JSON.parse(responseText)
+      } catch {
+        return { success: false, error: `Invalid response: ${responseText}` }
+      }
+
+      if (!result.success) {
+        return { success: false, error: result.error || 'Failed to get calendar events' }
+      }
+
+      return { success: true, data: result.data?.events || [] }
+    } catch (error) {
+      console.error('Get all calendar events error:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Failed to get calendar events' }
+    }
+  })
+
