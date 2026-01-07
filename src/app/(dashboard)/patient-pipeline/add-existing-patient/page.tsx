@@ -242,7 +242,7 @@ export default function AddExistingPatientPage() {
 
         {/* Address Section */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold mb-4">Address (Optional)</h2>
+          <h2 className="text-lg font-semibold mb-4">Address</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <Label htmlFor="address">Street Address</Label>
@@ -319,7 +319,7 @@ export default function AddExistingPatientPage() {
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Document Uploads (Optional)
+            Document Uploads *
           </h2>
           <p className="text-sm text-gray-600 mb-4">
             Upload existing documents or provide URLs. You can upload PDFs, images, or Word documents.

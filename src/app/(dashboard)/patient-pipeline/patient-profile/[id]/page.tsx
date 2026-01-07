@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById, activateServiceAgreement, activateIbogaineConsent } from '@/actions/patient-profile.action'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { sendFormEmail } from '@/actions/send-form-email.action'
-import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink } from 'lucide-react'
+import { movePatientToOnboarding } from '@/actions/onboarding-forms.action'
+import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -62,6 +63,7 @@ export default function PatientProfilePage() {
     formData: any
   } | null>(null)
   const [isSavingActivationFields, setIsSavingActivationFields] = useState(false)
+  const [isMovingToOnboarding, setIsMovingToOnboarding] = useState(false)
   
   // Form state for editing
   const [formData, setFormData] = useState({
@@ -1060,6 +1062,65 @@ export default function PatientProfilePage() {
                 </div>
               </div>
             </div>
+
+            {/* Move to Onboarding Button - Only show when all 4 forms are completed */}
+            {profileData.formStatuses.intake === 'completed' &&
+             profileData.formStatuses.medicalHistory === 'completed' &&
+             profileData.formStatuses.serviceAgreement === 'completed' &&
+             profileData.formStatuses.ibogaineConsent === 'completed' && (
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-medium text-emerald-800">All Forms Completed!</h3>
+                      <p className="text-sm text-emerald-600 mt-1">
+                        This patient has completed all 4 required forms and is ready to move to the onboarding stage.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={async () => {
+                        setIsMovingToOnboarding(true)
+                        try {
+                          const intakeFormId = profileData.intakeForm?.id
+                          const partialFormId = profileData.partialForm?.id
+                          
+                          const result = await movePatientToOnboarding({
+                            intake_form_id: intakeFormId || undefined,
+                            partial_intake_form_id: partialFormId || undefined,
+                          })
+                          
+                          if (result?.data?.success) {
+                            toast.success(result.data.data?.message || 'Patient moved to onboarding successfully')
+                            router.push('/onboarding')
+                          } else {
+                            toast.error(result?.data?.error || 'Failed to move patient to onboarding')
+                          }
+                        } catch (error) {
+                          console.error('Error moving to onboarding:', error)
+                          toast.error('An error occurred')
+                        } finally {
+                          setIsMovingToOnboarding(false)
+                        }
+                      }}
+                      disabled={isMovingToOnboarding}
+                      className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+                    >
+                      {isMovingToOnboarding ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Moving...
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="h-4 w-4" />
+                          Move to Onboarding
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

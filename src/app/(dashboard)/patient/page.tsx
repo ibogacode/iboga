@@ -5,7 +5,7 @@ import { NeedAssistanceCard } from '@/components/patient/need-assistance-card'
 import { ProgressTracker } from '@/components/patient/progress-tracker'
 import { PendingTasksCard } from '@/components/patient/pending-tasks-card'
 import { WhatHappensNextCard } from '@/components/patient/what-happens-next-card'
-import { getPatientTasks } from '@/actions/patient-tasks.action'
+import { getPatientTasks, type OnboardingStatus } from '@/actions/patient-tasks.action'
 
 export const metadata = {
   title: 'Home | Patient Portal',
@@ -71,15 +71,23 @@ export default async function PatientHomePage() {
   // Fetch patient tasks
   let pendingTasks: any[] = []
   let formsCompleted = false
+  let onboardingStatus: OnboardingStatus | null = null
   try {
     const tasksResult = await getPatientTasks({})
     if (tasksResult?.data?.success && tasksResult.data.data?.tasks) {
       const allTasks = tasksResult.data.data.tasks
       
-      // Check if all required forms are completed
-      const requiredForms = allTasks.filter((task: any) => task.isRequired)
-      const completedRequiredForms = requiredForms.filter((task: any) => task.status === 'completed')
-      formsCompleted = requiredForms.length > 0 && completedRequiredForms.length === requiredForms.length
+      // Get onboarding status if available
+      onboardingStatus = tasksResult.data.data.onboardingStatus || null
+      
+      // Check if all initial 4 pipeline forms are completed (exclude onboarding forms)
+      // Initial forms: intake, medical_history, service_agreement, ibogaine_consent
+      const initialFormTypes = ['intake', 'medical_history', 'service_agreement', 'ibogaine_consent']
+      const initialForms = allTasks.filter((task: any) => 
+        initialFormTypes.includes(task.type) && task.isRequired
+      )
+      const completedInitialForms = initialForms.filter((task: any) => task.status === 'completed')
+      formsCompleted = initialForms.length > 0 && completedInitialForms.length === initialForms.length
       
       // Filter to only show pending tasks (not_started or in_progress)
       pendingTasks = allTasks.filter(
@@ -104,12 +112,27 @@ export default async function PatientHomePage() {
     <div className="space-y-4 sm:space-y-6 md:space-y-[25px] pt-4 sm:pt-6 md:pt-[30px] px-4 sm:px-6 md:px-[25px]">
       {/* Header Section */}
       <div className="space-y-1 sm:space-y-2">
-        <h1 className="text-2xl sm:text-3xl md:text-[40px] font-normal leading-[1.3em] text-black" style={{ fontFamily: 'var(--font-instrument-serif), serif' }}>
-          {greeting}, {userName}
-        </h1>
-        <p className="text-sm sm:text-base font-normal leading-[1.48em] tracking-[-0.04em] text-black">
-          You're one step closer to your treatment. Complete the tasks below to finalize your preparation.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h1 className="text-2xl sm:text-3xl md:text-[40px] font-normal leading-[1.3em] text-black" style={{ fontFamily: 'var(--font-instrument-serif), serif' }}>
+              {greeting}, {userName}
+            </h1>
+            <p className="text-sm sm:text-base font-normal leading-[1.48em] tracking-[-0.04em] text-black mt-1 sm:mt-2">
+              You're one step closer to your treatment. Complete the tasks below to finalize your preparation.
+            </p>
+          </div>
+          {/* Onboarding Status Badge */}
+          {onboardingStatus?.isInOnboarding && (
+            <div className="flex-shrink-0">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 border border-blue-200">
+                <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+                <span className="text-xs font-medium text-blue-700">
+                  Onboarding: {onboardingStatus.formsCompleted || 0}/{onboardingStatus.formsTotal || 5}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Program Info and Assistance */}
@@ -124,7 +147,7 @@ export default async function PatientHomePage() {
 
       {/* Progress Tracker */}
       <div>
-        <ProgressTracker formsCompleted={formsCompleted} />
+        <ProgressTracker formsCompleted={formsCompleted} onboardingStatus={onboardingStatus} />
       </div>
 
       {/* Pending Tasks */}
