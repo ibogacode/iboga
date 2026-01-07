@@ -5,7 +5,7 @@ import { NeedAssistanceCard } from '@/components/patient/need-assistance-card'
 import { ProgressTracker } from '@/components/patient/progress-tracker'
 import { PendingTasksCard } from '@/components/patient/pending-tasks-card'
 import { WhatHappensNextCard } from '@/components/patient/what-happens-next-card'
-import { getPatientTasks } from '@/actions/patient-tasks.action'
+import { getPatientTasks, type OnboardingStatus } from '@/actions/patient-tasks.action'
 
 export const metadata = {
   title: 'Home | Patient Portal',
@@ -71,7 +71,7 @@ export default async function PatientHomePage() {
   // Fetch patient tasks
   let pendingTasks: any[] = []
   let formsCompleted = false
-  let onboardingStatus: { isInOnboarding: boolean; status?: string; formsCompleted?: number; formsTotal?: number } | null = null
+  let onboardingStatus: OnboardingStatus | null = null
   try {
     const tasksResult = await getPatientTasks({})
     if (tasksResult?.data?.success && tasksResult.data.data?.tasks) {

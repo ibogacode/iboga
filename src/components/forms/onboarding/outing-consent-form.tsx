@@ -24,13 +24,13 @@ export function OutingConsentForm({ onboardingId, initialData, isCompleted, onSu
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<OutingConsentFormInput>({
-    resolver: zodResolver(outingConsentFormSchema),
+    resolver: zodResolver(outingConsentFormSchema) as any,
     defaultValues: {
       onboarding_id: onboardingId,
       first_name: initialData?.first_name || '',
       last_name: initialData?.last_name || '',
       date_of_birth: initialData?.date_of_birth || '',
-      date_of_outing: initialData?.date_of_outing || '',
+      date_of_outing: initialData?.date_of_outing || undefined,
       email: initialData?.email || '',
       protocol_compliance: initialData?.protocol_compliance || false,
       proper_conduct: initialData?.proper_conduct || false,
@@ -47,7 +47,12 @@ export function OutingConsentForm({ onboardingId, initialData, isCompleted, onSu
   async function onSubmit(data: OutingConsentFormInput) {
     setIsSubmitting(true)
     try {
-      const result = await submitOutingConsentForm(data)
+      // Ensure date_of_outing is properly handled (can be undefined)
+      const submitData: any = {
+        ...data,
+        date_of_outing: data.date_of_outing || undefined,
+      }
+      const result = await submitOutingConsentForm(submitData)
       if (result?.data?.success) {
         toast.success('Outing consent form submitted successfully')
         onSuccess?.()

@@ -24,7 +24,7 @@ export function SocialMediaForm({ onboardingId, initialData, isCompleted, onSucc
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<SocialMediaFormInput>({
-    resolver: zodResolver(socialMediaFormSchema),
+    resolver: zodResolver(socialMediaFormSchema) as any,
     defaultValues: {
       onboarding_id: onboardingId,
       first_name: initialData?.first_name || '',
@@ -50,7 +50,7 @@ export function SocialMediaForm({ onboardingId, initialData, isCompleted, onSucc
   async function onSubmit(data: SocialMediaFormInput) {
     setIsSubmitting(true)
     try {
-      const result = await submitSocialMediaForm(data)
+      const result = await submitSocialMediaForm(data as any)
       if (result?.data?.success) {
         toast.success('Social media release form submitted successfully')
         onSuccess?.()

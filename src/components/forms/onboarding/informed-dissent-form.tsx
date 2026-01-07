@@ -25,7 +25,7 @@ export function InformedDissentForm({ onboardingId, initialData, isCompleted, on
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<InformedDissentFormInput>({
-    resolver: zodResolver(informedDissentFormSchema),
+    resolver: zodResolver(informedDissentFormSchema) as any,
     defaultValues: {
       onboarding_id: onboardingId,
       first_name: initialData?.first_name || '',
@@ -49,7 +49,7 @@ export function InformedDissentForm({ onboardingId, initialData, isCompleted, on
   async function onSubmit(data: InformedDissentFormInput) {
     setIsSubmitting(true)
     try {
-      const result = await submitInformedDissentForm(data)
+      const result = await submitInformedDissentForm(data as any)
       if (result?.data?.success) {
         toast.success('Informed dissent form submitted successfully')
         onSuccess?.()

@@ -24,7 +24,7 @@ export function InternalRegulationsForm({ onboardingId, initialData, isCompleted
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<InternalRegulationsFormInput>({
-    resolver: zodResolver(internalRegulationsFormSchema),
+    resolver: zodResolver(internalRegulationsFormSchema) as any,
     defaultValues: {
       onboarding_id: onboardingId,
       first_name: initialData?.first_name || '',
@@ -45,7 +45,7 @@ export function InternalRegulationsForm({ onboardingId, initialData, isCompleted
   async function onSubmit(data: InternalRegulationsFormInput) {
     setIsSubmitting(true)
     try {
-      const result = await submitInternalRegulationsForm(data)
+      const result = await submitInternalRegulationsForm(data as any)
       if (result?.data?.success) {
         toast.success('Internal regulations form submitted successfully')
         onSuccess?.()

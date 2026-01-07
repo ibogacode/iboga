@@ -25,7 +25,7 @@ export function ReleaseForm({ onboardingId, initialData, isCompleted, onSuccess 
   const [isSubmitted, setIsSubmitted] = useState(false)
 
   const form = useForm<ReleaseFormInput>({
-    resolver: zodResolver(releaseFormSchema),
+    resolver: zodResolver(releaseFormSchema) as any,
     defaultValues: {
       onboarding_id: onboardingId,
       full_name: initialData?.full_name || '',
@@ -52,7 +52,7 @@ export function ReleaseForm({ onboardingId, initialData, isCompleted, onSuccess 
   async function onSubmit(data: ReleaseFormInput) {
     setIsSubmitting(true)
     try {
-      const result = await submitReleaseForm(data)
+      const result = await submitReleaseForm(data as any)
       if (result?.data?.success) {
         setIsSubmitted(true)
         toast.success('Release form submitted successfully')
