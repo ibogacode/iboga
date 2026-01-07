@@ -12,3 +12,11 @@ export function cn(...inputs: ClassValue[]) {
 export function hasOwnerAccess(role: UserRole | string | null | undefined): boolean {
   return role === 'owner' || role === 'admin'
 }
+
+/**
+ * Check if a role has staff access (can view patient pipeline and records)
+ * Includes owner, admin, and manager roles
+ */
+export function hasStaffAccess(role: UserRole | string | null | undefined): boolean {
+  return role === 'owner' || role === 'admin' || role === 'manager'
+}

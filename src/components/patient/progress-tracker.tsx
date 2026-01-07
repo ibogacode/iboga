@@ -1,19 +1,86 @@
 'use client'
 
 import { Check } from 'lucide-react'
+import type { OnboardingStatus } from '@/actions/patient-tasks.action'
 
 interface ProgressTrackerProps {
   formsCompleted?: boolean
+  onboardingStatus?: OnboardingStatus | null
 }
 
-export function ProgressTracker({ formsCompleted = false }: ProgressTrackerProps) {
-  const steps = [
-    { name: 'Inquiry', completed: true, current: false },
-    { name: 'Forms', completed: formsCompleted, current: !formsCompleted },
-    { name: 'Medical Review', completed: false, current: false },
-    { name: 'Arrival', completed: false, current: false },
-    { name: 'Treatment', completed: false, current: false },
+type StepName = 'Inquiry' | 'Forms' | 'Onboarding' | 'Medical Review' | 'Arrival' | 'Treatment'
+
+interface Step {
+  name: StepName
+  completed: boolean
+  current: boolean
+}
+
+export function ProgressTracker({ formsCompleted = false, onboardingStatus = null }: ProgressTrackerProps) {
+  // Determine step states based on patient progress
+  const isInOnboarding = onboardingStatus?.isInOnboarding || false
+  const onboardingCompleted = onboardingStatus?.status === 'moved_to_management'
+  
+  // Build steps array dynamically
+  const steps: Step[] = [
+    { 
+      name: 'Inquiry', 
+      completed: true, // Always completed (patient has an account)
+      current: false 
+    },
+    { 
+      name: 'Forms', 
+      // Completed if all initial 4 forms are done
+      // If in onboarding, Forms is also considered completed
+      completed: formsCompleted || isInOnboarding,
+      current: !formsCompleted && !isInOnboarding // Current only if forms not done AND not in onboarding
+    },
+    { 
+      name: 'Onboarding', 
+      // Completed if moved to management
+      completed: onboardingCompleted,
+      // Current if in onboarding stage (but not yet moved to management)
+      current: isInOnboarding && !onboardingCompleted
+    },
+    { 
+      name: 'Medical Review', 
+      completed: false, 
+      // Current only if onboarding is completed and we're at this stage
+      current: onboardingCompleted && !formsCompleted && !isInOnboarding
+    },
+    { 
+      name: 'Arrival', 
+      completed: false, 
+      current: false // Future step
+    },
+    { 
+      name: 'Treatment', 
+      completed: false, 
+      current: false // Future step
+    },
   ]
+
+  // Find the current step for the header text
+  const currentStep = steps.find(s => s.current)
+  const currentStepName = currentStep?.name || 
+    (steps.filter(s => s.completed).length === steps.length ? 'Treatment' : 
+     onboardingCompleted ? 'Medical Review' :
+     isInOnboarding ? 'Onboarding' :
+     formsCompleted ? 'Onboarding' : 'Forms')
+
+  // Get display text for current step
+  const getCurrentStepText = (stepName: StepName): string => {
+    const stepTextMap: Record<StepName, string> = {
+      'Inquiry': 'Inquiry',
+      'Forms': 'Forms & Agreements',
+      'Onboarding': 'Onboarding Forms',
+      'Medical Review': 'Medical Review',
+      'Arrival': 'Arrival',
+      'Treatment': 'Treatment'
+    }
+    return stepTextMap[stepName] || stepName
+  }
+
   return (
     <div className="flex flex-col gap-4 sm:gap-6 p-4 sm:p-6 rounded-xl sm:rounded-2xl bg-white">
       {/* Header */}
@@ -23,7 +90,7 @@ export function ProgressTracker({ formsCompleted = false }: ProgressTrackerProps
         </h3>
         <div className="w-px h-[15px] bg-[#6B7280] hidden sm:block" />
         <p className="text-xs sm:text-sm leading-[1.193em] tracking-[-0.04em] text-[#777777]">
-          Current step: Forms & Agreements
+          Current step: {getCurrentStepText(currentStepName)}
         </p>
       </div>
 
@@ -38,6 +105,7 @@ export function ProgressTracker({ formsCompleted = false }: ProgressTrackerProps
           {(() => {
             const currentStepIndex = steps.findIndex(s => s.current)
             const completedCount = steps.filter(s => s.completed).length
+            
             // Calculate width: if current step is completed, fill to next step; otherwise fill halfway to current
             let progressWidth = 0
             if (currentStepIndex >= 0) {
@@ -102,4 +170,3 @@ export function ProgressTracker({ formsCompleted = false }: ProgressTrackerProps
     </div>
   )
 }
-

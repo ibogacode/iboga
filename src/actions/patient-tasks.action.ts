@@ -8,7 +8,7 @@ const getPatientTasksSchema = z.object({})
 
 export interface PatientTask {
   id: string
-  type: 'intake' | 'medical_history' | 'service_agreement' | 'ibogaine_consent'
+  type: 'intake' | 'medical_history' | 'service_agreement' | 'ibogaine_consent' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent'
   title: string
   description: string
   status: 'not_started' | 'in_progress' | 'completed' | 'locked'
@@ -18,6 +18,14 @@ export interface PatientTask {
   completedAt?: string
   formId: string
   link?: string
+}
+
+export interface OnboardingStatus {
+  isInOnboarding: boolean
+  status?: 'in_progress' | 'completed' | 'moved_to_management'
+  onboardingId?: string
+  formsCompleted?: number
+  formsTotal?: number
 }
 
 /**
@@ -482,7 +490,124 @@ export const getPatientTasks = authActionClient
       })
     }
 
-    // Calculate task statistics
+    // 5. Check for Onboarding Forms (if patient is in onboarding stage)
+    let onboardingStatus: OnboardingStatus = { isInOnboarding: false }
+    const { data: onboarding } = await supabase
+      .from('patient_onboarding')
+      .select('id, status, release_form_completed, outing_consent_completed, social_media_release_completed, internal_regulations_completed, informed_dissent_completed')
+      .eq('patient_id', patientId)
+      .maybeSingle()
+
+    if (onboarding) {
+      onboardingStatus = {
+        isInOnboarding: true,
+        status: onboarding.status as 'in_progress' | 'completed' | 'moved_to_management',
+        onboardingId: onboarding.id,
+        formsCompleted: [
+          onboarding.release_form_completed,
+          onboarding.outing_consent_completed,
+          onboarding.social_media_release_completed,
+          onboarding.internal_regulations_completed,
+          onboarding.informed_dissent_completed,
+        ].filter(Boolean).length,
+        formsTotal: 5,
+      }
+
+      // Fetch all 5 onboarding forms
+      const [releaseForm, outingForm, socialMediaForm, regulationsForm, dissentForm] = await Promise.all([
+        supabase.from('onboarding_release_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboarding.id).maybeSingle(),
+        supabase.from('onboarding_outing_consent_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboarding.id).maybeSingle(),
+        supabase.from('onboarding_social_media_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboarding.id).maybeSingle(),
+        supabase.from('onboarding_internal_regulations_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboarding.id).maybeSingle(),
+        supabase.from('onboarding_informed_dissent_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboarding.id).maybeSingle(),
+      ])
+
+      // Helper function to determine task status
+      const getOnboardingTaskStatus = (form: { data: any } | null): 'not_started' | 'in_progress' | 'completed' | 'locked' => {
+        if (!form?.data) return 'locked'
+        if (!form.data.is_activated) return 'locked'
+        if (form.data.is_completed) return 'completed'
+        // If form exists and is activated but not completed, it's in progress (patient can edit it)
+        return 'in_progress'
+      }
+
+      // Add Release Form task
+      tasks.push({
+        id: `onboarding-release-${releaseForm?.data?.id || onboarding.id}`,
+        type: 'onboarding_release',
+        title: 'Release Form',
+        description: 'Iboga Wellness Institute Release Form',
+        status: getOnboardingTaskStatus(releaseForm),
+        estimatedTime: '~10 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: releaseForm?.data?.completed_at || undefined,
+        formId: releaseForm?.data?.id || '',
+        link: releaseForm?.data?.is_activated ? `/onboarding-forms/${onboarding.id}/release-form` : '#',
+      })
+
+      // Add Outing Consent Form task
+      tasks.push({
+        id: `onboarding-outing-${outingForm?.data?.id || onboarding.id}`,
+        type: 'onboarding_outing',
+        title: 'Outing/Transfer Consent',
+        description: 'Consent form for outings and transfers',
+        status: getOnboardingTaskStatus(outingForm),
+        estimatedTime: '~5 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: outingForm?.data?.completed_at || undefined,
+        formId: outingForm?.data?.id || '',
+        link: outingForm?.data?.is_activated ? `/onboarding-forms/${onboarding.id}/outing-consent` : '#',
+      })
+
+      // Add Social Media Release Form task
+      tasks.push({
+        id: `onboarding-social-${socialMediaForm?.data?.id || onboarding.id}`,
+        type: 'onboarding_social_media',
+        title: 'Social Media Release',
+        description: 'Consent for use of images and testimonials',
+        status: getOnboardingTaskStatus(socialMediaForm),
+        estimatedTime: '~5 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: socialMediaForm?.data?.completed_at || undefined,
+        formId: socialMediaForm?.data?.id || '',
+        link: socialMediaForm?.data?.is_activated ? `/onboarding-forms/${onboarding.id}/social-media` : '#',
+      })
+
+      // Add Internal Regulations Form task
+      tasks.push({
+        id: `onboarding-regulations-${regulationsForm?.data?.id || onboarding.id}`,
+        type: 'onboarding_regulations',
+        title: 'Internal Regulations',
+        description: 'Acknowledgment of clinic rules and regulations',
+        status: getOnboardingTaskStatus(regulationsForm),
+        estimatedTime: '~5 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: regulationsForm?.data?.completed_at || undefined,
+        formId: regulationsForm?.data?.id || '',
+        link: regulationsForm?.data?.is_activated ? `/onboarding-forms/${onboarding.id}/internal-regulations` : '#',
+      })
+
+      // Add Informed Dissent Form task
+      tasks.push({
+        id: `onboarding-dissent-${dissentForm?.data?.id || onboarding.id}`,
+        type: 'onboarding_dissent',
+        title: 'Letter of Informed Dissent',
+        description: 'Acknowledgment of treatment information and dissent',
+        status: getOnboardingTaskStatus(dissentForm),
+        estimatedTime: '~5 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: dissentForm?.data?.completed_at || undefined,
+        formId: dissentForm?.data?.id || '',
+        link: dissentForm?.data?.is_activated ? `/onboarding-forms/${onboarding.id}/informed-dissent` : '#',
+      })
+    }
+
+    // Calculate task statistics (include onboarding forms)
     const completedTasks = tasks.filter(t => t.status === 'completed').length
     const totalRequiredTasks = tasks.filter(t => t.isRequired).length
     const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length
@@ -498,6 +623,7 @@ export const getPatientTasks = authActionClient
           required: tasks.filter(t => t.isRequired && t.status !== 'completed').length,
           optional: tasks.filter(t => t.isOptional).length,
         },
+        onboardingStatus,
       },
     }
   })

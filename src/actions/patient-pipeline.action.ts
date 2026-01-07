@@ -2,7 +2,7 @@
 
 import { authActionClient } from '@/lib/safe-action'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { hasOwnerAccess } from '@/lib/utils'
+import { hasOwnerAccess, hasStaffAccess } from '@/lib/utils'
 import { z } from 'zod'
 
 // Get count of scheduled patients from calendar events
@@ -23,8 +23,8 @@ export const getScheduledPatientsCount = authActionClient
       .eq('id', user.id)
       .single()
     
-    if (!profile || !hasOwnerAccess(profile.role)) {
-      return { success: false, error: 'Unauthorized - Owner or Admin access required' }
+    if (!profile || !hasStaffAccess(profile.role)) {
+      return { success: false, error: 'Unauthorized - Owner, Admin, or Manager access required' }
     }
     
     try {
@@ -195,8 +195,8 @@ export const getPartialIntakeForms = authActionClient
       .eq('id', user.id)
       .single()
     
-    if (!profile || !hasOwnerAccess(profile.role)) {
-      return { success: false, error: 'Unauthorized - Owner or Admin access required' }
+    if (!profile || !hasStaffAccess(profile.role)) {
+      return { success: false, error: 'Unauthorized - Owner, Admin, or Manager access required' }
     }
     
     // Fetch partial intake forms
@@ -608,8 +608,8 @@ export const getPublicIntakeForms = authActionClient
       .eq('id', user.id)
       .single()
     
-    if (!profile || !hasOwnerAccess(profile.role)) {
-      return { success: false, error: 'Unauthorized - Owner or Admin access required' }
+    if (!profile || !hasStaffAccess(profile.role)) {
+      return { success: false, error: 'Unauthorized - Owner, Admin, or Manager access required' }
     }
     
     // Fetch public intake forms (exclude those linked to partial forms)

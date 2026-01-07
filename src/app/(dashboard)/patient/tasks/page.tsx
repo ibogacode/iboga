@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Search, ChevronDown, Loader2, RefreshCw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { getPatientTasks, type PatientTask } from '@/actions/patient-tasks.action'
+import { getPatientTasks, type PatientTask, type OnboardingStatus } from '@/actions/patient-tasks.action'
 import { getIntakeFormById } from '@/actions/patient-profile.action'
 import { getMedicalHistoryFormForPatient } from '@/actions/medical-history.action'
 import { getServiceAgreementForPatient } from '@/actions/service-agreement.action'
@@ -29,6 +29,7 @@ export default function PatientTasksPage() {
     required: 0,
     optional: 0,
   })
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null)
   const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | null>(null)
   const [viewFormData, setViewFormData] = useState<any>(null)
   const [loadingViewForm, setLoadingViewForm] = useState<string | null>(null)
@@ -50,6 +51,7 @@ export default function PatientTasksPage() {
           
           setTasks(result.data.data.tasks)
           setStatistics(result.data.data.statistics)
+          setOnboardingStatus(result.data.data.onboardingStatus || null)
       } else {
         console.error('[PatientTasksPage] Failed to load tasks:', result?.serverError)
         toast.error(result?.serverError || 'Failed to load tasks')
@@ -204,15 +206,35 @@ export default function PatientTasksPage() {
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-6 md:px-0">
       {/* Header */}
       <div className="space-y-1">
-        <h1 
-          className="text-2xl sm:text-3xl md:text-4xl lg:text-[44px] font-normal leading-[1.3]"
-          style={{ fontFamily: 'var(--font-instrument-serif), serif' }}
-        >
-          Tasks
-        </h1>
-        <p className="text-sm sm:text-base text-black leading-[1.48]" style={{ letterSpacing: '-0.04em' }}>
-          Complete required items to finalize your preparation. You can continue anytime.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h1 
+              className="text-2xl sm:text-3xl md:text-4xl lg:text-[44px] font-normal leading-[1.3]"
+              style={{ fontFamily: 'var(--font-instrument-serif), serif' }}
+            >
+              Tasks
+            </h1>
+            <p className="text-sm sm:text-base text-black leading-[1.48] mt-1 sm:mt-2" style={{ letterSpacing: '-0.04em' }}>
+              Complete required items to finalize your preparation. You can continue anytime.
+            </p>
+          </div>
+          {/* Onboarding Status Badge */}
+          {onboardingStatus?.isInOnboarding && (
+            <div className="flex-shrink-0 pt-1">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 border border-blue-200">
+                <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-medium text-blue-700">
+                    Onboarding
+                  </span>
+                  <span className="text-xs text-blue-600">
+                    {onboardingStatus.formsCompleted || 0}/{onboardingStatus.formsTotal || 5} forms
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Progress Card */}
