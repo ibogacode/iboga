@@ -1,7 +1,7 @@
 'use server'
 
 import { authActionClient } from '@/lib/safe-action'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 
 const getPatientTasksSchema = z.object({})
@@ -18,6 +18,10 @@ export interface PatientTask {
   completedAt?: string
   formId: string
   link?: string
+  uploadedDocument?: {
+    url: string
+    name: string
+  }
 }
 
 export interface OnboardingStatus {
@@ -55,6 +59,54 @@ export const getPatientTasks = authActionClient
     console.log('[getPatientTasks] Profile email (normalized):', patientEmail)
     console.log('[getPatientTasks] Profile name:', profile.first_name, profile.last_name)
     const tasks: PatientTask[] = []
+
+    // Check for uploaded documents by admin/owner (existing patient documents)
+    // These documents indicate forms that have been completed via document upload
+    let uploadedDocuments: Map<string, any> = new Map() // form_type -> document
+    let partialFormId: string | null = null
+    
+    // Use admin client to check for documents (secure since we're checking patient's own data)
+    const adminClient = createAdminClient()
+    
+    // First, find partial intake form for this patient (to get documents)
+    if (patientEmail) {
+      const { data: partialForms } = await adminClient
+        .from('partial_intake_forms')
+        .select('id, email')
+        .eq('email', patientEmail)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      
+      if (partialForms && partialForms.length > 0) {
+        partialFormId = partialForms[0].id
+      }
+    }
+    
+    // Get uploaded documents for this patient's partial form
+    if (partialFormId) {
+      // Use admin client to check documents (secure - only checking this patient's own documents)
+      const { data: existingDocs } = await adminClient
+        .from('existing_patient_documents')
+        .select('form_type, document_url, document_name, uploaded_at, id')
+        .eq('partial_intake_form_id', partialFormId)
+      
+      if (existingDocs) {
+        existingDocs.forEach((doc: any) => {
+          uploadedDocuments.set(doc.form_type, doc)
+        })
+        console.log('[getPatientTasks] Found uploaded documents:', Array.from(uploadedDocuments.keys()))
+      }
+    }
+
+    // Check if patient is in onboarding stage early (used to determine form completion status)
+    // If patient is in onboarding, it means they've completed all 4 initial forms
+    const { data: onboarding } = await supabase
+      .from('patient_onboarding')
+      .select('id, status')
+      .eq('patient_id', patientId)
+      .maybeSingle()
+    const isInOnboarding = !!onboarding
+    console.log('[getPatientTasks] Patient in onboarding:', isInOnboarding)
 
     // 1. Check for Patient Intake Form (Application Form)
     // Check by email (forms might be filled before profile creation)
@@ -128,7 +180,14 @@ export const getPatientTasks = authActionClient
       }
     }
 
+    // Check if intake form document was uploaded (for existing patient flow)
+    const hasIntakeDocument = uploadedDocuments.has('intake')
+    const intakeDocument = uploadedDocuments.get('intake')
+    
+    // Priority: FIRST check if patient-filled form exists (portal flow), 
+    // THEN check for uploaded documents (existing patient flow)
     if (intakeForm) {
+      // Patient filled form themselves through portal - show as completed with view link
       tasks.push({
         id: `intake-${intakeForm.id}`,
         type: 'intake',
@@ -142,7 +201,27 @@ export const getPatientTasks = authActionClient
         formId: intakeForm.id,
         link: `/intake?view=${intakeForm.id}`,
       })
+    } else if (hasIntakeDocument && intakeDocument) {
+      // No patient-filled form exists, but document was uploaded by admin (existing patient flow)
+      tasks.push({
+        id: `intake-doc-${intakeDocument.id}`,
+        type: 'intake',
+        title: 'Application Form',
+        description: 'Application form document uploaded by admin.',
+        status: 'completed',
+        estimatedTime: '~5 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: intakeDocument.uploaded_at,
+        formId: intakeDocument.id,
+        link: '#', // Document view link will be handled separately
+        uploadedDocument: {
+          url: intakeDocument.document_url,
+          name: intakeDocument.document_name || 'Application Form Document',
+        },
+      })
     } else {
+      // No form and no document - not started (portal flow - new patient)
       tasks.push({
         id: 'intake-new',
         type: 'intake',
@@ -223,22 +302,103 @@ export const getPatientTasks = authActionClient
       console.log('[getPatientTasks] No medical history form found after trying all strategies')
     }
 
+    // Check if medical history document was uploaded (for existing patient flow)
+    const hasMedicalDocument = uploadedDocuments.has('medical')
+    const medicalDocument = uploadedDocuments.get('medical')
+
+    // Priority: FIRST check if patient filled form themselves (portal flow), 
+    // THEN check for uploaded documents (existing patient flow)
     if (medicalForm) {
+      // Check if form has signature (indicates patient completed it through portal)
+      // Note: medical_history_forms doesn't have is_completed column, so we rely on signature
+      const { data: fullMedicalForm } = await adminClient
+        .from('medical_history_forms')
+        .select('signature_data, signature_date')
+        .eq('id', medicalForm.id)
+        .maybeSingle()
+      
+      // Form is considered completed if it has signature data
+      // signature_date is NOT NULL in schema, so we check signature_data which indicates actual completion
+      const hasSignature = fullMedicalForm?.signature_data && 
+        fullMedicalForm.signature_data.trim() !== ''
+      
+      // If patient is in onboarding, forms should be considered completed if they exist
+      // (onboarding only happens after completing all 4 initial forms)
+      const shouldConsiderCompleted = hasSignature || isInOnboarding
+      
+      // If form exists and has signature (or patient is in onboarding), it's completed (portal flow)
+      // If form exists but no signature and not in onboarding, check if there's an uploaded document as fallback
+      if (shouldConsiderCompleted) {
+        // Patient filled form themselves - show as completed with view link
+        tasks.push({
+          id: `medical-${medicalForm.id}`,
+          type: 'medical_history',
+          title: 'Medical Health History',
+          description: 'Helps our medical team prepare for your treatment.',
+          status: 'completed',
+          estimatedTime: '~15 min',
+          isRequired: true,
+          isOptional: false,
+          completedAt: medicalForm.created_at,
+          formId: medicalForm.id,
+          link: `/medical-history?view=${medicalForm.id}`,
+        })
+      } else if (hasMedicalDocument && medicalDocument) {
+        // Form exists but no signature - check if document was uploaded (existing patient fallback)
+        tasks.push({
+          id: `medical-doc-${medicalDocument.id}`,
+          type: 'medical_history',
+          title: 'Medical Health History',
+          description: 'Medical history document uploaded by admin.',
+          status: 'completed',
+          estimatedTime: '~15 min',
+          isRequired: true,
+          isOptional: false,
+          completedAt: medicalDocument.uploaded_at,
+          formId: medicalDocument.id,
+          link: '#', // Document view link will be handled separately
+          uploadedDocument: {
+            url: medicalDocument.document_url,
+            name: medicalDocument.document_name || 'Medical History Document',
+          },
+        })
+      } else {
+        // Form exists but not completed (portal flow - patient needs to complete)
+        const intakeFormId = intakeForm?.id || null
+        tasks.push({
+          id: `medical-${medicalForm.id}`,
+          type: 'medical_history',
+          title: 'Medical Health History',
+          description: 'Helps our medical team prepare for your treatment.',
+          status: 'not_started',
+          estimatedTime: '~15 min',
+          isRequired: true,
+          isOptional: false,
+          formId: medicalForm.id,
+          link: intakeFormId ? `/medical-history?intake_form_id=${intakeFormId}&view=${medicalForm.id}` : `/medical-history?view=${medicalForm.id}`,
+        })
+      }
+    } else if (hasMedicalDocument && medicalDocument) {
+      // No patient-filled form exists, but document was uploaded by admin (existing patient flow)
       tasks.push({
-        id: `medical-${medicalForm.id}`,
+        id: `medical-doc-${medicalDocument.id}`,
         type: 'medical_history',
         title: 'Medical Health History',
-        description: 'Helps our medical team prepare for your treatment.',
+        description: 'Medical history document uploaded by admin.',
         status: 'completed',
         estimatedTime: '~15 min',
         isRequired: true,
         isOptional: false,
-        completedAt: medicalForm.created_at,
-        formId: medicalForm.id,
-        link: `/medical-history?view=${medicalForm.id}`,
+        completedAt: medicalDocument.uploaded_at,
+        formId: medicalDocument.id,
+        link: '#', // Document view link will be handled separately
+        uploadedDocument: {
+          url: medicalDocument.document_url,
+          name: medicalDocument.document_name || 'Medical History Document',
+        },
       })
     } else {
-      // Link to intake form if it exists
+      // No form and no document - not started (portal flow - new patient)
       const intakeFormId = intakeForm?.id || null
       tasks.push({
         id: 'medical-new',
@@ -312,12 +472,19 @@ export const getPatientTasks = authActionClient
     })
     console.log('[getPatientTasks] Final tasks count:', tasks.length)
 
+    // Check if service agreement document was uploaded (for existing patient flow)
+    const hasServiceDocument = uploadedDocuments.has('service')
+    const serviceDocument = uploadedDocuments.get('service')
+
+    // Priority: FIRST check if patient-filled form exists (portal flow), 
+    // THEN check for uploaded documents (existing patient flow)
     if (serviceAgreement) {
       if (serviceAgreement.is_activated) {
-        // Check if patient signature fields are filled to determine if completed
-        const { data: fullServiceAgreement } = await supabase
+        // Check if patient signature fields are filled to determine if completed (portal flow)
+        // Use admin client to also check is_completed flag
+        const { data: fullServiceAgreement } = await adminClient
           .from('service_agreements')
-          .select('patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
+          .select('patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data, is_completed')
           .eq('id', serviceAgreement.id)
           .single()
 
@@ -332,20 +499,27 @@ export const getPatientTasks = authActionClient
           fullServiceAgreement.patient_signature_data && // Signature data/image should also be present
           fullServiceAgreement.patient_signature_data.trim() !== ''
 
+        // Check if form is marked as completed (could be from admin upload, but form exists so prioritize patient view)
+        const isCompletedByAdmin = fullServiceAgreement?.is_completed === true
+        
+        // If patient is in onboarding, forms should be considered completed if they exist
+        // (onboarding only happens after completing all 4 initial forms)
+        const shouldConsiderCompleted = isPatientSignatureComplete || isCompletedByAdmin || isInOnboarding
+
         tasks.push({
           id: `service-${serviceAgreement.id}`,
           type: 'service_agreement',
           title: 'Service Agreement',
-          description: isPatientSignatureComplete 
-            ? 'Review and sign the service agreement.'
+          description: shouldConsiderCompleted
+            ? 'Service agreement completed.'
             : 'Please review and sign the service agreement.',
-          status: isPatientSignatureComplete ? 'completed' : 'not_started',
+          status: shouldConsiderCompleted ? 'completed' : 'not_started',
           estimatedTime: '~5 min',
           isRequired: true,
           isOptional: false,
-          completedAt: isPatientSignatureComplete ? serviceAgreement.created_at : undefined,
+          completedAt: shouldConsiderCompleted ? serviceAgreement.created_at : undefined,
           formId: serviceAgreement.id,
-          link: isPatientSignatureComplete 
+          link: shouldConsiderCompleted
             ? `/patient/service-agreement?view=${serviceAgreement.id}`
             : `/patient/service-agreement`,
         })
@@ -363,6 +537,25 @@ export const getPatientTasks = authActionClient
           link: '#',
         })
       }
+    } else if (hasServiceDocument && serviceDocument) {
+      // No patient-filled form exists, but document was uploaded by admin (existing patient flow)
+      tasks.push({
+        id: `service-doc-${serviceDocument.id}`,
+        type: 'service_agreement',
+        title: 'Service Agreement',
+        description: 'Service agreement document uploaded by admin.',
+        status: 'completed',
+        estimatedTime: '~5 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: serviceDocument.uploaded_at,
+        formId: serviceDocument.id,
+        link: '#', // Document view link will be handled separately
+        uploadedDocument: {
+          url: serviceDocument.document_url,
+          name: serviceDocument.document_name || 'Service Agreement Document',
+        },
+      })
     } else {
       // Form doesn't exist yet - show as locked until admin creates and activates it
       tasks.push({
@@ -427,12 +620,19 @@ export const getPatientTasks = authActionClient
       }
     }
 
+    // Check if ibogaine consent document was uploaded (for existing patient flow)
+    const hasIbogaineDocument = uploadedDocuments.has('ibogaine')
+    const ibogaineDocument = uploadedDocuments.get('ibogaine')
+
+    // Priority: FIRST check if patient-filled form exists (portal flow), 
+    // THEN check for uploaded documents (existing patient flow)
     if (ibogaineConsentForm) {
       if (ibogaineConsentForm.is_activated) {
-        // Check if patient signature fields are filled to determine if completed
-        const { data: fullConsentForm } = await supabase
+        // Check if patient signature fields are filled to determine if completed (portal flow)
+        // Use admin client to also check is_completed flag
+        const { data: fullConsentForm } = await adminClient
           .from('ibogaine_consent_forms')
-          .select('signature_data, signature_date, signature_name')
+          .select('signature_data, signature_date, signature_name, is_completed')
           .eq('id', ibogaineConsentForm.id)
           .single()
 
@@ -443,20 +643,27 @@ export const getPatientTasks = authActionClient
           fullConsentForm.signature_name &&
           fullConsentForm.signature_name.trim() !== ''
 
+        // Check if form is marked as completed (could be from admin upload, but form exists so prioritize patient view)
+        const isCompletedByAdmin = fullConsentForm?.is_completed === true
+        
+        // If patient is in onboarding, forms should be considered completed if they exist
+        // (onboarding only happens after completing all 4 initial forms)
+        const shouldConsiderCompleted = isPatientSignatureComplete || isCompletedByAdmin || isInOnboarding
+
         tasks.push({
           id: `ibogaine-consent-${ibogaineConsentForm.id}`,
           type: 'ibogaine_consent',
           title: 'Ibogaine Therapy Consent Form',
-          description: isPatientSignatureComplete
+          description: shouldConsiderCompleted
             ? 'Consent form for Ibogaine therapy treatment.'
             : 'Please review and complete the consent form.',
-          status: isPatientSignatureComplete ? 'completed' : 'not_started',
+          status: shouldConsiderCompleted ? 'completed' : 'not_started',
           estimatedTime: '~5 min',
           isRequired: true,
           isOptional: false,
-          completedAt: isPatientSignatureComplete ? ibogaineConsentForm.created_at : undefined,
+          completedAt: shouldConsiderCompleted ? ibogaineConsentForm.created_at : undefined,
           formId: ibogaineConsentForm.id,
-          link: isPatientSignatureComplete
+          link: shouldConsiderCompleted
             ? `/patient/ibogaine-consent?formId=${ibogaineConsentForm.id}`
             : `/patient/ibogaine-consent`,
         })
@@ -474,6 +681,25 @@ export const getPatientTasks = authActionClient
           link: '#',
         })
       }
+    } else if (hasIbogaineDocument && ibogaineDocument) {
+      // No patient-filled form exists, but document was uploaded by admin (existing patient flow)
+      tasks.push({
+        id: `ibogaine-doc-${ibogaineDocument.id}`,
+        type: 'ibogaine_consent',
+        title: 'Ibogaine Therapy Consent Form',
+        description: 'Ibogaine consent document uploaded by admin.',
+        status: 'completed',
+        estimatedTime: '~5 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: ibogaineDocument.uploaded_at,
+        formId: ibogaineDocument.id,
+        link: '#', // Document view link will be handled separately
+        uploadedDocument: {
+          url: ibogaineDocument.document_url,
+          name: ibogaineDocument.document_name || 'Ibogaine Consent Form Document',
+        },
+      })
     } else {
       // Form doesn't exist yet - show as locked until admin creates and activates it
       tasks.push({
@@ -491,35 +717,40 @@ export const getPatientTasks = authActionClient
     }
 
     // 5. Check for Onboarding Forms (if patient is in onboarding stage)
+    // Note: onboarding check was done earlier to determine form completion status
     let onboardingStatus: OnboardingStatus = { isInOnboarding: false }
-    const { data: onboarding } = await supabase
+    const { data: onboardingFull } = await supabase
       .from('patient_onboarding')
       .select('id, status, release_form_completed, outing_consent_completed, social_media_release_completed, internal_regulations_completed, informed_dissent_completed')
       .eq('patient_id', patientId)
       .maybeSingle()
 
-    if (onboarding) {
+    if (onboardingFull) {
       onboardingStatus = {
         isInOnboarding: true,
-        status: onboarding.status as 'in_progress' | 'completed' | 'moved_to_management',
-        onboardingId: onboarding.id,
+        status: onboardingFull.status as 'in_progress' | 'completed' | 'moved_to_management',
+        onboardingId: onboardingFull.id,
         formsCompleted: [
-          onboarding.release_form_completed,
-          onboarding.outing_consent_completed,
-          onboarding.social_media_release_completed,
-          onboarding.internal_regulations_completed,
-          onboarding.informed_dissent_completed,
+          onboardingFull.release_form_completed,
+          onboardingFull.outing_consent_completed,
+          onboardingFull.social_media_release_completed,
+          onboardingFull.internal_regulations_completed,
+          onboardingFull.informed_dissent_completed,
         ].filter(Boolean).length,
         formsTotal: 5,
       }
 
       // Fetch all 5 onboarding forms
+      if (!onboardingFull) {
+        return { success: false, error: 'Onboarding record not found' }
+      }
+
       const [releaseForm, outingForm, socialMediaForm, regulationsForm, dissentForm] = await Promise.all([
-        supabase.from('onboarding_release_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboarding.id).maybeSingle(),
-        supabase.from('onboarding_outing_consent_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboarding.id).maybeSingle(),
-        supabase.from('onboarding_social_media_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboarding.id).maybeSingle(),
-        supabase.from('onboarding_internal_regulations_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboarding.id).maybeSingle(),
-        supabase.from('onboarding_informed_dissent_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboarding.id).maybeSingle(),
+        supabase.from('onboarding_release_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
+        supabase.from('onboarding_outing_consent_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
+        supabase.from('onboarding_social_media_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
+        supabase.from('onboarding_internal_regulations_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
+        supabase.from('onboarding_informed_dissent_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
       ])
 
       // Helper function to determine task status
@@ -533,7 +764,7 @@ export const getPatientTasks = authActionClient
 
       // Add Release Form task
       tasks.push({
-        id: `onboarding-release-${releaseForm?.data?.id || onboarding.id}`,
+        id: `onboarding-release-${releaseForm?.data?.id || onboardingFull.id}`,
         type: 'onboarding_release',
         title: 'Release Form',
         description: 'Iboga Wellness Institute Release Form',
@@ -543,12 +774,12 @@ export const getPatientTasks = authActionClient
         isOptional: false,
         completedAt: releaseForm?.data?.completed_at || undefined,
         formId: releaseForm?.data?.id || '',
-        link: releaseForm?.data?.is_activated ? `/onboarding-forms/${onboarding.id}/release-form` : '#',
+        link: releaseForm?.data?.is_activated ? `/onboarding-forms/${onboardingFull.id}/release-form` : '#',
       })
 
       // Add Outing Consent Form task
       tasks.push({
-        id: `onboarding-outing-${outingForm?.data?.id || onboarding.id}`,
+        id: `onboarding-outing-${outingForm?.data?.id || onboardingFull.id}`,
         type: 'onboarding_outing',
         title: 'Outing/Transfer Consent',
         description: 'Consent form for outings and transfers',
@@ -558,12 +789,12 @@ export const getPatientTasks = authActionClient
         isOptional: false,
         completedAt: outingForm?.data?.completed_at || undefined,
         formId: outingForm?.data?.id || '',
-        link: outingForm?.data?.is_activated ? `/onboarding-forms/${onboarding.id}/outing-consent` : '#',
+        link: outingForm?.data?.is_activated ? `/onboarding-forms/${onboardingFull.id}/outing-consent` : '#',
       })
 
       // Add Social Media Release Form task
       tasks.push({
-        id: `onboarding-social-${socialMediaForm?.data?.id || onboarding.id}`,
+        id: `onboarding-social-${socialMediaForm?.data?.id || onboardingFull.id}`,
         type: 'onboarding_social_media',
         title: 'Social Media Release',
         description: 'Consent for use of images and testimonials',
@@ -573,12 +804,12 @@ export const getPatientTasks = authActionClient
         isOptional: false,
         completedAt: socialMediaForm?.data?.completed_at || undefined,
         formId: socialMediaForm?.data?.id || '',
-        link: socialMediaForm?.data?.is_activated ? `/onboarding-forms/${onboarding.id}/social-media` : '#',
+        link: socialMediaForm?.data?.is_activated ? `/onboarding-forms/${onboardingFull.id}/social-media` : '#',
       })
 
       // Add Internal Regulations Form task
       tasks.push({
-        id: `onboarding-regulations-${regulationsForm?.data?.id || onboarding.id}`,
+        id: `onboarding-regulations-${regulationsForm?.data?.id || onboardingFull.id}`,
         type: 'onboarding_regulations',
         title: 'Internal Regulations',
         description: 'Acknowledgment of clinic rules and regulations',
@@ -588,12 +819,12 @@ export const getPatientTasks = authActionClient
         isOptional: false,
         completedAt: regulationsForm?.data?.completed_at || undefined,
         formId: regulationsForm?.data?.id || '',
-        link: regulationsForm?.data?.is_activated ? `/onboarding-forms/${onboarding.id}/internal-regulations` : '#',
+        link: regulationsForm?.data?.is_activated ? `/onboarding-forms/${onboardingFull.id}/internal-regulations` : '#',
       })
 
       // Add Informed Dissent Form task
       tasks.push({
-        id: `onboarding-dissent-${dissentForm?.data?.id || onboarding.id}`,
+        id: `onboarding-dissent-${dissentForm?.data?.id || onboardingFull.id}`,
         type: 'onboarding_dissent',
         title: 'Letter of Informed Dissent',
         description: 'Acknowledgment of treatment information and dissent',
@@ -603,7 +834,7 @@ export const getPatientTasks = authActionClient
         isOptional: false,
         completedAt: dissentForm?.data?.completed_at || undefined,
         formId: dissentForm?.data?.id || '',
-        link: dissentForm?.data?.is_activated ? `/onboarding-forms/${onboarding.id}/informed-dissent` : '#',
+        link: dissentForm?.data?.is_activated ? `/onboarding-forms/${onboardingFull.id}/informed-dissent` : '#',
       })
     }
 

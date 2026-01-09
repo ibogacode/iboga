@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { partialIntakeFormSchema, type PartialIntakeFormSchemaValues } from '@/lib/validations/partial-intake'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
+import { addExistingPatient } from '@/actions/existing-patient.action'
 import { toast } from 'sonner'
 
 const US_STATES = [
@@ -23,7 +24,7 @@ const US_STATES = [
   'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
 ]
 
-type Step = 'entry-mode' | 'details' | 'confirmation'
+type Step = 'entry-mode' | 'details' | 'confirmation' | 'existing-patient'
 
 interface InitiateIntakeFormProps {
   onSuccess?: () => void
@@ -34,7 +35,7 @@ interface InitiateIntakeFormProps {
 export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }: InitiateIntakeFormProps = {}) {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState<Step>('entry-mode')
-  const [mode, setMode] = useState<'minimal' | 'partial'>('minimal')
+  const [mode, setMode] = useState<'minimal' | 'partial' | 'existing'>('minimal')
   const [isLoading, setIsLoading] = useState(false)
   const [submittedData, setSubmittedData] = useState<{
     recipient_name: string
@@ -150,17 +151,65 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
     }
   }
 
-  function handleModeSelect(selectedMode: 'minimal' | 'partial') {
+  function handleModeSelect(selectedMode: 'minimal' | 'partial' | 'existing') {
     setMode(selectedMode)
-    form.setValue('mode', selectedMode)
-    setCurrentStep('details')
-    if (onStepChange) {
-      onStepChange('details')
+    if (selectedMode === 'existing') {
+      // Redirect to existing patient page
+      router.push('/patient-pipeline/add-existing-patient')
+      if (onClose) {
+        onClose()
+      }
+    } else {
+      form.setValue('mode', selectedMode)
+      setCurrentStep('details')
+      if (onStepChange) {
+        onStepChange('details')
+      }
+    }
+  }
+
+  async function handleExistingPatientSubmit(data: any) {
+    setIsLoading(true)
+    try {
+      const result = await addExistingPatient(data)
+      
+      if (result?.data?.success) {
+        setIsSuccess(true)
+        setErrorMessage(null)
+        setSubmittedData({
+          recipient_name: `${data.first_name} ${data.last_name}`,
+          recipient_email: data.email,
+          mode: 'existing' as any,
+        })
+        setCurrentStep('confirmation')
+        if (onStepChange) {
+          onStepChange('confirmation')
+        }
+      } else {
+        setIsSuccess(false)
+        setErrorMessage(result?.data?.error || 'Failed to add existing patient')
+        setCurrentStep('confirmation')
+        if (onStepChange) {
+          onStepChange('confirmation')
+        }
+        setShowErrorDialog(true)
+      }
+    } catch (error) {
+      console.error('Error submitting existing patient:', error)
+      setIsSuccess(false)
+      setErrorMessage('An unexpected error occurred')
+      setCurrentStep('confirmation')
+      if (onStepChange) {
+        onStepChange('confirmation')
+      }
+      setShowErrorDialog(true)
+    } finally {
+      setIsLoading(false)
     }
   }
 
   function handleBack() {
-    if (currentStep === 'details') {
+    if (currentStep === 'details' || currentStep === 'existing-patient') {
       setCurrentStep('entry-mode')
       if (onStepChange) {
         onStepChange('entry-mode')
@@ -238,15 +287,21 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                 Entry Mode
               </button>
               <button
-                onClick={() => setCurrentStep('details')}
+                onClick={() => {
+                  if (mode === 'existing') {
+                    setCurrentStep('existing-patient')
+                  } else {
+                    setCurrentStep('details')
+                  }
+                }}
                 disabled={currentStep === 'confirmation'}
                 className={`w-[119px] h-[33px] rounded-full text-sm leading-[1.193em] tracking-[-0.04em] transition-all flex items-center justify-center ${
-                  currentStep === 'details'
+                  (currentStep === 'details' || currentStep === 'existing-patient')
                     ? 'bg-white text-[#6E7A46] shadow-[0px_2px_16px_0px_rgba(0,0,0,0.08)]'
                     : 'text-[#090909] bg-transparent'
                 } ${currentStep === 'confirmation' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
               >
-                Details
+                {mode === 'existing' ? 'Patient Details' : 'Details'}
               </button>
               <button
                 className={`w-[94px] h-[33px] rounded-full text-sm leading-[1.193em] tracking-[-0.04em] flex items-center justify-center ${
@@ -310,6 +365,30 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                     className="w-full h-auto py-[10px] px-4 bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
                   >
                     Select Partial
+                  </Button>
+                </div>
+
+                {/* Existing Patient Card */}
+                <div className="flex-1 bg-[#F5F4F0] border border-[#D6D2C8] rounded-[10px] p-5 flex flex-col gap-[25px]">
+                  <div className="flex flex-col gap-[3px]">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-base font-normal text-black leading-[1.48em] tracking-[-0.04em]">Existing Patient</h3>
+                    </div>
+                    <div className="flex flex-col gap-[5px]">
+                      <p className="text-sm text-[#777777] leading-[1.5em] tracking-[-0.04em]">
+                        Add an existing patient with all details. Admin can upload documents on their behalf.
+                      </p>
+                      <p className="text-sm text-[#777777] leading-[1.5em] tracking-[-0.04em] font-medium mt-2">
+                        Full Details<br />Document Uploads
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => handleModeSelect('existing')}
+                    className="w-full h-auto py-[10px] px-4 bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
+                  >
+                    Add Existing Patient
                   </Button>
                 </div>
               </div>

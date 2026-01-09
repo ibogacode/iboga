@@ -5,8 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById, activateServiceAgreement, activateIbogaineConsent } from '@/actions/patient-profile.action'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { sendFormEmail } from '@/actions/send-form-email.action'
-import { movePatientToOnboarding } from '@/actions/onboarding-forms.action'
-import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus } from 'lucide-react'
+import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding } from '@/actions/onboarding-forms.action'
+import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +19,9 @@ import { PatientIntakeFormView } from '@/components/admin/patient-intake-form-vi
 import { MedicalHistoryFormView } from '@/components/admin/medical-history-form-view'
 import { ServiceAgreementFormView } from '@/components/admin/service-agreement-form-view'
 import { IbogaineConsentFormView } from '@/components/admin/ibogaine-consent-form-view'
+import { uploadExistingPatientDocument } from '@/actions/existing-patient.action'
+import { useUser } from '@/hooks/use-user.hook'
+import { uploadDocumentClient } from '@/lib/supabase/client-storage'
 
 interface PatientProfileData {
   patient: any
@@ -39,21 +42,32 @@ interface PatientProfileData {
     serviceAgreement: 'completed' | 'not_started'
     ibogaineConsent: 'completed' | 'not_started'
   }
+  onboarding?: {
+    onboarding: any
+    forms: {
+      releaseForm: any
+      outingForm: any
+      socialMediaForm: any
+      regulationsForm: any
+      dissentForm: any
+    }
+  } | null
 }
 
 export default function PatientProfilePage() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
+  const { profile } = useUser()
   
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [triggeringForm, setTriggeringForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   const [profileData, setProfileData] = useState<PatientProfileData | null>(null)
-  const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
+  const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | null>(null)
   const [viewFormData, setViewFormData] = useState<any>(null)
-  const [loadingViewForm, setLoadingViewForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
+  const [loadingViewForm, setLoadingViewForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | null>(null)
   const [activatingForm, setActivatingForm] = useState<'service' | 'ibogaine' | null>(null)
   const [showActivationModal, setShowActivationModal] = useState(false)
   const [activationModalData, setActivationModalData] = useState<{
@@ -64,6 +78,10 @@ export default function PatientProfilePage() {
   } | null>(null)
   const [isSavingActivationFields, setIsSavingActivationFields] = useState(false)
   const [isMovingToOnboarding, setIsMovingToOnboarding] = useState(false)
+  const [loadingOnboarding, setLoadingOnboarding] = useState(false)
+  const [uploadingDocument, setUploadingDocument] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
+  
+  const isAdminOrOwner = profile?.role === 'admin' || profile?.role === 'owner'
   
   // Form state for editing
   const [formData, setFormData] = useState({
@@ -84,14 +102,52 @@ export default function PatientProfilePage() {
     loadPatientProfile()
   }, [id])
 
+  // Load onboarding data after patient profile is loaded
+  useEffect(() => {
+    async function loadOnboarding() {
+      if (!profileData?.patient?.id) return
+      if (profileData.onboarding) return // Already loaded
+      
+      try {
+        setLoadingOnboarding(true)
+        const onboardingResult = await getOnboardingByPatientId({ patient_id: profileData.patient.id })
+        
+        if (!onboardingResult?.data?.data) {
+          // No onboarding found or error, which is fine
+          return
+        }
+        
+        // Check if result has success property (direct result) or is wrapped in SafeActionResult
+        const result = onboardingResult.data.data
+        
+        if ('success' in result && result.success && result.data) {
+          setProfileData(prev => prev ? {
+            ...prev,
+            onboarding: result.data,
+          } : prev)
+        } else if (result === null || ('success' in result && result.data === null)) {
+          // No onboarding found, which is fine
+        }
+      } catch (error) {
+        console.error('[PatientProfile] Error loading onboarding:', error)
+      } finally {
+        setLoadingOnboarding(false)
+      }
+    }
+    
+    loadOnboarding()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileData?.patient?.id, profileData?.onboarding])
+
   async function loadPatientProfile() {
     setIsLoading(true)
     try {
-      // Determine if ID is a partial form ID or intake form ID
-      // Try both - the action will figure out which one exists
+      // Determine if ID is a patient_id, partial form ID, or intake form ID
+      // Try patientId first (for onboarding redirects), then try both form IDs
       const result = await getPatientProfile({ 
-        partialFormId: id,
-        intakeFormId: id,
+        patientId: id, // Try as patient_id first
+        partialFormId: id, // Fallback to partial form ID
+        intakeFormId: id, // Fallback to intake form ID
       })
       
       console.log('[PatientProfile] Load result:', result)
@@ -99,7 +155,25 @@ export default function PatientProfilePage() {
       if (result?.data?.success && result.data.data) {
         const data = result.data.data
         console.log('[PatientProfile] Profile data:', data)
-        setProfileData(data as PatientProfileData)
+        
+        // Load onboarding data if patient has patient_id
+        let onboardingData = null
+        if (data.patient?.id) {
+          try {
+            setLoadingOnboarding(true)
+            // Try to find onboarding by patient_id - we'll fetch after setting initial profile data
+            // to avoid blocking the initial load
+          } catch (error) {
+            console.error('[PatientProfile] Error loading onboarding:', error)
+          } finally {
+            setLoadingOnboarding(false)
+          }
+        }
+        
+        setProfileData({
+          ...data,
+          onboarding: onboardingData,
+        } as PatientProfileData)
         
         // Set form data for editing
         setFormData({
@@ -161,6 +235,63 @@ export default function PatientProfilePage() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  async function handleUploadDocument(formType: 'intake' | 'medical' | 'service' | 'ibogaine', file: File) {
+    if (!profileData?.patient?.id) {
+      toast.error('Patient ID not found')
+      return
+    }
+
+    setUploadingDocument(formType)
+    try {
+      // Upload file to Supabase Storage first (from client)
+      const bucketMap: Record<string, 'intake-form-documents' | 'medical-history-documents' | 'service-agreement-documents' | 'ibogaine-consent-documents'> = {
+        intake: 'intake-form-documents',
+        medical: 'medical-history-documents',
+        service: 'service-agreement-documents',
+        ibogaine: 'ibogaine-consent-documents',
+      }
+
+      const bucketId = bucketMap[formType]
+      const uploadResult = await uploadDocumentClient(bucketId, file)
+
+      // Call server action to store document record and mark form as completed
+      const result = await uploadExistingPatientDocument({
+        documentUrl: uploadResult.url,
+        documentPath: uploadResult.path,
+        fileName: file.name,
+        fileType: formType,
+        patientId: profileData.patient.id,
+        partialFormId: profileData.partialForm?.id,
+        intakeFormId: profileData.intakeForm?.id,
+      })
+
+      if (result?.data?.success) {
+        const formName = formType === 'intake' ? 'Application Form' 
+          : formType === 'medical' ? 'Medical History Form'
+          : formType === 'service' ? 'Service Agreement'
+          : 'Ibogaine Consent Form'
+        toast.success(`${formName} document uploaded and marked as completed`)
+        await loadPatientProfile() // Reload to show updated status
+      } else {
+        toast.error(result?.data?.error || 'Failed to upload document')
+      }
+    } catch (error) {
+      console.error('Error uploading document:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to upload document')
+    } finally {
+      setUploadingDocument(null)
+    }
+  }
+
+  function handleFileInputChange(formType: 'intake' | 'medical' | 'service' | 'ibogaine', event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (file) {
+      handleUploadDocument(formType, file)
+    }
+    // Reset input so same file can be selected again
+    event.target.value = ''
   }
 
   async function handleTriggerForm(formType: 'intake' | 'medical' | 'service' | 'ibogaine') {
@@ -658,20 +789,47 @@ export default function PatientProfilePage() {
                 <div className="flex items-center gap-3">
                   {getStatusBadge(profileData.formStatuses.intake)}
                   {profileData.formStatuses.intake === 'not_started' ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleTriggerForm('intake')}
-                      disabled={triggeringForm !== null}
-                      className="gap-2"
-                    >
-                      {triggeringForm === 'intake' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
+                    <div className="flex gap-2">
+                      {isAdminOrOwner && (
+                        <label className="cursor-pointer">
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            className="hidden"
+                            onChange={(e) => handleFileInputChange('intake', e)}
+                            disabled={uploadingDocument !== null}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={uploadingDocument !== null}
+                            className="gap-2"
+                          >
+                            {uploadingDocument === 'intake' ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Upload className="h-4 w-4" />
+                            )}
+                            Upload
+                          </Button>
+                        </label>
                       )}
-                      Send Form
-                    </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleTriggerForm('intake')}
+                        disabled={triggeringForm !== null}
+                        className="gap-2"
+                      >
+                        {triggeringForm === 'intake' ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                        Send Form
+                      </Button>
+                    </div>
                   ) : (
                     <Button
                       variant="outline"
@@ -741,6 +899,31 @@ export default function PatientProfilePage() {
                   {getStatusBadge(profileData.formStatuses.medicalHistory)}
                   {profileData.formStatuses.medicalHistory === 'not_started' ? (
                     <div className="flex gap-2">
+                      {isAdminOrOwner && (
+                        <label className="cursor-pointer">
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            className="hidden"
+                            onChange={(e) => handleFileInputChange('medical', e)}
+                            disabled={uploadingDocument !== null}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={uploadingDocument !== null}
+                            className="gap-2"
+                          >
+                            {uploadingDocument === 'medical' ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Upload className="h-4 w-4" />
+                            )}
+                            Upload
+                          </Button>
+                        </label>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -866,20 +1049,47 @@ export default function PatientProfilePage() {
                       </div>
                   )}
                   {profileData.formStatuses.serviceAgreement === 'not_started' ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleTriggerForm('service')}
-                      disabled={triggeringForm !== null}
-                      className="gap-2"
-                    >
-                      {triggeringForm === 'service' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
+                    <div className="flex gap-2">
+                      {isAdminOrOwner && (
+                        <label className="cursor-pointer">
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            className="hidden"
+                            onChange={(e) => handleFileInputChange('service', e)}
+                            disabled={uploadingDocument !== null}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={uploadingDocument !== null}
+                            className="gap-2"
+                          >
+                            {uploadingDocument === 'service' ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Upload className="h-4 w-4" />
+                            )}
+                            Upload
+                          </Button>
+                        </label>
                       )}
-                      Send Form
-                    </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleTriggerForm('service')}
+                        disabled={triggeringForm !== null}
+                        className="gap-2"
+                      >
+                        {triggeringForm === 'service' ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                        Send Form
+                      </Button>
+                    </div>
                   ) : (
                     <Button
                       variant="outline"
@@ -975,6 +1185,31 @@ export default function PatientProfilePage() {
                   )}
                   {profileData.formStatuses.ibogaineConsent === 'not_started' ? (
                     <div className="flex gap-2">
+                      {isAdminOrOwner && (
+                        <label className="cursor-pointer">
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            className="hidden"
+                            onChange={(e) => handleFileInputChange('ibogaine', e)}
+                            disabled={uploadingDocument !== null}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={uploadingDocument !== null}
+                            className="gap-2"
+                          >
+                            {uploadingDocument === 'ibogaine' ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Upload className="h-4 w-4" />
+                            )}
+                            Upload
+                          </Button>
+                        </label>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -1063,8 +1298,117 @@ export default function PatientProfilePage() {
               </div>
             </div>
 
+            {/* Onboarding Forms Section - Show if patient is in onboarding */}
+            {profileData.onboarding && (
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Onboarding Forms</h2>
+                <div className="space-y-4">
+                  {[
+                    { key: 'releaseForm', label: 'Release Form', icon: FileSignature, completed: profileData.onboarding.onboarding.release_form_completed },
+                    { key: 'outingForm', label: 'Outing/Transfer Consent', icon: Plane, completed: profileData.onboarding.onboarding.outing_consent_completed },
+                    { key: 'socialMediaForm', label: 'Social Media Release', icon: Camera, completed: profileData.onboarding.onboarding.social_media_release_completed },
+                    { key: 'regulationsForm', label: 'Internal Regulations', icon: BookOpen, completed: profileData.onboarding.onboarding.internal_regulations_completed },
+                    { key: 'dissentForm', label: 'Letter of Informed Dissent', icon: FileX, completed: profileData.onboarding.onboarding.informed_dissent_completed },
+                  ].map((form) => {
+                    const FormIcon = form.icon
+                    const formData = profileData.onboarding?.forms[form.key as keyof typeof profileData.onboarding.forms]
+                    const status: 'completed' | 'pending' | 'not_started' = form.completed ? 'completed' : (formData ? 'pending' : 'not_started')
+                    
+                    return (
+                      <div key={form.key} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <FormIcon className="h-5 w-5 text-gray-400" />
+                          <div>
+                            <p className="font-medium text-gray-900">{form.label}</p>
+                            <p className="text-sm text-gray-500">Onboarding form</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {getStatusBadge(status)}
+                          {status === 'completed' && (() => {
+                            // Map form keys to form types and viewing form states
+                            const formTypeMap: Record<string, { type: 'release' | 'outing' | 'social_media' | 'regulations' | 'dissent', viewState: typeof viewingForm }> = {
+                              'releaseForm': { type: 'release', viewState: 'onboarding_release' },
+                              'outingForm': { type: 'outing', viewState: 'onboarding_outing' },
+                              'socialMediaForm': { type: 'social_media', viewState: 'onboarding_social_media' },
+                              'regulationsForm': { type: 'regulations', viewState: 'onboarding_regulations' },
+                              'dissentForm': { type: 'dissent', viewState: 'onboarding_dissent' },
+                            }
+                            
+                            const mapping = formTypeMap[form.key]
+                            const currentViewState = mapping?.viewState || null
+                            
+                            return (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  if (!mapping || !profileData.onboarding?.onboarding.id) return
+                                  
+                                  setLoadingViewForm(currentViewState)
+                                  try {
+                                    const result = await getFormByOnboarding({
+                                      onboarding_id: profileData.onboarding.onboarding.id,
+                                      form_type: mapping.type,
+                                    })
+                                    
+                                    if (result?.data?.success && result.data.data) {
+                                      // getFormByOnboarding returns { form: {...}, onboarding: {...} }
+                                      const responseData = result.data.data
+                                      const formData = responseData.form || responseData
+                                      setViewFormData(formData)
+                                      setViewingForm(mapping.viewState)
+                                    } else {
+                                      toast.error(result?.data?.error || 'Failed to load form data')
+                                    }
+                                  } catch (error) {
+                                    console.error('Error loading onboarding form:', error)
+                                    toast.error('Failed to load form data')
+                                  } finally {
+                                    setLoadingViewForm(null)
+                                  }
+                                }}
+                                className="gap-2"
+                                disabled={loadingViewForm !== null}
+                              >
+                                {loadingViewForm === currentViewState ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Eye className="h-4 w-4" />
+                                    View
+                                  </>
+                                )}
+                              </Button>
+                            )
+                          })()}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                
+                {/* Onboarding Status Info */}
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Status:</strong> {profileData.onboarding.onboarding.status === 'in_progress' ? 'In Progress' : profileData.onboarding.onboarding.status === 'completed' ? 'Completed' : 'Moved to Management'}
+                  </p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Forms completed: {[
+                      profileData.onboarding.onboarding.release_form_completed,
+                      profileData.onboarding.onboarding.outing_consent_completed,
+                      profileData.onboarding.onboarding.social_media_release_completed,
+                      profileData.onboarding.onboarding.internal_regulations_completed,
+                      profileData.onboarding.onboarding.informed_dissent_completed,
+                    ].filter(Boolean).length} / 5
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Move to Onboarding Button - Only show when all 4 forms are completed */}
-            {profileData.formStatuses.intake === 'completed' &&
+            {!profileData.onboarding &&
+             profileData.formStatuses.intake === 'completed' &&
              profileData.formStatuses.medicalHistory === 'completed' &&
              profileData.formStatuses.serviceAgreement === 'completed' &&
              profileData.formStatuses.ibogaineConsent === 'completed' && (
@@ -1414,6 +1758,42 @@ export default function PatientProfilePage() {
         </div>
       )}
 
+      {/* Onboarding Forms View Modals */}
+      {(viewingForm === 'onboarding_release' || viewingForm === 'onboarding_outing' || 
+        viewingForm === 'onboarding_social_media' || viewingForm === 'onboarding_regulations' || 
+        viewingForm === 'onboarding_dissent') && viewFormData && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            <div className="relative w-full max-w-6xl bg-white rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {viewingForm === 'onboarding_release' && 'View Release Form'}
+                  {viewingForm === 'onboarding_outing' && 'View Outing/Transfer Consent Form'}
+                  {viewingForm === 'onboarding_social_media' && 'View Social Media Release Form'}
+                  {viewingForm === 'onboarding_regulations' && 'View Internal Regulations Form'}
+                  {viewingForm === 'onboarding_dissent' && 'View Letter of Informed Dissent Form'}
+                </h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setViewingForm(null)
+                    setViewFormData(null)
+                  }}
+                  className="gap-2"
+                >
+                  <X className="h-4 w-4" />
+                  Close
+                </Button>
+              </div>
+              <div className="p-6">
+                <OnboardingFormViewContent formType={viewingForm} formData={viewFormData} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Activation Modal for Required Fields */}
       <Dialog open={showActivationModal} onOpenChange={setShowActivationModal}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1472,6 +1852,481 @@ export default function PatientProfilePage() {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+// Onboarding Form View Content Component
+function OnboardingFormViewContent({ 
+  formType, 
+  formData 
+}: { 
+  formType: 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | null
+  formData: any 
+}) {
+  if (!formData) return null
+
+  function formatDate(dateString: string | null | undefined) {
+    if (!dateString) return 'N/A'
+    try {
+      return format(new Date(dateString), 'MMMM dd, yyyy')
+    } catch {
+      return dateString
+    }
+  }
+
+  if (formType === 'onboarding_release') {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
+          Iboga Wellness Institute Release Form
+        </h1>
+
+        {/* Participant Information */}
+        <div className="space-y-6 mb-8">
+          <h2 className="text-2xl font-semibold text-gray-900 border-b pb-2">Participant Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Full Name</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.full_name || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Date of Birth</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formatDate(formData.date_of_birth)}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Phone Number</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.phone_number || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Email</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.email || 'N/A'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Emergency Contact Information */}
+        <div className="space-y-6 mb-8">
+          <h2 className="text-2xl font-semibold text-gray-900 border-b pb-2">Emergency Contact Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Emergency Contact Full Name</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.emergency_contact_name || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Emergency Contact Phone</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.emergency_contact_phone || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Emergency Contact Email</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.emergency_contact_email || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Relationship</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.emergency_contact_relationship || 'N/A'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Acknowledgment and Consent */}
+        <div className="space-y-6 mb-8">
+          <h2 className="text-2xl font-semibold text-gray-900 border-b pb-2">Acknowledgment and Consent</h2>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.voluntary_participation ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Voluntary Participation</label>
+                <p className="text-sm text-gray-600">I understand that my participation in Iboga Wellness Centers is entirely voluntary and that I can withdraw at any time.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.medical_conditions_disclosed ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Medical Conditions Disclosed</label>
+                <p className="text-sm text-gray-600">I have disclosed all known medical conditions, including physical and mental health issues, to the Iboga Wellness Centers staff.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.risks_acknowledged ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Risks Acknowledged</label>
+                <p className="text-sm text-gray-600">I am aware of the potential risks associated with ibogaine and psilocybin therapy.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.medical_supervision_agreed ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Medical Supervision</label>
+                <p className="text-sm text-gray-600">I agree to follow all guidelines and instructions provided by the medical and support staff.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.confidentiality_understood ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Confidentiality</label>
+                <p className="text-sm text-gray-600">I understand that my personal information and any data collected during the retreat will be kept confidential.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.liability_waiver_accepted ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Waiver of Liability</label>
+                <p className="text-sm text-gray-600">I release Iboga Wellness Centers, its owners, staff, and affiliates from any liability, claims, or demands.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.compliance_agreed ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Compliance</label>
+                <p className="text-sm text-gray-600">I agree to adhere to the rules and guidelines set forth by Iboga Wellness Centers.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Consent to Treatment */}
+        <div className="space-y-6 mb-8">
+          <h2 className="text-2xl font-semibold text-gray-900 border-b pb-2">Consent to Treatment</h2>
+          <div className="flex items-start gap-3">
+            <div className="mt-1">
+              {formData.consent_to_treatment ? (
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              ) : (
+                <Clock className="h-5 w-5 text-gray-300" />
+              )}
+            </div>
+            <div>
+              <p className="text-base text-gray-900">
+                I have read and understood the above information. I acknowledge that I have had the opportunity to ask questions and that my questions have been answered to my satisfaction. I voluntarily agree to participate in Iboga Wellness Centers and consent to the administration of ibogaine and/or psilocybin therapies as outlined.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Signature */}
+        {formData.signature_data && (
+          <div className="space-y-4 mt-8 pt-8 border-t border-gray-200">
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Signature Date</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formatDate(formData.signature_date)}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-4">Signature</label>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-300">
+                <img 
+                  src={formData.signature_data} 
+                  alt="Signature" 
+                  className="max-w-full h-auto"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (formType === 'onboarding_outing') {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
+          Iboga Wellness Institute Outing/Transfer Consent
+        </h1>
+
+        {/* Participant Information */}
+        <div className="space-y-6 mb-8">
+          <h2 className="text-2xl font-semibold text-gray-900 border-b pb-2">Participant Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">First Name</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.first_name || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Last Name</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.last_name || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Date of Birth</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formatDate(formData.date_of_birth)}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Date of Outing/Transfer</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formatDate(formData.date_of_outing)}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Email</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.email || 'N/A'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Consent Declaration */}
+        <div className="space-y-6 mb-8">
+          <h2 className="text-2xl font-semibold text-gray-900 border-b pb-2">Consent Declaration</h2>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.protocol_compliance ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Protocol Compliance</label>
+                <p className="text-sm text-gray-600">I agree to follow all guidelines and protocols established by the clinic during the outing/transfer period.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.proper_conduct ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Proper Conduct</label>
+                <p className="text-sm text-gray-600">I will refrain from any inappropriate behavior that may compromise my well-being or that of others.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.no_harassment ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Prohibition of Inquiries or Harassment</label>
+                <p className="text-sm text-gray-600">It is strictly prohibited to harass, intimidate, or ask other patients, staff, or companions about the use, access, or availability of prohibited substances.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.substance_prohibition ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Substance Prohibition</label>
+                <p className="text-sm text-gray-600">I will not consume, carry, or request prohibited substances at any time during my outing/transfer.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.financial_penalties_accepted ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Financial Penalties</label>
+                <p className="text-sm text-gray-600">In case of non-compliance with any of the aforementioned points, I accept that a financial penalty of $150.00 will be applied.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.additional_consequences_understood ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Additional Consequences</label>
+                <p className="text-sm text-gray-600">I understand that any violation of these rules may result in the cancellation of future outings/transfers and possible disciplinary measures.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.declaration_read_understood ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <label className="text-base font-medium text-gray-900">Declaration</label>
+                <p className="text-sm text-gray-600">I declare that I have read and understood all the conditions mentioned in this form and agree to comply with them without exception.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Signature */}
+        {formData.signature_data && (
+          <div className="space-y-4 mt-8 pt-8 border-t border-gray-200">
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Signature Date</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formatDate(formData.signature_date)}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-4">Signature</label>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-300">
+                <img 
+                  src={formData.signature_data} 
+                  alt="Signature" 
+                  className="max-w-full h-auto"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // For other forms, use a generic display
+  return (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
+        {formType === 'onboarding_social_media' && 'Patient Social Media Release'}
+        {formType === 'onboarding_regulations' && 'Internal Regulations'}
+        {formType === 'onboarding_dissent' && 'Letter of Informed Dissent'}
+      </h1>
+
+      <div className="space-y-6">
+        {Object.entries(formData).map(([key, value]) => {
+          // Skip internal fields
+          if (['id', 'onboarding_id', 'patient_id', 'is_completed', 'is_activated', 'completed_at', 'created_at', 'updated_at', 'signature_data'].includes(key)) {
+            return null
+          }
+          
+          // Format key names
+          const formattedKey = key
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, l => l.toUpperCase())
+          
+          // Format values
+          let displayValue: React.ReactNode
+          if (value === null || value === undefined) {
+            displayValue = <span className="text-gray-400">N/A</span>
+          } else if (typeof value === 'boolean') {
+            displayValue = value ? (
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <span>Yes</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-gray-300" />
+                <span>No</span>
+              </div>
+            )
+          } else if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}/)) {
+            displayValue = formatDate(value)
+          }
+          
+          return (
+            <div key={key} className="border-b border-gray-100 pb-4">
+              <label className="text-base font-medium text-gray-700 block mb-2">
+                {formattedKey}
+              </label>
+              <div className="text-base text-gray-900">
+                {displayValue}
+              </div>
+            </div>
+          )
+        })}
+        
+        {/* Show signature if available */}
+        {formData.signature_data && (
+          <div className="border-t border-gray-200 pt-6 mt-6">
+            <label className="text-base font-medium text-gray-700 block mb-4">
+              Signature
+            </label>
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-300">
+              <img 
+                src={formData.signature_data} 
+                alt="Signature" 
+                className="max-w-full h-auto"
+              />
+            </div>
+            {formData.signature_date && (
+              <div className="mt-2">
+                <label className="text-sm text-gray-600">Date: {formatDate(formData.signature_date)}</label>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

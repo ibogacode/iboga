@@ -114,12 +114,12 @@ export default async function PatientHomePage() {
       <div className="space-y-1 sm:space-y-2">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <h1 className="text-2xl sm:text-3xl md:text-[40px] font-normal leading-[1.3em] text-black" style={{ fontFamily: 'var(--font-instrument-serif), serif' }}>
-              {greeting}, {userName}
-            </h1>
+        <h1 className="text-2xl sm:text-3xl md:text-[40px] font-normal leading-[1.3em] text-black" style={{ fontFamily: 'var(--font-instrument-serif), serif' }}>
+          {greeting}, {userName}
+        </h1>
             <p className="text-sm sm:text-base font-normal leading-[1.48em] tracking-[-0.04em] text-black mt-1 sm:mt-2">
-              You're one step closer to your treatment. Complete the tasks below to finalize your preparation.
-            </p>
+          You're one step closer to your treatment. Complete the tasks below to finalize your preparation.
+        </p>
           </div>
           {/* Onboarding Status Badge */}
           {onboardingStatus?.isInOnboarding && (

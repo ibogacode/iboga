@@ -131,7 +131,7 @@ export default async function LoginPage() {
                 color: '#666',
               }}
             >
-              Enter your credentials to access your account
+              Sign in with Google or Enter your credentials to access your account
             </p>
           </div>
 

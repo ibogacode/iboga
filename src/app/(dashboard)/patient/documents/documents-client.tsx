@@ -62,6 +62,13 @@ export function DocumentsClient({ documents }: DocumentsClientProps) {
   const [loadingViewForm, setLoadingViewForm] = useState<string | null>(null)
 
   const handleViewDocument = async (document: PatientTask) => {
+    // Check if this is an uploaded document (has uploadedDocument property)
+    if (document.uploadedDocument) {
+      // Open the uploaded document in a new window/tab
+      window.open(document.uploadedDocument.url, '_blank')
+      return
+    }
+
     if (!document.formId) {
       toast.error('Document ID not found')
       return
