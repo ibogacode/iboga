@@ -41,10 +41,10 @@ export function ParkinsonsPsychologicalReportForm({
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Helper to convert string from DB to number for form
-  const convertRating = (value: any): number | null => {
-    if (value === null || value === undefined || value === '') return null
+  const convertRating = (value: any): number | undefined => {
+    if (value === null || value === undefined || value === '') return undefined
     const num = typeof value === 'string' ? Number(value) : value
-    return isNaN(num) ? null : num
+    return isNaN(num) ? undefined : num
   }
 
   const form = useForm<ParkinsonsPsychologicalReportInput>({

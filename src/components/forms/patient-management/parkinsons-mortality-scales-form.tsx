@@ -29,10 +29,10 @@ interface ParkinsonsMortalityScalesFormProps {
 }
 
 // Helper to convert DB value to number
-const convertNumber = (value: any): number | null => {
-  if (value === null || value === undefined || value === '') return null
+const convertNumber = (value: any): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined
   const num = typeof value === 'string' ? Number(value) : value
-  return isNaN(num) ? null : num
+  return isNaN(num) ? undefined : num
 }
 
 export function ParkinsonsMortalityScalesForm({ 
