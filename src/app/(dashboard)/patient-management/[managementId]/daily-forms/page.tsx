@@ -46,15 +46,15 @@ interface DailyForm {
   guest_last_name?: string
   time?: string
   emotional_state_today?: string
-  emotional_shifts_since_last_report?: string
-  vivid_dreams_resurfacing_memories?: string
-  feeling_connected_to_emotions?: string
-  changes_memory_focus_concentration?: string
-  feeling_present_aware?: string
-  discomfort_side_effects?: string
-  energy_level?: number
-  experiencing_tremors_muscle_stiffness?: string
-  motor_function_details?: string
+  emotional_shifts_since_last_report?: string | null
+  vivid_dreams_resurfacing_memories?: string | null
+  feeling_connected_to_emotions?: string | null
+  changes_memory_focus_concentration?: string | null
+  feeling_present_aware?: string | null
+  discomfort_side_effects?: string | null
+  energy_level?: number | null
+  experiencing_tremors_muscle_stiffness?: string | null
+  motor_function_details?: string | null
   how_guest_looks_physically?: string
   how_guest_describes_feeling?: string
   additional_notes_observations?: string
@@ -62,30 +62,30 @@ interface DailyForm {
   patient_first_name?: string
   patient_last_name?: string
   checked_vitals?: boolean
-  did_they_feel_hungry?: string
-  using_bathroom_normally?: string
-  hydrating?: string
-  experiencing_tremors_motor_function?: string
-  withdrawal_symptoms?: string
-  how_guest_looks?: string
-  how_guest_says_they_feel?: string
-  morning_vital_signs?: string
-  morning_symptoms?: string
-  morning_evolution?: string
-  afternoon_vital_signs?: string
-  afternoon_symptoms?: string
-  afternoon_evolution?: string
-  night_vital_signs?: string
-  night_symptoms?: string
-  night_evolution?: string
-  ibogaine_dose_time?: string
-  medication_schedule?: string
-  solutions_iv_saline_nadh?: string
-  medical_indications?: string
-  additional_observations_notes?: string
-  photo_of_vitals_medical_notes_url?: string
-  signature_data?: string
-  signature_date?: string
+  did_they_feel_hungry?: string | null
+  using_bathroom_normally?: string | null
+  hydrating?: string | null
+  experiencing_tremors_motor_function?: string | null
+  withdrawal_symptoms?: string | null
+  how_guest_looks?: string | null
+  how_guest_says_they_feel?: string | null
+  morning_vital_signs?: string | null
+  morning_symptoms?: string | null
+  morning_evolution?: string | null
+  afternoon_vital_signs?: string | null
+  afternoon_symptoms?: string | null
+  afternoon_evolution?: string | null
+  night_vital_signs?: string | null
+  night_symptoms?: string | null
+  night_evolution?: string | null
+  ibogaine_dose_time?: string | null
+  medication_schedule?: string | null
+  solutions_iv_saline_nadh?: string | null
+  medical_indications?: string | null
+  additional_observations_notes?: string | null
+  photo_of_vitals_medical_notes_url?: string | null
+  signature_data?: string | null
+  signature_date?: string | null
 }
 
 export default function DailyFormsPage() {
@@ -96,6 +96,17 @@ export default function DailyFormsPage() {
   const [management, setManagement] = useState<PatientManagementData | null>(null)
   const [psychologicalForms, setPsychologicalForms] = useState<DailyForm[]>([])
   const [medicalForms, setMedicalForms] = useState<DailyForm[]>([])
+
+  // Helper function to convert null to undefined for form initialData
+  const convertNullToUndefined = (obj: DailyForm | undefined): any => {
+    if (!obj) return undefined
+    const result: any = {}
+    for (const key in obj) {
+      const value = obj[key as keyof DailyForm]
+      result[key] = value === null ? undefined : value
+    }
+    return result
+  }
   const [isLoading, setIsLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
   const [selectedFormType, setSelectedFormType] = useState<'psychological' | 'medical' | null>(null)
@@ -469,7 +480,7 @@ export default function DailyFormsPage() {
               programType={management.program_type}
               isCompleted={getFormForDate(psychologicalForms, selectedDate)?.is_completed}
               isStarted={!!getFormForDate(psychologicalForms, selectedDate)}
-              initialData={getFormForDate(psychologicalForms, selectedDate)}
+              initialData={convertNullToUndefined(getFormForDate(psychologicalForms, selectedDate))}
               onSuccess={handleCloseDialog}
             />
           )}
@@ -482,7 +493,7 @@ export default function DailyFormsPage() {
               programType={management.program_type}
               isCompleted={getFormForDate(medicalForms, selectedDate)?.is_completed}
               isStarted={!!getFormForDate(medicalForms, selectedDate)}
-              initialData={getFormForDate(medicalForms, selectedDate)}
+              initialData={convertNullToUndefined(getFormForDate(medicalForms, selectedDate))}
               onSuccess={handleCloseDialog}
             />
           )}
