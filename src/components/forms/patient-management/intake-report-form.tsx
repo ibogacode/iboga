@@ -87,7 +87,6 @@ export function IntakeReportForm({
       if (isCompleted) {
         // Update existing form
         const result = await updateIntakeReport({
-          management_id: managementId,
           ...data,
           is_completed: true,
         } as any)
