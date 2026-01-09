@@ -80,7 +80,6 @@ export function ParkinsonsPsychologicalReportForm({
     try {
       if (isCompleted) {
         const result = await updateParkinsonsPsychologicalReport({
-          management_id: managementId,
           ...data,
           is_completed: true,
         } as any)

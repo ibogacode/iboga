@@ -283,7 +283,6 @@ export function ParkinsonsMortalityScalesForm({
 
       if (isCompleted) {
         const result = await updateParkinsonsMortalityScales({
-          management_id: managementId,
           ...submitData,
           is_completed: true,
         } as any)
