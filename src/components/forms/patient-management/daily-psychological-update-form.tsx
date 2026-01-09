@@ -26,7 +26,7 @@ interface DailyPsychologicalUpdateFormProps {
   patientLastName: string
   formDate: string // YYYY-MM-DD
   programType: 'neurological' | 'mental_health' | 'addiction'
-  initialData?: Partial<DailyPsychologicalUpdateInput>
+  initialData?: Partial<DailyPsychologicalUpdateInput> & { id?: string }
   isCompleted?: boolean
   isStarted?: boolean
   onSuccess?: () => void
