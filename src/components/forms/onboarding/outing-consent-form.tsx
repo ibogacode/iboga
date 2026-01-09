@@ -150,7 +150,7 @@ export function OutingConsentForm({ onboardingId, initialData, isCompleted, onSu
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">Consent Declaration</h2>
         <p className="text-gray-600 text-sm">
-          I, in full use of my faculties, authorize my temporary outing or transfer from the clinic Iboga Wellness Centers, 
+          I, in full use of my faculties, authorize my temporary outing or transfer from the clinic Iboga Wellness Institute, 
           under the conditions established in this document. I understand that this outing/transfer is subject to the following rules and restrictions.
         </p>
         

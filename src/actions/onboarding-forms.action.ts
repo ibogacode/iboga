@@ -316,13 +316,11 @@ export const getOnboardingById = authActionClient
       return { success: false, error: errorMsg }
     }
 
-    // Fetch all 5 forms in parallel (using maybeSingle to handle missing forms gracefully)
-    const [releaseForm, outingForm, socialMediaForm, regulationsForm, dissentForm] = await Promise.all([
+    // Fetch all 3 forms in parallel (using maybeSingle to handle missing forms gracefully)
+    const [releaseForm, outingForm, regulationsForm] = await Promise.all([
       supabase.from('onboarding_release_forms').select('*').eq('onboarding_id', parsedInput.onboarding_id).maybeSingle(),
       supabase.from('onboarding_outing_consent_forms').select('*').eq('onboarding_id', parsedInput.onboarding_id).maybeSingle(),
-      supabase.from('onboarding_social_media_forms').select('*').eq('onboarding_id', parsedInput.onboarding_id).maybeSingle(),
       supabase.from('onboarding_internal_regulations_forms').select('*').eq('onboarding_id', parsedInput.onboarding_id).maybeSingle(),
-      supabase.from('onboarding_informed_dissent_forms').select('*').eq('onboarding_id', parsedInput.onboarding_id).maybeSingle(),
     ])
 
     const result: OnboardingWithForms = {
@@ -330,9 +328,9 @@ export const getOnboardingById = authActionClient
       forms: {
         releaseForm: releaseForm.data ?? null,
         outingForm: outingForm.data ?? null,
-        socialMediaForm: socialMediaForm.data ?? null,
+        socialMediaForm: null, // Removed from onboarding flow
         regulationsForm: regulationsForm.data ?? null,
-        dissentForm: dissentForm.data ?? null,
+        dissentForm: null, // Removed from onboarding flow
       },
     }
 
@@ -377,15 +375,13 @@ export const getOnboardingPatients = authActionClient
       const completedForms = [
         patient.release_form_completed,
         patient.outing_consent_completed,
-        patient.social_media_release_completed,
         patient.internal_regulations_completed,
-        patient.informed_dissent_completed,
       ].filter(Boolean).length
 
       return {
         ...patient,
         forms_completed: completedForms,
-        forms_total: 5,
+        forms_total: 3,
       } as PatientOnboardingWithProgress
     })
 
@@ -504,12 +500,10 @@ export const moveToPatientManagement = authActionClient
     const allFormsCompleted = 
       onboarding.release_form_completed &&
       onboarding.outing_consent_completed &&
-      onboarding.social_media_release_completed &&
-      onboarding.internal_regulations_completed &&
-      onboarding.informed_dissent_completed
+      onboarding.internal_regulations_completed
 
     if (!allFormsCompleted) {
-      return { success: false, error: 'All 5 forms must be completed before moving to patient management' }
+      return { success: false, error: 'All 3 forms must be completed before moving to patient management' }
     }
 
     // Check if patient_management record already exists
@@ -1224,12 +1218,10 @@ export const getMyOnboarding = authActionClient
     }
 
     // Get forms (using maybeSingle for graceful null handling)
-    const [releaseForm, outingForm, socialMediaForm, regulationsForm, dissentForm] = await Promise.all([
+    const [releaseForm, outingForm, regulationsForm] = await Promise.all([
       supabase.from('onboarding_release_forms').select('*').eq('onboarding_id', onboarding.id).maybeSingle(),
       supabase.from('onboarding_outing_consent_forms').select('*').eq('onboarding_id', onboarding.id).maybeSingle(),
-      supabase.from('onboarding_social_media_forms').select('*').eq('onboarding_id', onboarding.id).maybeSingle(),
       supabase.from('onboarding_internal_regulations_forms').select('*').eq('onboarding_id', onboarding.id).maybeSingle(),
-      supabase.from('onboarding_informed_dissent_forms').select('*').eq('onboarding_id', onboarding.id).maybeSingle(),
     ])
 
     const result: OnboardingWithForms = {
@@ -1237,9 +1229,9 @@ export const getMyOnboarding = authActionClient
       forms: {
         releaseForm: releaseForm.data ?? null,
         outingForm: outingForm.data ?? null,
-        socialMediaForm: socialMediaForm.data ?? null,
+        socialMediaForm: null, // Removed from onboarding flow
         regulationsForm: regulationsForm.data ?? null,
-        dissentForm: dissentForm.data ?? null,
+        dissentForm: null, // Removed from onboarding flow
       },
     }
 

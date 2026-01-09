@@ -86,7 +86,7 @@ export function SocialMediaForm({ onboardingId, initialData, isCompleted, onSucc
       {/* Introduction */}
       <div className="bg-gray-50 p-4 rounded-lg">
         <p className="text-gray-700 text-sm">
-          At Iboga Wellness Centers, we respect the privacy and confidentiality of all our patients. From time to time, 
+          At Iboga Wellness Institute, we respect the privacy and confidentiality of all our patients. From time to time, 
           photographs or videos may be taken during activities, ceremonies, or around the center. We may also collect 
           short written or spoken testimonials.
         </p>
@@ -98,7 +98,7 @@ export function SocialMediaForm({ onboardingId, initialData, isCompleted, onSucc
       {/* Consent & Authorization */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">Consent & Authorization</h2>
-        <p className="text-gray-600 text-sm">I, the undersigned, authorize Iboga Wellness Centers to:</p>
+        <p className="text-gray-600 text-sm">I, the undersigned, authorize Iboga Wellness Institute to:</p>
         
         <div className="space-y-3 bg-gray-50 p-4 rounded-lg">
           <div className="flex items-start space-x-3">

@@ -79,7 +79,7 @@ export function InformedDissentForm({ onboardingId, initialData, isCompleted, on
       {/* Header */}
       <div className="text-center border-b pb-6">
         <h1 className="text-2xl font-bold text-gray-900">Letter Of Informed Dissent</h1>
-        <p className="text-gray-600 mt-2">IBOGA WELLNESS CENTERS CLINIC</p>
+        <p className="text-gray-600 mt-2">IBOGA WELLNESS INSTITUTE CLINIC</p>
       </div>
 
       {/* Important Notice */}
@@ -89,7 +89,7 @@ export function InformedDissentForm({ onboardingId, initialData, isCompleted, on
           <div>
             <p className="text-amber-800 font-medium">Important Notice</p>
             <p className="text-amber-700 text-sm mt-1">
-              This form is to be completed if you choose NOT to accept the treatment offered by Iboga Wellness Centers. 
+              This form is to be completed if you choose NOT to accept the treatment offered by Iboga Wellness Institute. 
               If you are proceeding with treatment, please complete this form acknowledging you have read and understood 
               the dissent process, but leave the &quot;I refuse treatment&quot; checkbox unchecked.
             </p>
@@ -180,12 +180,12 @@ export function InformedDissentForm({ onboardingId, initialData, isCompleted, on
         <div className="bg-gray-50 p-4 rounded-lg">
           <p className="text-gray-700 text-sm mb-4">
             I, <strong>{form.watch('first_name')} {form.watch('last_name')}</strong>, of legal age and in full possession of my mental faculties, 
-            declare that I have been duly informed by the medical and therapeutic team at Iboga Wellness Centers about the 
+            declare that I have been duly informed by the medical and therapeutic team at Iboga Wellness Institute about the 
             available treatments for my condition, including their benefits, risks, and potential adverse effects.
           </p>
           <p className="text-gray-700 text-sm">
             After receiving all the necessary information and having the opportunity to ask questions, I voluntarily choose 
-            not to accept the treatment offered and provided by Iboga Wellness Centers Clinic.
+            not to accept the treatment offered and provided by Iboga Wellness Institute Clinic.
           </p>
         </div>
 
@@ -225,7 +225,7 @@ export function InformedDissentForm({ onboardingId, initialData, isCompleted, on
               onCheckedChange={(checked) => form.setValue('liability_release_accepted', checked as boolean)}
             />
             <Label htmlFor="liability_release_accepted" className="text-sm">
-              I release Iboga Wellness Centers, its medical team, therapists, administrative, and operational staff from all 
+              I release Iboga Wellness Institute, its medical team, therapists, administrative, and operational staff from all 
               medical, legal, and administrative responsibility for any consequences arising from my decision not to undergo 
               the recommended treatment.
             </Label>
@@ -262,7 +262,7 @@ export function InformedDissentForm({ onboardingId, initialData, isCompleted, on
               onCheckedChange={(checked) => form.setValue('no_legal_action_agreed', checked as boolean)}
             />
             <Label htmlFor="no_legal_action_agreed" className="text-sm">
-              I agree not to take legal action against Iboga Wellness Centers, its medical staff, therapists, or 
+              I agree not to take legal action against Iboga Wellness Institute, its medical staff, therapists, or 
               administrative team in relation to my decision not to accept the proposed treatment.
             </Label>
           </div>
@@ -301,7 +301,7 @@ export function InformedDissentForm({ onboardingId, initialData, isCompleted, on
       {/* Note about Representative Signature */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <p className="text-blue-800 text-sm">
-          <strong>Note:</strong> The Iboga Wellness Centers Representative signature section will be completed by clinic staff 
+          <strong>Note:</strong> The Iboga Wellness Institute Representative signature section will be completed by clinic staff 
           if treatment is refused. This form serves as acknowledgment that you have been informed of the dissent process.
         </p>
       </div>

@@ -47,9 +47,7 @@ interface PatientProfileData {
     forms: {
       releaseForm: any
       outingForm: any
-      socialMediaForm: any
       regulationsForm: any
-      dissentForm: any
     }
   } | null
 }
@@ -1306,9 +1304,7 @@ export default function PatientProfilePage() {
                   {[
                     { key: 'releaseForm', label: 'Release Form', icon: FileSignature, completed: profileData.onboarding.onboarding.release_form_completed },
                     { key: 'outingForm', label: 'Outing/Transfer Consent', icon: Plane, completed: profileData.onboarding.onboarding.outing_consent_completed },
-                    { key: 'socialMediaForm', label: 'Social Media Release', icon: Camera, completed: profileData.onboarding.onboarding.social_media_release_completed },
                     { key: 'regulationsForm', label: 'Internal Regulations', icon: BookOpen, completed: profileData.onboarding.onboarding.internal_regulations_completed },
-                    { key: 'dissentForm', label: 'Letter of Informed Dissent', icon: FileX, completed: profileData.onboarding.onboarding.informed_dissent_completed },
                   ].map((form) => {
                     const FormIcon = form.icon
                     const formData = profileData.onboarding?.forms[form.key as keyof typeof profileData.onboarding.forms]
@@ -1327,12 +1323,10 @@ export default function PatientProfilePage() {
                           {getStatusBadge(status)}
                           {status === 'completed' && (() => {
                             // Map form keys to form types and viewing form states
-                            const formTypeMap: Record<string, { type: 'release' | 'outing' | 'social_media' | 'regulations' | 'dissent', viewState: typeof viewingForm }> = {
+                            const formTypeMap: Record<string, { type: 'release' | 'outing' | 'regulations', viewState: typeof viewingForm }> = {
                               'releaseForm': { type: 'release', viewState: 'onboarding_release' },
                               'outingForm': { type: 'outing', viewState: 'onboarding_outing' },
-                              'socialMediaForm': { type: 'social_media', viewState: 'onboarding_social_media' },
                               'regulationsForm': { type: 'regulations', viewState: 'onboarding_regulations' },
-                              'dissentForm': { type: 'dissent', viewState: 'onboarding_dissent' },
                             }
                             
                             const mapping = formTypeMap[form.key]
@@ -1397,10 +1391,8 @@ export default function PatientProfilePage() {
                     Forms completed: {[
                       profileData.onboarding.onboarding.release_form_completed,
                       profileData.onboarding.onboarding.outing_consent_completed,
-                      profileData.onboarding.onboarding.social_media_release_completed,
                       profileData.onboarding.onboarding.internal_regulations_completed,
-                      profileData.onboarding.onboarding.informed_dissent_completed,
-                    ].filter(Boolean).length} / 5
+                    ].filter(Boolean).length} / 3
                   </p>
                 </div>
               </div>
