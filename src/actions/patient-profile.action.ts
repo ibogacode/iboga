@@ -297,6 +297,8 @@ export const getPatientProfile = authActionClient
 
     // Check for existing patient documents (uploaded documents for existing patients)
     let existingPatientDocuments: any[] = []
+    
+    // First try to find by partial form ID
     if (partialForm?.id) {
       const { data: existingDocs } = await adminClient
         .from('existing_patient_documents')
@@ -305,6 +307,28 @@ export const getPatientProfile = authActionClient
       
       if (existingDocs) {
         existingPatientDocuments = existingDocs
+      }
+    }
+    
+    // Also check by patient email if we have it (for documents uploaded directly)
+    if (existingPatientDocuments.length === 0 && patientEmail) {
+      // Find partial forms for this email and get their documents
+      const { data: partialFormsForEmail } = await adminClient
+        .from('partial_intake_forms')
+        .select('id')
+        .eq('email', patientEmail)
+        .order('created_at', { ascending: false })
+      
+      if (partialFormsForEmail && partialFormsForEmail.length > 0) {
+        const partialFormIds = partialFormsForEmail.map(pf => pf.id)
+        const { data: existingDocs } = await adminClient
+          .from('existing_patient_documents')
+          .select('*')
+          .in('partial_intake_form_id', partialFormIds)
+        
+        if (existingDocs) {
+          existingPatientDocuments = existingDocs
+        }
       }
     }
 

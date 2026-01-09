@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 
 interface OnboardingPatient {
   id: string
+  patient_id: string | null
   first_name: string
   last_name: string
   email: string
@@ -110,15 +111,15 @@ export default function OnboardingPage() {
     return programMap[programType] || programType
   }
 
-  function handleViewPatient(onboardingId: string) {
-    // Open the onboarding forms page in a new tab
-    window.open(`/onboarding-forms/${onboardingId}`, '_blank')
-  }
-
-  function copyFormLink(onboardingId: string) {
-    const link = `${window.location.origin}/onboarding-forms/${onboardingId}`
-    navigator.clipboard.writeText(link)
-    toast.success('Form link copied to clipboard')
+  function handleViewPatient(patient: OnboardingPatient) {
+    // If patient_id exists, redirect to patient profile
+    if (patient.patient_id) {
+      router.push(`/patient-pipeline/patient-profile/${patient.patient_id}`)
+    } else {
+      // Fallback: try to find patient by email or intake form
+      // For now, show error since we need patient_id to view profile
+      toast.error('Patient profile not linked. Please link the patient first.')
+    }
   }
 
   // Calculate stats
@@ -145,7 +146,7 @@ export default function OnboardingPage() {
           Onboarding
         </h1>
         <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">
-          Track onboarding forms completion and move patients to treatment
+          Track onboarding forms completion and move patients to management
         </p>
       </div>
 
@@ -349,15 +350,7 @@ export default function OnboardingPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => copyFormLink(patient.id)}
-                              title="Copy form link"
-                            >
-                              <Send className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewPatient(patient.id)}
+                              onClick={() => handleViewPatient(patient)}
                               className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                             >
                               <Eye className="h-4 w-4 mr-1" />
@@ -375,7 +368,7 @@ export default function OnboardingPage() {
                                 ) : (
                                   <>
                                     <UserCheck className="h-4 w-4 mr-1" />
-                                    <span className="hidden sm:inline">Move to Treatment</span>
+                                    <span className="hidden sm:inline">Move to Management</span>
                                   </>
                                 )}
                               </Button>

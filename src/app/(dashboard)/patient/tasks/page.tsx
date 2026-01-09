@@ -6,12 +6,13 @@ import { Search, ChevronDown, Loader2, RefreshCw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getPatientTasks, type PatientTask, type OnboardingStatus } from '@/actions/patient-tasks.action'
-import { getIntakeFormById } from '@/actions/patient-profile.action'
+import { getIntakeFormById, getIbogaineConsentFormById } from '@/actions/patient-profile.action'
 import { getMedicalHistoryFormForPatient } from '@/actions/medical-history.action'
 import { getServiceAgreementForPatient } from '@/actions/service-agreement.action'
 import { PatientIntakeFormView } from '@/components/admin/patient-intake-form-view'
 import { MedicalHistoryFormView } from '@/components/admin/medical-history-form-view'
 import { ServiceAgreementFormView } from '@/components/admin/service-agreement-form-view'
+import { IbogaineConsentFormView } from '@/components/admin/ibogaine-consent-form-view'
 import { toast } from 'sonner'
 
 export default function PatientTasksPage() {
@@ -30,7 +31,7 @@ export default function PatientTasksPage() {
     optional: 0,
   })
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null)
-  const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | null>(null)
+  const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   const [viewFormData, setViewFormData] = useState<any>(null)
   const [loadingViewForm, setLoadingViewForm] = useState<string | null>(null)
 
@@ -124,8 +125,15 @@ export default function PatientTasksPage() {
       return
     }
     
+    // Check if this is an uploaded document (existing patient flow)
+    if (task.uploadedDocument) {
+      // Open the uploaded document in a new window/tab
+      window.open(task.uploadedDocument.url, '_blank')
+      return
+    }
+    
     if (task.status === 'completed' && task.formId) {
-      // Show form in modal for completed forms
+      // Show form in modal for completed forms (portal flow - patient filled form themselves)
       setLoadingViewForm(task.id)
       try {
         let result: any = null
@@ -136,15 +144,18 @@ export default function PatientTasksPage() {
           result = await getMedicalHistoryFormForPatient({ formId: task.formId })
         } else if (task.type === 'service_agreement') {
           result = await getServiceAgreementForPatient({ formId: task.formId })
+        } else if (task.type === 'ibogaine_consent') {
+          result = await getIbogaineConsentFormById({ formId: task.formId })
         }
         
         if (result?.data?.success && result.data.data) {
           setViewFormData(result.data.data)
           // Map task types to viewingForm types
-          const formTypeMap: Record<string, 'intake' | 'medical' | 'service'> = {
+          const formTypeMap: Record<string, 'intake' | 'medical' | 'service' | 'ibogaine'> = {
             'intake': 'intake',
             'medical_history': 'medical',
             'service_agreement': 'service',
+            'ibogaine_consent': 'ibogaine',
           }
           setViewingForm(formTypeMap[task.type] || null)
         } else {
@@ -156,7 +167,7 @@ export default function PatientTasksPage() {
       } finally {
         setLoadingViewForm(null)
       }
-    } else if (task.link) {
+    } else if (task.link && task.link !== '#') {
       // Navigate to form for not started forms
       router.push(task.link)
     }
@@ -587,6 +598,33 @@ export default function PatientTasksPage() {
               </div>
               <div className="p-6">
                 <ServiceAgreementFormView form={viewFormData} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingForm === 'ibogaine' && viewFormData && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            <div className="relative w-full max-w-6xl bg-white rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+                <h2 className="text-xl font-semibold text-gray-900">View Ibogaine Therapy Consent Form</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setViewingForm(null)
+                    setViewFormData(null)
+                  }}
+                  className="gap-2"
+                >
+                  <X className="h-4 w-4" />
+                  Close
+                </Button>
+              </div>
+              <div className="p-6">
+                <IbogaineConsentFormView form={viewFormData} />
               </div>
             </div>
           </div>

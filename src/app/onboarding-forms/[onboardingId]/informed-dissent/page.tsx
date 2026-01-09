@@ -42,7 +42,7 @@ export default function InformedDissentFormPage() {
   }
 
   function handleSuccess() {
-    router.push(`/onboarding-forms/${onboardingId}`)
+    router.push('/dashboard')
   }
 
   if (isLoading) {

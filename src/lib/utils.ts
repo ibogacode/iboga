@@ -20,3 +20,11 @@ export function hasOwnerAccess(role: UserRole | string | null | undefined): bool
 export function hasStaffAccess(role: UserRole | string | null | undefined): boolean {
   return role === 'owner' || role === 'admin' || role === 'manager'
 }
+
+/**
+ * Check if a role is a staff role (can fill forms and manage patients)
+ * Includes owner, admin, manager, doctor, nurse, and psych roles
+ */
+export function isStaffRole(role: UserRole | string | null | undefined): boolean {
+  return role === 'owner' || role === 'admin' || role === 'manager' || role === 'doctor' || role === 'nurse' || role === 'psych'
+}

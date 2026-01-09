@@ -512,7 +512,46 @@ export const moveToPatientManagement = authActionClient
       return { success: false, error: 'All 5 forms must be completed before moving to patient management' }
     }
 
-    // Update status
+    // Check if patient_management record already exists
+    const { data: existingManagement } = await supabase
+      .from('patient_management')
+      .select('id')
+      .eq('onboarding_id', parsedInput.onboarding_id)
+      .maybeSingle()
+
+    if (existingManagement) {
+      return { success: false, error: 'Patient is already in management' }
+    }
+
+    // Validate program_type
+    if (!onboarding.program_type || !['neurological', 'mental_health', 'addiction'].includes(onboarding.program_type)) {
+      return { success: false, error: 'Invalid program type. Cannot move to management.' }
+    }
+
+    // Create patient_management record
+    const { data: managementData, error: managementError } = await supabase
+      .from('patient_management')
+      .insert({
+        onboarding_id: parsedInput.onboarding_id,
+        patient_id: onboarding.patient_id,
+        first_name: onboarding.first_name,
+        last_name: onboarding.last_name,
+        email: onboarding.email,
+        phone_number: onboarding.phone_number,
+        date_of_birth: onboarding.date_of_birth,
+        program_type: onboarding.program_type,
+        arrival_date: new Date().toISOString().split('T')[0], // Today's date
+        status: 'active',
+        created_by: ctx.user.id,
+      })
+      .select()
+      .single()
+
+    if (managementError) {
+      return { success: false, error: handleSupabaseError(managementError, 'Failed to create patient management record') }
+    }
+
+    // Update onboarding status
     const { data, error } = await supabase
       .from('patient_onboarding')
       .update({
@@ -524,6 +563,12 @@ export const moveToPatientManagement = authActionClient
       .single()
 
     if (error) {
+      // Rollback: delete the management record if onboarding update fails
+      await supabase
+        .from('patient_management')
+        .delete()
+        .eq('id', managementData.id)
+      
       return { success: false, error: handleSupabaseError(error, 'Failed to move to management') }
     }
 
@@ -1199,6 +1244,41 @@ export const getMyOnboarding = authActionClient
     }
 
     return { success: true, data: result }
+  })
+
+// =============================================================================
+// GET ONBOARDING BY PATIENT ID (Staff only)
+// =============================================================================
+const getOnboardingByPatientIdSchema = z.object({
+  patient_id: z.string().uuid(),
+})
+
+export const getOnboardingByPatientId = authActionClient
+  .schema(getOnboardingByPatientIdSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    if (!isStaffRole(ctx.user.role)) {
+      return { success: false, error: 'Unauthorized: staff access required' }
+    }
+
+    const supabase = await createClient()
+
+    // Find onboarding record by patient_id
+    const { data: onboardingRecord, error } = await supabase
+      .from('patient_onboarding')
+      .select('id')
+      .eq('patient_id', parsedInput.patient_id)
+      .maybeSingle()
+
+    if (error) {
+      return { success: false, error: error.message }
+    }
+
+    if (!onboardingRecord) {
+      return { success: true, data: null }
+    }
+
+    // Fetch full onboarding data with forms
+    return await getOnboardingById({ onboarding_id: onboardingRecord.id })
   })
 
 // =============================================================================
