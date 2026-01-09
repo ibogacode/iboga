@@ -11,28 +11,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-
-interface OnboardingPatient {
-  id: string
-  patient_id: string | null
-  first_name: string
-  last_name: string
-  email: string
-  phone_number: string | null
-  program_type: string | null
-  status: string
-  created_at: string
-  forms_completed: number
-  forms_total: number
-  release_form_completed: boolean
-  outing_consent_completed: boolean
-  social_media_release_completed: boolean
-  internal_regulations_completed: boolean
-  informed_dissent_completed: boolean
-  payment_received: boolean
-  travel_arranged: boolean
-  medical_clearance: boolean
-}
+import type { PatientOnboardingWithProgress } from '@/types'
 
 // Onboarding forms
 const ONBOARDING_FORMS = [
@@ -43,7 +22,7 @@ const ONBOARDING_FORMS = [
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const [patients, setPatients] = useState<OnboardingPatient[]>([])
+  const [patients, setPatients] = useState<PatientOnboardingWithProgress[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [movingPatient, setMovingPatient] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'completed'>('all')
@@ -61,7 +40,7 @@ export default function OnboardingPage() {
       })
       if (result?.data?.success && result.data.data) {
         // Filter out moved_to_management unless showing all
-        const filteredPatients = result.data.data.filter((p: OnboardingPatient) => 
+        const filteredPatients = result.data.data.filter((p: PatientOnboardingWithProgress) => 
           statusFilter === 'all' ? p.status !== 'moved_to_management' : true
         )
         setPatients(filteredPatients)
@@ -109,7 +88,7 @@ export default function OnboardingPage() {
     return programMap[programType] || programType
   }
 
-  function handleViewPatient(patient: OnboardingPatient) {
+  function handleViewPatient(patient: PatientOnboardingWithProgress) {
     // If patient_id exists, redirect to patient profile
     if (patient.patient_id) {
       router.push(`/patient-pipeline/patient-profile/${patient.patient_id}`)
@@ -122,10 +101,10 @@ export default function OnboardingPage() {
 
   // Calculate stats
   const totalOnboarding = patients.length
-  const completedForms = patients.filter(p => p.forms_completed === 5).length
-  const inProgress = patients.filter(p => p.forms_completed < 5).length
+  const completedForms = patients.filter(p => p.forms_completed === 3).length
+  const inProgress = patients.filter(p => p.forms_completed < 3).length
   const totalFormsCompleted = patients.reduce((sum, p) => sum + p.forms_completed, 0)
-  const totalFormsPossible = patients.length * 5
+  const totalFormsPossible = patients.length * 3
 
   return (
     <div className="p-4 sm:p-6">
@@ -320,7 +299,7 @@ export default function OnboardingPage() {
                         <td className="px-3 sm:px-6 py-4">
                           <div className="flex items-center gap-1 flex-wrap">
                             {ONBOARDING_FORMS.map((form) => {
-                              const isCompleted = patient[form.key as keyof OnboardingPatient]
+                              const isCompleted = (patient as any)[form.key] as boolean | undefined
                               const FormIcon = form.icon
                               return (
                                 <div
