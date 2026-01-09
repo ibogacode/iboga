@@ -34,25 +34,11 @@ const FORMS = [
     key: 'outingForm',
   },
   { 
-    id: 'social_media', 
-    name: 'Social Media Release', 
-    description: 'Permission for photos/videos',
-    path: 'social-media',
-    key: 'socialMediaForm',
-  },
-  { 
     id: 'regulations', 
     name: 'Internal Regulations', 
     description: 'Acknowledgment of clinic rules',
     path: 'internal-regulations',
     key: 'regulationsForm',
-  },
-  { 
-    id: 'dissent', 
-    name: 'Letter of Informed Dissent', 
-    description: 'Treatment refusal acknowledgment',
-    path: 'informed-dissent',
-    key: 'dissentForm',
   },
 ]
 
@@ -122,7 +108,7 @@ export default function OnboardingFormsPage() {
     return formData?.is_completed
   }).length
 
-  const allCompleted = completedCount === 5
+  const allCompleted = completedCount === 3
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -131,7 +117,7 @@ export default function OnboardingFormsPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Onboarding Forms</h1>
           <p className="text-gray-600 mt-2">
-            Welcome, {data.onboarding.first_name}! Please complete all 5 forms below.
+            Welcome, {data.onboarding.first_name}! Please complete all 3 forms below.
           </p>
         </div>
 
@@ -144,13 +130,13 @@ export default function OnboardingFormsPage() {
                 ? 'bg-emerald-100 text-emerald-700' 
                 : 'bg-amber-100 text-amber-700'
             }`}>
-              {completedCount}/5 Completed
+              {completedCount}/3 Completed
             </span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div 
               className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(completedCount / 5) * 100}%` }}
+              style={{ width: `${(completedCount / 3) * 100}%` }}
             />
           </div>
           {allCompleted && (

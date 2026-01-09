@@ -51,9 +51,9 @@ export interface PatientOnboarding {
   // Form completion flags
   release_form_completed: boolean
   outing_consent_completed: boolean
-  social_media_release_completed: boolean
+  social_media_release_completed?: boolean // Removed from onboarding flow, kept for backward compatibility
   internal_regulations_completed: boolean
-  informed_dissent_completed: boolean
+  informed_dissent_completed?: boolean // Removed from onboarding flow, kept for backward compatibility
   
   // Workflow
   notes: string | null

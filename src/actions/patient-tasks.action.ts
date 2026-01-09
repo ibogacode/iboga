@@ -721,7 +721,7 @@ export const getPatientTasks = authActionClient
     let onboardingStatus: OnboardingStatus = { isInOnboarding: false }
     const { data: onboardingFull } = await supabase
       .from('patient_onboarding')
-      .select('id, status, release_form_completed, outing_consent_completed, social_media_release_completed, internal_regulations_completed, informed_dissent_completed')
+      .select('id, status, release_form_completed, outing_consent_completed, internal_regulations_completed')
       .eq('patient_id', patientId)
       .maybeSingle()
 
@@ -733,24 +733,20 @@ export const getPatientTasks = authActionClient
         formsCompleted: [
           onboardingFull.release_form_completed,
           onboardingFull.outing_consent_completed,
-          onboardingFull.social_media_release_completed,
           onboardingFull.internal_regulations_completed,
-          onboardingFull.informed_dissent_completed,
         ].filter(Boolean).length,
-        formsTotal: 5,
+        formsTotal: 3,
       }
 
-      // Fetch all 5 onboarding forms
+      // Fetch all 3 onboarding forms
       if (!onboardingFull) {
         return { success: false, error: 'Onboarding record not found' }
       }
 
-      const [releaseForm, outingForm, socialMediaForm, regulationsForm, dissentForm] = await Promise.all([
+      const [releaseForm, outingForm, regulationsForm] = await Promise.all([
         supabase.from('onboarding_release_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
         supabase.from('onboarding_outing_consent_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
-        supabase.from('onboarding_social_media_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
         supabase.from('onboarding_internal_regulations_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
-        supabase.from('onboarding_informed_dissent_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
       ])
 
       // Helper function to determine task status
@@ -792,21 +788,6 @@ export const getPatientTasks = authActionClient
         link: outingForm?.data?.is_activated ? `/onboarding-forms/${onboardingFull.id}/outing-consent` : '#',
       })
 
-      // Add Social Media Release Form task
-      tasks.push({
-        id: `onboarding-social-${socialMediaForm?.data?.id || onboardingFull.id}`,
-        type: 'onboarding_social_media',
-        title: 'Social Media Release',
-        description: 'Consent for use of images and testimonials',
-        status: getOnboardingTaskStatus(socialMediaForm),
-        estimatedTime: '~5 min',
-        isRequired: true,
-        isOptional: false,
-        completedAt: socialMediaForm?.data?.completed_at || undefined,
-        formId: socialMediaForm?.data?.id || '',
-        link: socialMediaForm?.data?.is_activated ? `/onboarding-forms/${onboardingFull.id}/social-media` : '#',
-      })
-
       // Add Internal Regulations Form task
       tasks.push({
         id: `onboarding-regulations-${regulationsForm?.data?.id || onboardingFull.id}`,
@@ -820,21 +801,6 @@ export const getPatientTasks = authActionClient
         completedAt: regulationsForm?.data?.completed_at || undefined,
         formId: regulationsForm?.data?.id || '',
         link: regulationsForm?.data?.is_activated ? `/onboarding-forms/${onboardingFull.id}/internal-regulations` : '#',
-      })
-
-      // Add Informed Dissent Form task
-      tasks.push({
-        id: `onboarding-dissent-${dissentForm?.data?.id || onboardingFull.id}`,
-        type: 'onboarding_dissent',
-        title: 'Letter of Informed Dissent',
-        description: 'Acknowledgment of treatment information and dissent',
-        status: getOnboardingTaskStatus(dissentForm),
-        estimatedTime: '~5 min',
-        isRequired: true,
-        isOptional: false,
-        completedAt: dissentForm?.data?.completed_at || undefined,
-        formId: dissentForm?.data?.id || '',
-        link: dissentForm?.data?.is_activated ? `/onboarding-forms/${onboardingFull.id}/informed-dissent` : '#',
       })
     }
 

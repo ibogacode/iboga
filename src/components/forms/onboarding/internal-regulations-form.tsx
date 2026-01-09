@@ -75,14 +75,14 @@ export function InternalRegulationsForm({ onboardingId, initialData, isCompleted
       {/* Header */}
       <div className="text-center border-b pb-6">
         <h1 className="text-2xl font-bold text-gray-900">Internal Regulations</h1>
-        <p className="text-gray-600 mt-2">Iboga Wellness Centers</p>
+        <p className="text-gray-600 mt-2">Iboga Wellness Institute</p>
       </div>
 
       {/* Chapter I: General Provisions */}
       <div className="space-y-3">
         <h2 className="text-lg font-semibold text-gray-900 border-b pb-2">CHAPTER I: GENERAL PROVISIONS</h2>
         <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 space-y-2">
-          <p><strong>Article 1.</strong> These regulations establish the rules of coexistence, rights, and obligations of patients, staff, and visitors within the Iboga Wellness Centers clinic.</p>
+          <p><strong>Article 1.</strong> These regulations establish the rules of coexistence, rights, and obligations of patients, staff, and visitors within the Iboga Wellness Institute clinic.</p>
           <p><strong>Article 2.</strong> The clinic's objective is to provide comprehensive treatment for the rehabilitation of individuals with addiction problems, promoting their social reintegration and improving their quality of life.</p>
           <p><strong>Article 3.</strong> These regulations are mandatory for all persons within the clinic's facilities.</p>
         </div>
@@ -173,7 +173,7 @@ export function InternalRegulationsForm({ onboardingId, initialData, isCompleted
         <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 space-y-2">
           <p><strong>Article 13.</strong> Any situation not covered in these regulations will be evaluated by the clinic's management.</p>
           <p><strong>Article 14.</strong> These regulations take effect upon approval and dissemination among patients and staff.</p>
-          <p><strong>Article 15.</strong> Acceptance of these regulations is a mandatory condition for admission and continued stay at Iboga Wellness Centers.</p>
+          <p><strong>Article 15.</strong> Acceptance of these regulations is a mandatory condition for admission and continued stay at Iboga Wellness Institute.</p>
         </div>
       </div>
 

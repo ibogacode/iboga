@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { 
   submitParkinsonsMortalityScales,
   updateParkinsonsMortalityScales
@@ -244,7 +245,7 @@ export function ParkinsonsMortalityScalesForm({
     )
   }
 
-  // Helper to render number input field
+  // Helper to render number input field (for fields that aren't 0-4 scale)
   const renderNumberField = (fieldName: keyof ParkinsonsMortalityScalesInput, label: string) => {
     return (
       <div>
@@ -259,6 +260,42 @@ export function ParkinsonsMortalityScalesForm({
         />
         {(form.formState.errors[fieldName] as any) && (
           <p className="text-sm text-red-500 mt-1">{(form.formState.errors[fieldName] as any)?.message}</p>
+        )}
+      </div>
+    )
+  }
+
+  // Helper to render radio button field (0-4 scale)
+  const renderRadioField = (fieldName: keyof ParkinsonsMortalityScalesInput, label: string) => {
+    const value = form.watch(fieldName)
+    const stringValue = value !== null && value !== undefined ? String(value) : ''
+    const hasError = !!(form.formState.errors[fieldName] as any)
+    
+    return (
+      <div className="py-3 px-4 border-b border-gray-200 last:border-b-0">
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor={fieldName} className="text-base font-normal flex-1 cursor-pointer">
+            {label}
+          </Label>
+          <RadioGroup
+            value={stringValue}
+            onValueChange={(val) => {
+              form.setValue(fieldName, val === '' ? undefined : Number(val), { shouldValidate: true })
+            }}
+            className="flex items-center gap-3 border border-gray-300 rounded-md px-3 py-2"
+          >
+            {[0, 1, 2, 3, 4].map((num) => (
+              <div key={num} className="flex items-center">
+                <RadioGroupItem value={String(num)} id={`${fieldName}-${num}`} />
+                <Label htmlFor={`${fieldName}-${num}`} className="ml-1 text-sm font-normal cursor-pointer">
+                  {num}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </div>
+        {hasError && (
+          <p className="text-sm text-red-500 mt-1 ml-0">{(form.formState.errors[fieldName] as any)?.message}</p>
         )}
       </div>
     )
@@ -326,21 +363,21 @@ export function ParkinsonsMortalityScalesForm({
 
       {/* 1. MDS-UPDRS Part I */}
       <div className="space-y-4 md:space-y-6">
-        <h2 className="text-xl md:text-2xl font-semibold text-gray-900">1. MDS–UPDRS Part I – Non-motor Experiences of Daily Living</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {renderNumberField('cognitive_impairment', 'Cognitive impairment')}
-          {renderNumberField('hallucinations_psychosis', 'Hallucinations and psychosis')}
-          {renderNumberField('depressed_mood', 'Depressed mood')}
-          {renderNumberField('anxious_mood', 'Anxious mood')}
-          {renderNumberField('apathy', 'Apathy')}
-          {renderNumberField('dopaminergic_dysregulation', 'Dopaminergic dysregulation syndrome')}
-          {renderNumberField('sleep_problems', 'Sleep problems')}
-          {renderNumberField('daytime_sleepiness', 'Daytime sleepiness')}
-          {renderNumberField('pain_sensory_complaints', 'Pain and sensory complaints')}
-          {renderNumberField('urinary_problems', 'Urinary problems')}
-          {renderNumberField('constipation', 'Constipation')}
-          {renderNumberField('lightheadedness', 'Lightheadedness')}
-          {renderNumberField('fatigue', 'Fatigue')}
+        <h2 className="text-xl md:text-2xl font-semibold text-gray-900">Part I – Non-motor Experiences of Daily Living</h2>
+        <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-200">
+          {renderRadioField('cognitive_impairment', 'Cognitive impairment')}
+          {renderRadioField('hallucinations_psychosis', 'Hallucinations and psychosis')}
+          {renderRadioField('depressed_mood', 'Depressed mood')}
+          {renderRadioField('anxious_mood', 'Anxious mood')}
+          {renderRadioField('apathy', 'Apathy')}
+          {renderRadioField('dopaminergic_dysregulation', 'Dopaminergic dysregulation syndrome')}
+          {renderRadioField('sleep_problems', 'Sleep problems')}
+          {renderRadioField('daytime_sleepiness', 'Daytime sleepiness')}
+          {renderRadioField('pain_sensory_complaints', 'Pain and sensory complaints')}
+          {renderRadioField('urinary_problems', 'Urinary problems')}
+          {renderRadioField('constipation', 'Constipation')}
+          {renderRadioField('lightheadedness', 'Lightheadedness')}
+          {renderRadioField('fatigue', 'Fatigue')}
         </div>
         <div className="bg-gray-50 p-4 rounded-lg">
           <Label className="text-base font-semibold">Total Score of Part I</Label>
@@ -351,20 +388,20 @@ export function ParkinsonsMortalityScalesForm({
       {/* MDS-UPDRS Part II */}
       <div className="space-y-4 md:space-y-6">
         <h2 className="text-xl md:text-2xl font-semibold text-gray-900">Part II – Motor Experiences of Daily Living</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {renderNumberField('speech_part2', 'Speech')}
-          {renderNumberField('saliva_drooling', 'Saliva/drooling')}
-          {renderNumberField('chewing_swallowing', 'Chewing/swallowing')}
-          {renderNumberField('eating_tasks', 'Eating tasks')}
-          {renderNumberField('dressing', 'Dressing')}
-          {renderNumberField('hygiene', 'Hygiene')}
-          {renderNumberField('handwriting', 'Handwriting')}
-          {renderNumberField('hobbies_activities', 'Hobbies/activities')}
-          {renderNumberField('turning_in_bed', 'Turning in bed')}
-          {renderNumberField('tremor_daily_impact', 'Tremor (daily impact)')}
-          {renderNumberField('getting_out_of_bed', 'Getting out of bed/car/chair')}
-          {renderNumberField('walking_balance', 'Walking/balance')}
-          {renderNumberField('freezing_of_gait_part2', 'Freezing of gait')}
+        <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-200">
+          {renderRadioField('speech_part2', 'Speech')}
+          {renderRadioField('saliva_drooling', 'Saliva/drooling')}
+          {renderRadioField('chewing_swallowing', 'Chewing/swallowing')}
+          {renderRadioField('eating_tasks', 'Eating tasks')}
+          {renderRadioField('dressing', 'Dressing')}
+          {renderRadioField('hygiene', 'Hygiene')}
+          {renderRadioField('handwriting', 'Handwriting')}
+          {renderRadioField('hobbies_activities', 'Hobbies/activities')}
+          {renderRadioField('turning_in_bed', 'Turning in bed')}
+          {renderRadioField('tremor_daily_impact', 'Tremor (daily impact)')}
+          {renderRadioField('getting_out_of_bed', 'Getting out of bed/car/chair')}
+          {renderRadioField('walking_balance', 'Walking/balance')}
+          {renderRadioField('freezing_of_gait_part2', 'Freezing of gait')}
         </div>
         <div className="bg-gray-50 p-4 rounded-lg">
           <Label className="text-base font-semibold">Total Score of Part II</Label>
@@ -375,40 +412,40 @@ export function ParkinsonsMortalityScalesForm({
       {/* MDS-UPDRS Part III */}
       <div className="space-y-4 md:space-y-6">
         <h2 className="text-xl md:text-2xl font-semibold text-gray-900">Part III – Motor Examination</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {renderNumberField('speech_part3', 'Speech')}
-          {renderNumberField('facial_expression', 'Facial expression')}
-          {renderNumberField('rigidity_neck', 'Rigidity – neck')}
-          {renderNumberField('rigidity_right_upper_limb', 'Rigidity – right upper limb')}
-          {renderNumberField('rigidity_left_upper_limb', 'Rigidity – left upper limb')}
-          {renderNumberField('rigidity_right_lower_limb', 'Rigidity – right lower limb')}
-          {renderNumberField('rigidity_left_lower_limb', 'Rigidity – left lower limb')}
-          {renderNumberField('finger_tapping_right', 'Finger tapping – right hand')}
-          {renderNumberField('finger_tapping_left', 'Finger tapping – left hand')}
-          {renderNumberField('hand_movements_right', 'Hand movements – right hand')}
-          {renderNumberField('hand_movements_left', 'Hand movements – left hand')}
-          {renderNumberField('pronation_supination_right', 'Pronation-supination – right hand')}
-          {renderNumberField('pronation_supination_left', 'Pronation-supination – left hand')}
-          {renderNumberField('toe_tapping_right', 'Toe tapping – right foot')}
-          {renderNumberField('toe_tapping_left', 'Toe tapping – left foot')}
-          {renderNumberField('leg_agility_right', 'Leg agility – right leg')}
-          {renderNumberField('leg_agility_left', 'Leg agility – left leg')}
-          {renderNumberField('arising_from_chair', 'Arising from chair')}
-          {renderNumberField('gait', 'Gait')}
-          {renderNumberField('freezing_of_gait_part3', 'Freezing of gait')}
-          {renderNumberField('postural_stability', 'Postural stability')}
-          {renderNumberField('posture', 'Posture')}
-          {renderNumberField('global_bradykinesia', 'Global bradykinesia')}
-          {renderNumberField('postural_tremor_right', 'Postural tremor – right hand')}
-          {renderNumberField('postural_tremor_left', 'Postural tremor – left hand')}
-          {renderNumberField('kinetic_tremor_right', 'Kinetic tremor – right hand')}
-          {renderNumberField('kinetic_tremor_left', 'Kinetic tremor – left hand')}
-          {renderNumberField('rest_tremor_right_upper', 'Rest tremor – right upper limb')}
-          {renderNumberField('rest_tremor_left_upper', 'Rest tremor – left upper limb')}
-          {renderNumberField('rest_tremor_right_lower', 'Rest tremor – right lower limb')}
-          {renderNumberField('rest_tremor_left_lower', 'Rest tremor – left lower limb')}
-          {renderNumberField('rest_tremor_lip_jaw', 'Rest tremor – lip/jaw')}
-          {renderNumberField('constancy_of_rest_tremor', 'Constancy of rest tremor')}
+        <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-200">
+          {renderRadioField('speech_part3', 'Speech')}
+          {renderRadioField('facial_expression', 'Facial expression')}
+          {renderRadioField('rigidity_neck', 'Rigidity – neck')}
+          {renderRadioField('rigidity_right_upper_limb', 'Rigidity – right upper limb')}
+          {renderRadioField('rigidity_left_upper_limb', 'Rigidity – left upper limb')}
+          {renderRadioField('rigidity_right_lower_limb', 'Rigidity – right lower limb')}
+          {renderRadioField('rigidity_left_lower_limb', 'Rigidity – left lower limb')}
+          {renderRadioField('finger_tapping_right', 'Finger tapping – right hand')}
+          {renderRadioField('finger_tapping_left', 'Finger tapping – left hand')}
+          {renderRadioField('hand_movements_right', 'Hand movements – right hand')}
+          {renderRadioField('hand_movements_left', 'Hand movements – left hand')}
+          {renderRadioField('pronation_supination_right', 'Pronation-supination – right hand')}
+          {renderRadioField('pronation_supination_left', 'Pronation-supination – left hand')}
+          {renderRadioField('toe_tapping_right', 'Toe tapping – right foot')}
+          {renderRadioField('toe_tapping_left', 'Toe tapping – left foot')}
+          {renderRadioField('leg_agility_right', 'Leg agility – right leg')}
+          {renderRadioField('leg_agility_left', 'Leg agility – left leg')}
+          {renderRadioField('arising_from_chair', 'Arising from chair')}
+          {renderRadioField('gait', 'Gait')}
+          {renderRadioField('freezing_of_gait_part3', 'Freezing of gait')}
+          {renderRadioField('postural_stability', 'Postural stability')}
+          {renderRadioField('posture', 'Posture')}
+          {renderRadioField('global_bradykinesia', 'Global bradykinesia')}
+          {renderRadioField('postural_tremor_right', 'Postural tremor – right hand')}
+          {renderRadioField('postural_tremor_left', 'Postural tremor – left hand')}
+          {renderRadioField('kinetic_tremor_right', 'Kinetic tremor – right hand')}
+          {renderRadioField('kinetic_tremor_left', 'Kinetic tremor – left hand')}
+          {renderRadioField('rest_tremor_right_upper', 'Rest tremor – right upper limb')}
+          {renderRadioField('rest_tremor_left_upper', 'Rest tremor – left upper limb')}
+          {renderRadioField('rest_tremor_right_lower', 'Rest tremor – right lower limb')}
+          {renderRadioField('rest_tremor_left_lower', 'Rest tremor – left lower limb')}
+          {renderRadioField('rest_tremor_lip_jaw', 'Rest tremor – lip/jaw')}
+          {renderRadioField('constancy_of_rest_tremor', 'Constancy of rest tremor')}
         </div>
         <div className="bg-gray-50 p-4 rounded-lg">
           <Label className="text-base font-semibold">Total Score of Part III</Label>
@@ -419,13 +456,13 @@ export function ParkinsonsMortalityScalesForm({
       {/* MDS-UPDRS Part IV */}
       <div className="space-y-4 md:space-y-6">
         <h2 className="text-xl md:text-2xl font-semibold text-gray-900">Part IV – Motor Complications</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {renderNumberField('time_with_dyskinesias', 'Time with dyskinesias')}
-          {renderNumberField('impact_of_dyskinesias', 'Impact of dyskinesias')}
-          {renderNumberField('time_in_off_state', 'Time in \'off\' state')}
-          {renderNumberField('impact_of_fluctuations', 'Impact of fluctuations')}
-          {renderNumberField('complexity_of_fluctuations', 'Complexity of fluctuations')}
-          {renderNumberField('painful_off_state_dystonia', 'Painful off-state dystonia')}
+        <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-200">
+          {renderRadioField('time_with_dyskinesias', 'Time with dyskinesias')}
+          {renderRadioField('impact_of_dyskinesias', 'Impact of dyskinesias')}
+          {renderRadioField('time_in_off_state', 'Time in \'off\' state')}
+          {renderRadioField('impact_of_fluctuations', 'Impact of fluctuations')}
+          {renderRadioField('complexity_of_fluctuations', 'Complexity of fluctuations')}
+          {renderRadioField('painful_off_state_dystonia', 'Painful off-state dystonia')}
         </div>
         <div className="bg-gray-50 p-4 rounded-lg">
           <Label className="text-base font-semibold">Total Score of Part IV</Label>

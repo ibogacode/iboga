@@ -38,9 +38,7 @@ interface OnboardingPatient {
 const ONBOARDING_FORMS = [
   { id: 'release', label: 'Release Form', icon: FileSignature, key: 'release_form_completed' },
   { id: 'outing', label: 'Outing Consent', icon: Plane, key: 'outing_consent_completed' },
-  { id: 'social_media', label: 'Social Media', icon: Camera, key: 'social_media_release_completed' },
   { id: 'regulations', label: 'Regulations', icon: BookOpen, key: 'internal_regulations_completed' },
-  { id: 'dissent', label: 'Informed Dissent', icon: FileX, key: 'informed_dissent_completed' },
 ]
 
 export default function OnboardingPage() {
@@ -285,7 +283,7 @@ export default function OnboardingPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {patients.map((patient) => {
-                    const allFormsCompleted = patient.forms_completed === 5
+                    const allFormsCompleted = patient.forms_completed === 3
                     
                     return (
                       <tr key={patient.id} className="hover:bg-gray-50">
@@ -309,13 +307,13 @@ export default function OnboardingPage() {
                                 className={`h-2 rounded-full transition-all ${
                                   allFormsCompleted ? 'bg-emerald-500' : 'bg-amber-500'
                                 }`}
-                                style={{ width: `${(patient.forms_completed / 5) * 100}%` }}
+                                style={{ width: `${(patient.forms_completed / 3) * 100}%` }}
                               />
                             </div>
                             <span className={`text-xs sm:text-sm font-medium ${
                               allFormsCompleted ? 'text-emerald-600' : 'text-amber-600'
                             }`}>
-                              {patient.forms_completed}/5
+                              {patient.forms_completed}/3
                             </span>
                           </div>
                         </td>

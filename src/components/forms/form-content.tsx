@@ -195,7 +195,7 @@ All medical and personal information will be kept confidential in accordance wit
 9. Consent to Treatment
 By signing this Agreement, Patient acknowledges and consents to the following:
 
-I voluntarily choose to receive treatment at Iboga Wellness Center in Cozumel Mexico.
+I voluntarily choose to receive treatment at Iboga Wellness Institute in Cozumel Mexico.
 I understand the treatment involves ibogaine microdosing following Dr. Omar Calderón's protocol.
 I have been informed of potential risks, benefits, and alternatives.
 I understand this treatment is alternative and experimental and not guaranteed to improve my condition.

@@ -280,7 +280,7 @@ export function ParkinsonsPsychologicalReportForm({
           />
           <RatingSlider
             id="iboga_wellness_team_support"
-            label="How supported do you feel by the Iboga Wellness team so far?"
+            label="How supported do you feel by the Iboga Wellness Institute team so far?"
             value={form.watch('iboga_wellness_team_support')}
             onChange={(value) => form.setValue('iboga_wellness_team_support', value)}
             required

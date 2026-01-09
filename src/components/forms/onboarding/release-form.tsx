@@ -285,7 +285,7 @@ export function ReleaseForm({ onboardingId, initialData, isCompleted, onSuccess 
                 <Label htmlFor="voluntary_participation" className="text-base font-medium">
                   Voluntary Participation <span className="text-red-500">*</span>
                 </Label>
-                <p className="text-sm text-gray-600">I understand that my participation in Iboga Wellness Centers is entirely voluntary and that I can withdraw at any time.</p>
+                <p className="text-sm text-gray-600">I understand that my participation in Iboga Wellness Institute is entirely voluntary and that I can withdraw at any time.</p>
               </div>
             </div>
 
@@ -299,7 +299,7 @@ export function ReleaseForm({ onboardingId, initialData, isCompleted, onSuccess 
                 <Label htmlFor="medical_conditions_disclosed" className="text-base font-medium">
                   Medical Conditions <span className="text-red-500">*</span>
                 </Label>
-                <p className="text-sm text-gray-600">I have disclosed all known medical conditions, including physical and mental health issues, to the Iboga Wellness Centers staff. I understand that ibogaine and psilocybin treatments can have significant physiological and psychological effects and may interact with other medications.</p>
+                <p className="text-sm text-gray-600">I have disclosed all known medical conditions, including physical and mental health issues, to the Iboga Wellness Institute staff. I understand that ibogaine and psilocybin treatments can have significant physiological and psychological effects and may interact with other medications.</p>
               </div>
             </div>
 
@@ -327,7 +327,7 @@ export function ReleaseForm({ onboardingId, initialData, isCompleted, onSuccess 
                 <Label htmlFor="medical_supervision_agreed" className="text-base font-medium">
                   Medical Supervision <span className="text-red-500">*</span>
                 </Label>
-                <p className="text-sm text-gray-600">I agree to follow all guidelines and instructions provided by the medical and support staff at Iboga Wellness Centers. I consent to any necessary medical intervention should an emergency arise during my participation in the retreat.</p>
+                <p className="text-sm text-gray-600">I agree to follow all guidelines and instructions provided by the medical and support staff at Iboga Wellness Institute. I consent to any necessary medical intervention should an emergency arise during my participation in the retreat.</p>
               </div>
             </div>
 
@@ -355,7 +355,7 @@ export function ReleaseForm({ onboardingId, initialData, isCompleted, onSuccess 
                 <Label htmlFor="liability_waiver_accepted" className="text-base font-medium">
                   Waiver of Liability <span className="text-red-500">*</span>
                 </Label>
-                <p className="text-sm text-gray-600">I release Iboga Wellness Centers, its owners, staff, and affiliates from any liability, claims, or demands that may arise from my participation in the retreat, including but not limited to personal injury, psychological trauma, or death.</p>
+                <p className="text-sm text-gray-600">I release Iboga Wellness Institute, its owners, staff, and affiliates from any liability, claims, or demands that may arise from my participation in the retreat, including but not limited to personal injury, psychological trauma, or death.</p>
               </div>
             </div>
 
@@ -369,7 +369,7 @@ export function ReleaseForm({ onboardingId, initialData, isCompleted, onSuccess 
                 <Label htmlFor="compliance_agreed" className="text-base font-medium">
                   Compliance <span className="text-red-500">*</span>
                 </Label>
-                <p className="text-sm text-gray-600">I agree to adhere to the rules and guidelines set forth by Iboga Wellness Centers to ensure a safe and conducive environment for all participants.</p>
+                <p className="text-sm text-gray-600">I agree to adhere to the rules and guidelines set forth by Iboga Wellness Institute to ensure a safe and conducive environment for all participants.</p>
               </div>
             </div>
           </div>
@@ -389,7 +389,7 @@ export function ReleaseForm({ onboardingId, initialData, isCompleted, onSuccess 
                 <Label htmlFor="consent_to_treatment" className="text-base font-medium">
                   I Consent to Treatment <span className="text-red-500">*</span>
                 </Label>
-                <p className="text-sm text-gray-600">I have read and understood the above information. I acknowledge that I have had the opportunity to ask questions and that my questions have been answered to my satisfaction. I voluntarily agree to participate in Iboga Wellness Centers and consent to the administration of ibogaine and/or psilocybin therapies as outlined.</p>
+                <p className="text-sm text-gray-600">I have read and understood the above information. I acknowledge that I have had the opportunity to ask questions and that my questions have been answered to my satisfaction. I voluntarily agree to participate in Iboga Wellness Institute and consent to the administration of ibogaine and/or psilocybin therapies as outlined.</p>
               </div>
             </div>
           </div>

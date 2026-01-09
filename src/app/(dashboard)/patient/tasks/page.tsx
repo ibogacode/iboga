@@ -239,7 +239,7 @@ export default function PatientTasksPage() {
                     Onboarding
                   </span>
                   <span className="text-xs text-blue-600">
-                    {onboardingStatus.formsCompleted || 0}/{onboardingStatus.formsTotal || 5} forms
+                    {onboardingStatus.formsCompleted || 0}/{onboardingStatus.formsTotal || 3} forms
                   </span>
                 </div>
               </div>
