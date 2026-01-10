@@ -13,7 +13,7 @@ import { serviceAgreementSchema, type ServiceAgreementFormValues } from '@/lib/v
 import { submitServiceAgreement, uploadServiceAgreementDocument, getPatientDataForServiceAgreement } from '@/actions/service-agreement.action'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { SERVICE_AGREEMENT_TEXT, ServiceAgreementContent } from '@/components/forms/form-content'
+import { getServiceAgreementText, ServiceAgreementContent } from '@/components/forms/form-content'
 
 interface ServiceAgreementFormProps {
   prefillPatientData?: boolean // If true, fetch and pre-fill patient data
@@ -32,6 +32,8 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
   const [patientId, setPatientId] = useState<string | null>(null)
   const [intakeFormId, setIntakeFormId] = useState<string | null>(null)
   const [accessDenied, setAccessDenied] = useState(false)
+  const [programType, setProgramType] = useState<'neurological' | 'mental_health' | 'addiction' | null>(null)
+  const [numberOfDays, setNumberOfDays] = useState<number | null>(null)
   
   const totalSteps = 6
   
@@ -126,11 +128,49 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
             form.setValue('remaining_balance', existingForm.remaining_balance ? String(existingForm.remaining_balance) : '0')
             form.setValue('payment_method', existingForm.payment_method || '')
             form.setValue('provider_signature_name', existingForm.provider_signature_name || '')
-            form.setValue('provider_signature_first_name', existingForm.provider_signature_first_name || '')
-            form.setValue('provider_signature_last_name', existingForm.provider_signature_last_name || '')
+            if (existingForm.provider_signature_first_name) {
+              form.setValue('provider_signature_first_name', existingForm.provider_signature_first_name)
+            }
+            if (existingForm.provider_signature_last_name) {
+              form.setValue('provider_signature_last_name', existingForm.provider_signature_last_name)
+            }
             if (existingForm.provider_signature_date) {
               form.setValue('provider_signature_date', new Date(existingForm.provider_signature_date).toISOString().split('T')[0])
             }
+            
+            // Set program type and number of days for dynamic text
+            if (existingForm.program_type && ['neurological', 'mental_health', 'addiction'].includes(existingForm.program_type)) {
+              setProgramType(existingForm.program_type as 'neurological' | 'mental_health' | 'addiction')
+              form.setValue('program_type', existingForm.program_type as any)
+            } else if (intakeForm?.program_type && ['neurological', 'mental_health', 'addiction'].includes(intakeForm.program_type)) {
+              setProgramType(intakeForm.program_type as 'neurological' | 'mental_health' | 'addiction')
+              form.setValue('program_type', intakeForm.program_type as any)
+            } else {
+              // Default to neurological if no program type found
+              setProgramType('neurological')
+              form.setValue('program_type', 'neurological' as any)
+            }
+            
+            if (existingForm.number_of_days) {
+              setNumberOfDays(existingForm.number_of_days)
+              form.setValue('number_of_days', existingForm.number_of_days)
+            } else {
+              // Default to 14 days if not set
+              setNumberOfDays(14)
+              form.setValue('number_of_days', 14)
+            }
+          } else if (intakeForm?.program_type && ['neurological', 'mental_health', 'addiction'].includes(intakeForm.program_type)) {
+            // If no existing form but have intake form, use its program type
+            setProgramType(intakeForm.program_type as 'neurological' | 'mental_health' | 'addiction')
+            form.setValue('program_type', intakeForm.program_type as any)
+            setNumberOfDays(14) // Default
+            form.setValue('number_of_days', 14)
+          } else {
+            // Default values if no existing form or intake form
+            setProgramType('neurological')
+            form.setValue('program_type', 'neurological' as any)
+            setNumberOfDays(14)
+            form.setValue('number_of_days', 14)
           }
         } else {
           // Show error and prevent form access
@@ -226,7 +266,7 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
       case 4:
         return ['patient_signature_name', 'patient_signature_first_name', 'patient_signature_last_name', 'patient_signature_date', 'patient_signature_data']
       case 5:
-        return ['provider_signature_name', 'provider_signature_first_name', 'provider_signature_last_name', 'provider_signature_date', 'provider_signature_data']
+        return ['provider_signature_name', 'provider_signature_date', 'provider_signature_data']
       case 6:
         return [] // File upload is optional
       default:
@@ -390,14 +430,33 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
 
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
               {/* Step 1: Service Agreement Text */}
-              {currentStep === 1 && (
-                <div className="space-y-6">
-                  <h2 className="text-2xl font-semibold text-gray-900">Service Agreement</h2>
-                  <div className="p-6 bg-gray-50 rounded-lg border border-gray-200">
-                    <ServiceAgreementContent text={SERVICE_AGREEMENT_TEXT} />
+              {currentStep === 1 && (() => {
+                // Generate dynamic service agreement text based on form values
+                const totalFee = parseFloat((form.watch('total_program_fee') || '').replace(/[^0-9.]/g, '')) || 0
+                const depositPct = parseFloat(form.watch('deposit_percentage') || '50') || 50
+                const depositAmt = parseFloat((form.watch('deposit_amount') || '').replace(/[^0-9.]/g, '')) || 0
+                const remaining = parseFloat((form.watch('remaining_balance') || '0').replace(/[^0-9.]/g, '')) || 0
+                const days = numberOfDays || parseInt(form.watch('number_of_days') || '14', 10) || 14
+                const progType = programType || (form.watch('program_type') as 'neurological' | 'mental_health' | 'addiction') || 'neurological'
+                
+                const agreementText = getServiceAgreementText({
+                  programType: progType,
+                  totalProgramFee: totalFee,
+                  depositPercentage: depositPct,
+                  depositAmount: depositAmt,
+                  remainingBalance: remaining,
+                  numberOfDays: days,
+                })
+                
+                return (
+                  <div className="space-y-6">
+                    <h2 className="text-2xl font-semibold text-gray-900">Service Agreement</h2>
+                    <div className="p-6 bg-gray-50 rounded-lg border border-gray-200">
+                      <ServiceAgreementContent text={agreementText} />
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* Step 2: Patient Information */}
               {currentStep === 2 && (
@@ -656,30 +715,6 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="provider_signature_first_name" className="text-base font-medium">
-                        Provider Name - First Name <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="provider_signature_first_name"
-                        readOnly
-                        value={form.watch('provider_signature_first_name')}
-                        className="h-12 bg-gray-50 cursor-not-allowed"
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="provider_signature_last_name" className="text-base font-medium">
-                        Provider Name - Last Name <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        id="provider_signature_last_name"
-                        readOnly
-                        value={form.watch('provider_signature_last_name')}
-                        className="h-12 bg-gray-50 cursor-not-allowed"
-                      />
-                    </div>
-
-                    <div>
                       <Label htmlFor="provider_signature_name" className="text-base font-medium">
                         Provider Name (Full) <span className="text-red-500">*</span>
                       </Label>
@@ -703,6 +738,34 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
                         className="h-12 bg-gray-50 cursor-not-allowed"
                       />
                     </div>
+
+                    {form.watch('provider_signature_first_name') && (
+                      <div>
+                        <Label htmlFor="provider_signature_first_name" className="text-base font-medium">
+                          Provider Name - First Name
+                        </Label>
+                        <Input
+                          id="provider_signature_first_name"
+                          readOnly
+                          value={form.watch('provider_signature_first_name')}
+                          className="h-12 bg-gray-50 cursor-not-allowed"
+                        />
+                      </div>
+                    )}
+
+                    {form.watch('provider_signature_last_name') && (
+                      <div>
+                        <Label htmlFor="provider_signature_last_name" className="text-base font-medium">
+                          Provider Name - Last Name
+                        </Label>
+                        <Input
+                          id="provider_signature_last_name"
+                          readOnly
+                          value={form.watch('provider_signature_last_name')}
+                          className="h-12 bg-gray-50 cursor-not-allowed"
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

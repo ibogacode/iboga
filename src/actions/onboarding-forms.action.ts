@@ -5,6 +5,7 @@ import { authActionClient } from '@/lib/safe-action'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { uploadDocument } from '@/lib/supabase/document-storage'
 import {
   releaseFormSchema,
   outingConsentFormSchema,
@@ -1352,4 +1353,182 @@ export const deleteOnboarding = authActionClient
     revalidatePath('/onboarding')
 
     return { success: true, message: 'Onboarding and all associated forms deleted' }
+  })
+
+// =============================================================================
+// Upload Onboarding Form Document (Admin Only)
+// =============================================================================
+
+export const uploadOnboardingFormDocument = authActionClient
+  .schema(
+    z.object({
+      onboarding_id: z.string().uuid(),
+      form_type: z.enum(['release', 'outing', 'regulations']),
+      file: z.instanceof(File),
+    })
+  )
+  .action(async ({ parsedInput, ctx }) => {
+    const supabase = await createClient()
+    const adminClient = createAdminClient()
+
+    // Check user role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', ctx.user.id)
+      .single()
+
+    if (!profile || !isAdminStaffRole(profile.role)) {
+      return { success: false, error: 'Unauthorized: Admin staff access required' }
+    }
+
+    // Verify onboarding exists
+    const { data: onboarding, error: onboardingError } = await adminClient
+      .from('patient_onboarding')
+      .select('id, patient_id')
+      .eq('id', parsedInput.onboarding_id)
+      .single()
+
+    if (onboardingError || !onboarding) {
+      return { success: false, error: 'Onboarding record not found' }
+    }
+
+    // Upload document to storage
+    let documentUrl: string
+    let documentPath: string
+
+    try {
+      const uploadResult = await uploadDocument(
+        'onboarding-form-documents',
+        parsedInput.file,
+        `onboarding-${parsedInput.onboarding_id}/${parsedInput.form_type}`
+      )
+      documentUrl = uploadResult.url
+      documentPath = uploadResult.path
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to upload document',
+      }
+    }
+
+    // Map form type to table name
+    const formTableMap: Record<string, string> = {
+      release: 'onboarding_release_forms',
+      outing: 'onboarding_outing_consent_forms',
+      regulations: 'onboarding_internal_regulations_forms',
+    }
+
+    const tableName = formTableMap[parsedInput.form_type]
+
+    // Check if form record exists, create if not
+    const { data: existingForm } = await adminClient
+      .from(tableName)
+      .select('id')
+      .eq('onboarding_id', parsedInput.onboarding_id)
+      .maybeSingle()
+
+    if (existingForm) {
+      // Update existing form
+      const { error: updateError } = await adminClient
+        .from(tableName)
+        .update({
+          document_url: documentUrl,
+          document_path: documentPath,
+          uploaded_by: ctx.user.id,
+          uploaded_at: new Date().toISOString(),
+          is_completed: true,
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', existingForm.id)
+
+      if (updateError) {
+        return { success: false, error: handleSupabaseError(updateError, 'Failed to update form') }
+      }
+    } else {
+      // Create new form record with minimal required fields
+      // We'll use placeholder values since this is a physical form upload
+      const baseData = {
+        onboarding_id: parsedInput.onboarding_id,
+        patient_id: onboarding.patient_id,
+        document_url: documentUrl,
+        document_path: documentPath,
+        uploaded_by: ctx.user.id,
+        uploaded_at: new Date().toISOString(),
+        is_completed: true,
+        completed_at: new Date().toISOString(),
+        is_activated: true,
+      }
+
+      let insertData: any
+
+      if (parsedInput.form_type === 'release') {
+        insertData = {
+          ...baseData,
+          full_name: 'Uploaded Document',
+          date_of_birth: new Date().toISOString().split('T')[0],
+          phone_number: '',
+          email: '',
+          emergency_contact_name: '',
+          emergency_contact_phone: '',
+          emergency_contact_email: '',
+          emergency_contact_relationship: '',
+          voluntary_participation: false,
+          medical_conditions_disclosed: false,
+          risks_acknowledged: false,
+          medical_supervision_agreed: false,
+          confidentiality_understood: false,
+          liability_waiver_accepted: false,
+          compliance_agreed: false,
+          consent_to_treatment: false,
+        }
+      } else if (parsedInput.form_type === 'outing') {
+        insertData = {
+          ...baseData,
+          first_name: 'Uploaded',
+          last_name: 'Document',
+          date_of_birth: new Date().toISOString().split('T')[0],
+          email: '',
+          protocol_compliance: false,
+          proper_conduct: false,
+          no_harassment: false,
+          substance_prohibition: false,
+          financial_penalties_accepted: false,
+          additional_consequences_understood: false,
+          declaration_read_understood: false,
+        }
+      } else {
+        // regulations
+        insertData = {
+          ...baseData,
+          first_name: 'Uploaded',
+          last_name: 'Document',
+          email: '',
+          regulations_read_understood: false,
+          rights_acknowledged: false,
+          obligations_acknowledged: false,
+          coexistence_rules_acknowledged: false,
+          sanctions_acknowledged: false,
+          acceptance_confirmed: false,
+        }
+      }
+
+      const { error: insertError } = await adminClient.from(tableName).insert(insertData)
+
+      if (insertError) {
+        return { success: false, error: handleSupabaseError(insertError, 'Failed to create form record') }
+      }
+    }
+
+    // The trigger will automatically update patient_onboarding form completion flags
+    revalidatePath('/onboarding')
+    revalidatePath(`/onboarding-forms/${parsedInput.onboarding_id}`)
+
+    return {
+      success: true,
+      data: {
+        document_url: documentUrl,
+        document_path: documentPath,
+      },
+    }
   })

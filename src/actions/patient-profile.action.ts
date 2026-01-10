@@ -599,7 +599,7 @@ export const activateServiceAgreement = authActionClient
     // Note: payment_method is filled by patient, not required for activation
     const { data: formData } = await adminClient
       .from('service_agreements')
-      .select('patient_email, patient_first_name, patient_last_name, total_program_fee, deposit_amount, deposit_percentage, remaining_balance, provider_signature_name, provider_signature_first_name, provider_signature_last_name, provider_signature_date')
+      .select('patient_email, patient_first_name, patient_last_name, total_program_fee, deposit_amount, deposit_percentage, remaining_balance, provider_signature_name, provider_signature_date, number_of_days')
       .eq('id', parsedInput.formId)
       .single()
 
@@ -624,14 +624,11 @@ export const activateServiceAgreement = authActionClient
       if (formData.remaining_balance === null || formData.remaining_balance === undefined) {
         missingFields.push('Remaining Balance')
       }
+      if (!formData.number_of_days || formData.number_of_days <= 0) {
+        missingFields.push('Number of Days of Program')
+      }
       if (!formData.provider_signature_name || formData.provider_signature_name.trim() === '') {
         missingFields.push('Provider Signature Name')
-      }
-      if (!formData.provider_signature_first_name || formData.provider_signature_first_name.trim() === '') {
-        missingFields.push('Provider First Name')
-      }
-      if (!formData.provider_signature_last_name || formData.provider_signature_last_name.trim() === '') {
-        missingFields.push('Provider Last Name')
       }
       if (!formData.provider_signature_date) {
         missingFields.push('Provider Signature Date')
@@ -640,7 +637,7 @@ export const activateServiceAgreement = authActionClient
       if (missingFields.length > 0) {
         return { 
           success: false, 
-          error: `Cannot activate form. Please fill in the following required fields: ${missingFields.join(', ')}. All text fields must be non-empty.` 
+          error: `Cannot activate form. Please fill in the following required fields: ${missingFields.join(', ')}.` 
         }
       }
       
@@ -665,14 +662,13 @@ export const activateServiceAgreement = authActionClient
           deposit_amount: formData.deposit_amount,
           deposit_percentage: formData.deposit_percentage,
           remaining_balance: formData.remaining_balance,
+          number_of_days: formData.number_of_days,
           provider_signature_name: formData.provider_signature_name,
-          provider_signature_first_name: formData.provider_signature_first_name,
-          provider_signature_last_name: formData.provider_signature_last_name,
           provider_signature_date: formData.provider_signature_date,
         })
         return { 
           success: false, 
-          error: 'Cannot activate form. Please ensure all required admin fields are filled: Total Program Fee, Deposit Amount, Deposit Percentage, Remaining Balance, and Provider Signature (Name, First Name, Last Name, Date). All text fields must be non-empty.' 
+          error: 'Cannot activate form. Please ensure all required admin fields are filled: Total Program Fee, Deposit Amount, Deposit Percentage, Remaining Balance, Number of Days, and Provider Signature (Name and Date).' 
         }
       }
     }

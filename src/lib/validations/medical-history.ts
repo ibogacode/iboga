@@ -65,10 +65,23 @@ export const medicalHistoryFormSchema = z.object({
   // Previous Experiences
   previous_psychedelics_experiences: z.string().min(1, 'Previous psychedelics experiences is required'),
   
-  // Physical Examination
+  // Physical Examination - Yes/No with conditional details and upload
+  has_physical_examination: z.boolean().default(false),
   physical_examination_records: z.string().optional().nullable(),
+  physical_examination_file_url: z.string().optional().nullable(),
+  physical_examination_file_name: z.string().optional().nullable(),
+  
+  // Cardiac Evaluation - Yes/No with conditional details and upload
+  has_cardiac_evaluation: z.boolean().default(false),
   cardiac_evaluation: z.string().optional().nullable(),
+  cardiac_evaluation_file_url: z.string().optional().nullable(),
+  cardiac_evaluation_file_name: z.string().optional().nullable(),
+  
+  // Liver Function Tests - Yes/No with conditional details and upload
+  has_liver_function_tests: z.boolean().default(false),
   liver_function_tests: z.string().optional().nullable(),
+  liver_function_tests_file_url: z.string().optional().nullable(),
+  liver_function_tests_file_name: z.string().optional().nullable(),
   
   // Pregnancy
   is_pregnant: z.boolean().default(false),

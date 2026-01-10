@@ -37,9 +37,14 @@ const adminServiceAgreementSchema = z.object({
     { message: 'Remaining balance must be a valid number' }
   ),
   provider_signature_name: z.string().min(1, 'Provider signature name is required'),
-  provider_signature_first_name: z.string().min(1, 'Provider first name is required'),
-  provider_signature_last_name: z.string().min(1, 'Provider last name is required'),
   provider_signature_date: z.string().min(1, 'Provider signature date is required'),
+  number_of_days: z.string().min(1, 'Number of days is required').refine(
+    (val) => {
+      const num = parseInt(val, 10)
+      return !isNaN(num) && num > 0
+    },
+    { message: 'Number of days must be a valid positive integer' }
+  ),
 })
 
 // Schema for admin editing Ibogaine Consent (only admin fields)
@@ -74,10 +79,10 @@ export const getServiceAgreementForAdminEdit = authActionClient
       return { success: false, error: 'Unauthorized - Owner or Admin access required' }
     }
 
-    // Get form data
+    // Get form data including program_type from intake_form if available
     const { data, error } = await adminClient
       .from('service_agreements')
-      .select('*')
+      .select('*, intake_form_id')
       .eq('id', parsedInput.formId)
       .single()
 
@@ -85,7 +90,27 @@ export const getServiceAgreementForAdminEdit = authActionClient
       return { success: false, error: 'Form not found' }
     }
 
-    return { success: true, data }
+    // Get program_type from intake_form if available
+    let programType: 'neurological' | 'mental_health' | 'addiction' | null = data.program_type || null
+    if (!programType && data.intake_form_id) {
+      const { data: intakeForm } = await adminClient
+        .from('patient_intake_forms')
+        .select('program_type')
+        .eq('id', data.intake_form_id)
+        .single()
+      
+      if (intakeForm?.program_type && ['neurological', 'mental_health', 'addiction'].includes(intakeForm.program_type)) {
+        programType = intakeForm.program_type as 'neurological' | 'mental_health' | 'addiction'
+      }
+    }
+
+    return { 
+      success: true, 
+      data: {
+        ...data,
+        program_type: programType,
+      }
+    }
   })
 
 // Update Service Agreement admin fields
@@ -116,6 +141,7 @@ export const updateServiceAgreementAdminFields = authActionClient
     const depositAmount = parseFloat(parsedInput.deposit_amount.replace(/[^0-9.]/g, ''))
     const depositPercentage = parseFloat(parsedInput.deposit_percentage.replace(/[^0-9.]/g, ''))
     const remainingBalance = parseFloat(parsedInput.remaining_balance.replace(/[^0-9.]/g, ''))
+    const numberOfDays = parseInt(parsedInput.number_of_days, 10)
     
     // Validate numeric values
     if (isNaN(totalProgramFee) || totalProgramFee <= 0) {
@@ -130,6 +156,9 @@ export const updateServiceAgreementAdminFields = authActionClient
     if (isNaN(remainingBalance) || remainingBalance < 0) {
       return { success: false, error: 'Remaining balance must be a valid number greater than or equal to 0' }
     }
+    if (isNaN(numberOfDays) || numberOfDays <= 0) {
+      return { success: false, error: 'Number of days must be a valid positive integer' }
+    }
     
     // Parse and validate date
     const providerSignatureDate = new Date(parsedInput.provider_signature_date)
@@ -139,17 +168,29 @@ export const updateServiceAgreementAdminFields = authActionClient
     
     // Trim text fields to ensure they're not empty
     const providerSignatureName = parsedInput.provider_signature_name.trim()
-    const providerSignatureFirstName = parsedInput.provider_signature_first_name.trim()
-    const providerSignatureLastName = parsedInput.provider_signature_last_name.trim()
     
     if (!providerSignatureName) {
       return { success: false, error: 'Provider signature name is required' }
     }
-    if (!providerSignatureFirstName) {
-      return { success: false, error: 'Provider first name is required' }
-    }
-    if (!providerSignatureLastName) {
-      return { success: false, error: 'Provider last name is required' }
+
+    // Get program_type from intake_form if available
+    const { data: formData } = await adminClient
+      .from('service_agreements')
+      .select('intake_form_id')
+      .eq('id', parsedInput.formId)
+      .single()
+
+    let programType: 'neurological' | 'mental_health' | 'addiction' | null = null
+    if (formData?.intake_form_id) {
+      const { data: intakeForm } = await adminClient
+        .from('patient_intake_forms')
+        .select('program_type')
+        .eq('id', formData.intake_form_id)
+        .single()
+      
+      if (intakeForm?.program_type && ['neurological', 'mental_health', 'addiction'].includes(intakeForm.program_type)) {
+        programType = intakeForm.program_type as 'neurological' | 'mental_health' | 'addiction'
+      }
     }
 
     // Update only admin fields
@@ -161,9 +202,9 @@ export const updateServiceAgreementAdminFields = authActionClient
         deposit_percentage: depositPercentage,
         remaining_balance: remainingBalance,
         provider_signature_name: providerSignatureName,
-        provider_signature_first_name: providerSignatureFirstName,
-        provider_signature_last_name: providerSignatureLastName,
         provider_signature_date: providerSignatureDate.toISOString().split('T')[0],
+        number_of_days: numberOfDays,
+        program_type: programType,
         updated_at: new Date().toISOString(),
       })
       .eq('id', parsedInput.formId)
