@@ -83,7 +83,6 @@ export function IbogaineConsentForm({ prefillPatientData = false }: IbogaineCons
       phone_number: '',
       email: '',
       address: '',
-      treatment_date: '',
       facilitator_doctor_name: '',
       consent_for_treatment: false,
       risks_and_benefits: false,
@@ -208,9 +207,6 @@ export function IbogaineConsentForm({ prefillPatientData = false }: IbogaineCons
           if (existing.intake_form_id) {
             form.setValue('intake_form_id', existing.intake_form_id)
           }
-          if (existing.treatment_date) {
-            form.setValue('treatment_date', new Date(existing.treatment_date).toISOString().split('T')[0])
-          }
           if (existing.facilitator_doctor_name) {
             form.setValue('facilitator_doctor_name', existing.facilitator_doctor_name)
           }
@@ -333,9 +329,6 @@ export function IbogaineConsentForm({ prefillPatientData = false }: IbogaineCons
             }
             
             // Pre-fill admin fields (read-only for patients)
-            if (existing.treatment_date) {
-              form.setValue('treatment_date', new Date(existing.treatment_date).toISOString().split('T')[0])
-            }
             if (existing.facilitator_doctor_name) {
               form.setValue('facilitator_doctor_name', existing.facilitator_doctor_name)
             }
@@ -426,7 +419,7 @@ export function IbogaineConsentForm({ prefillPatientData = false }: IbogaineCons
     return `${numbers.slice(0, 2)}-${numbers.slice(2, 4)}-${numbers.slice(4, 8)}`
   }
 
-  function handleDateChange(field: 'date_of_birth' | 'treatment_date', value: string) {
+  function handleDateChange(field: 'date_of_birth', value: string) {
     const formatted = formatDate(value)
     form.setValue(field, formatted)
   }
@@ -751,29 +744,6 @@ export function IbogaineConsentForm({ prefillPatientData = false }: IbogaineCons
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label htmlFor="treatment_date" className="text-base font-semibold text-gray-900">
-                    Treatment Date <span className="text-red-500">*</span>
-                  </Label>
-                  <div className="relative mt-2">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <Input
-                      id="treatment_date"
-                      type="date"
-                      {...form.register('treatment_date')}
-                      readOnly={!isAdmin && isFormActivated}
-                      className={`pl-10 ${!isAdmin && isFormActivated ? 'bg-gray-50 cursor-not-allowed' : ''}`}
-                      placeholder="MM-DD-YYYY"
-                    />
-                  </div>
-                  {!isAdmin && isFormActivated && (
-                    <p className="text-xs text-gray-500 mt-1">This field has been pre-filled by the administration.</p>
-                  )}
-                  {form.formState.errors.treatment_date && (
-                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.treatment_date.message}</p>
-                  )}
-                </div>
-
-                <div>
                   <Label htmlFor="facilitator_doctor_name" className="text-base font-semibold text-gray-900">
                     Facilitator/Doctor Name <span className="text-red-500">*</span>
                   </Label>
@@ -913,7 +883,7 @@ export function IbogaineConsentForm({ prefillPatientData = false }: IbogaineCons
                     currentStep === 1 
                       ? ['first_name', 'last_name', 'date_of_birth', 'phone_number', 'email', 'address']
                       : currentStep === 2
-                      ? ['treatment_date', 'facilitator_doctor_name']
+                      ? ['facilitator_doctor_name']
                       : currentStep === 3
                       ? ['consent_for_treatment', 'risks_and_benefits', 'pre_screening_health_assessment', 'voluntary_participation', 'confidentiality', 'liability_release', 'payment_collection']
                       : []

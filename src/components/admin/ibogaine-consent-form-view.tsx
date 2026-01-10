@@ -12,7 +12,6 @@ interface IbogaineConsentForm {
   phone_number: string
   email: string
   address: string
-  treatment_date: string
   facilitator_doctor_name: string
   consent_for_treatment: boolean
   risks_and_benefits: boolean
@@ -108,12 +107,6 @@ export function IbogaineConsentFormView({ form }: IbogaineConsentFormViewProps) 
           <h2 className="text-2xl font-semibold text-gray-900">Therapy Information</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-base font-medium text-gray-900">Treatment Date</label>
-              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center mt-2">
-                {formatDate(form.treatment_date)}
-              </div>
-            </div>
             <div>
               <label className="text-base font-medium text-gray-900">Facilitator/Doctor Name</label>
               <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center mt-2">

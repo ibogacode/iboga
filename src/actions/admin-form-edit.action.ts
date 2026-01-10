@@ -48,10 +48,9 @@ const adminServiceAgreementSchema = z.object({
 })
 
 // Schema for admin editing Ibogaine Consent (only admin fields)
+// Note: facilitator_doctor_name comes from defaults table, not editable here
 const adminIbogaineConsentSchema = z.object({
   formId: z.string().uuid(),
-  treatment_date: z.string().min(1, 'Treatment date is required'),
-  facilitator_doctor_name: z.string().min(1, 'Facilitator/Doctor name is required'),
   date_of_birth: z.string().min(1, 'Date of birth is required'),
   address: z.string().min(1, 'Address is required'),
 })
@@ -252,7 +251,57 @@ export const getIbogaineConsentForAdminEdit = authActionClient
       return { success: false, error: 'Form not found' }
     }
 
-    return { success: true, data }
+    // Get facilitator_doctor_name from defaults table
+    // Use adminClient to bypass RLS (service role has full access)
+    const { data: defaults, error: defaultsError } = await adminClient
+      .from('form_defaults')
+      .select('*')
+      .eq('form_type', 'ibogaine_consent')
+      .maybeSingle()
+
+    if (defaultsError) {
+      console.error('[getIbogaineConsentForAdminEdit] Error fetching defaults:', defaultsError)
+    }
+
+    // Log what we got for debugging
+    console.log('[getIbogaineConsentForAdminEdit] Defaults query result:', {
+      hasData: !!defaults,
+      formType: defaults?.form_type,
+      defaultValuesType: defaults?.default_values ? typeof defaults.default_values : 'null',
+      defaultValuesRaw: defaults?.default_values,
+      fullDefaults: defaults
+    })
+
+    // Handle JSONB column - Supabase should automatically parse JSONB, but handle both cases
+    let defaultValues: any = null
+    if (defaults?.default_values) {
+      if (typeof defaults.default_values === 'string') {
+        try {
+          defaultValues = JSON.parse(defaults.default_values)
+        } catch (e) {
+          console.error('[getIbogaineConsentForAdminEdit] Error parsing default_values string:', e, defaults.default_values)
+        }
+      } else if (typeof defaults.default_values === 'object') {
+        // JSONB should already be parsed as an object
+        defaultValues = defaults.default_values
+      }
+    }
+
+    console.log('[getIbogaineConsentForAdminEdit] Parsed defaultValues:', defaultValues)
+    
+    // Extract facilitator_doctor_name from the parsed default values
+    const facilitatorDoctorName = defaultValues?.facilitator_doctor_name || null
+    
+    console.log('[getIbogaineConsentForAdminEdit] Extracted facilitator_doctor_name:', facilitatorDoctorName)
+
+    // Include facilitator name from defaults in response
+    return { 
+      success: true, 
+      data: {
+        ...data,
+        facilitator_doctor_name_from_defaults: facilitatorDoctorName,
+      }
+    }
   })
 
 // Update Ibogaine Consent admin fields
@@ -279,19 +328,18 @@ export const updateIbogaineConsentAdminFields = authActionClient
     }
 
     // Parse date
-    const treatmentDate = new Date(parsedInput.treatment_date)
     const dateOfBirth = new Date(parsedInput.date_of_birth)
+    const updateData: any = {
+      // facilitator_doctor_name comes from defaults table, not updated here
+      date_of_birth: dateOfBirth.toISOString().split('T')[0],
+      address: parsedInput.address,
+      updated_at: new Date().toISOString(),
+    }
 
     // Update only admin fields
     const { data, error } = await adminClient
       .from('ibogaine_consent_forms')
-      .update({
-        treatment_date: treatmentDate.toISOString().split('T')[0],
-        facilitator_doctor_name: parsedInput.facilitator_doctor_name,
-        date_of_birth: dateOfBirth.toISOString().split('T')[0],
-        address: parsedInput.address,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', parsedInput.formId)
       .select()
       .single()

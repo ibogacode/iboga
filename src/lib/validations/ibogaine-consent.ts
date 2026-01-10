@@ -18,7 +18,6 @@ export const ibogaineConsentFormSchema = z.object({
   address: z.string().min(1, 'Address is required'),
   
   // Therapy Information
-  treatment_date: z.string().min(1, 'Treatment date is required'),
   facilitator_doctor_name: z.string().min(1, 'Facilitator/Doctor name is required'),
   
   // Consent Sections (all required - checkboxes)

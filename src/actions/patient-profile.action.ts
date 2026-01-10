@@ -351,14 +351,12 @@ export const getPatientProfile = authActionClient
       'not_started'
     
     // Check if service agreement is actually completed by patient (signature fields filled)
+    // Match the patient-tasks check: only require essential signature fields (name, date, data)
+    // patient_signature_first_name and patient_signature_last_name are optional for completion check
     const serviceAgreementStatus: 'completed' | 'not_started' = 
       (serviceAgreement && 
        serviceAgreement.patient_signature_name && 
        serviceAgreement.patient_signature_name.trim() !== '' &&
-       serviceAgreement.patient_signature_first_name && 
-       serviceAgreement.patient_signature_first_name.trim() !== '' &&
-       serviceAgreement.patient_signature_last_name && 
-       serviceAgreement.patient_signature_last_name.trim() !== '' &&
        serviceAgreement.patient_signature_date &&
        serviceAgreement.patient_signature_data &&
        serviceAgreement.patient_signature_data.trim() !== '') ? 'completed' : 
@@ -741,7 +739,7 @@ export const activateIbogaineConsent = authActionClient
     // Get form data first to get patient email and check admin fields
     const { data: formData } = await adminClient
       .from('ibogaine_consent_forms')
-      .select('email, first_name, last_name, treatment_date, facilitator_doctor_name, date_of_birth, address')
+      .select('email, first_name, last_name, facilitator_doctor_name, date_of_birth, address')
       .eq('id', parsedInput.formId)
       .single()
 
@@ -766,7 +764,7 @@ export const activateIbogaineConsent = authActionClient
       if (!isValid) {
         return { 
           success: false, 
-          error: 'Cannot activate form. Please fill in all required admin fields (treatment date, facilitator name, date of birth, and address) before activating. All text fields must be non-empty. Patient signature fields will be filled by the patient after activation.' 
+          error: 'Cannot activate form. Please fill in all required admin fields (date of birth, and address) before activating. All text fields must be non-empty. Facilitator/Doctor name comes from defaults table. Patient signature fields will be filled by the patient after activation.' 
         }
       }
     }

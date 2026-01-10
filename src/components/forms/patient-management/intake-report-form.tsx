@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { 
   submitIntakeReport,
-  updateIntakeReport
+  updateIntakeReport,
+  getCurrentStaffMemberName
 } from '@/actions/patient-management.action'
 import { 
   intakeReportSchema, 
@@ -79,6 +80,182 @@ export function IntakeReportForm({
       team_awareness: initialData?.team_awareness || '',
     },
   })
+
+  // Autofill staff member name on mount if not already set
+  useEffect(() => {
+    async function loadStaffMemberName() {
+      // Only autofill if the field is empty (not from initialData and not already set)
+      // Check if initialData has a non-empty value
+      const hasInitialValue = initialData?.staff_member_completing_form && 
+        initialData.staff_member_completing_form.trim() !== ''
+      
+      // Also check current form value in case it was set elsewhere
+      const currentValue = form.getValues('staff_member_completing_form')
+      const hasCurrentValue = currentValue && currentValue.trim() !== ''
+      
+      // Only autofill if neither initialData nor current form has a value
+      if (!hasInitialValue && !hasCurrentValue) {
+        try {
+          const result = await getCurrentStaffMemberName({})
+          if (result?.data?.success && result.data.data?.fullName) {
+            form.setValue('staff_member_completing_form', result.data.data.fullName, {
+              shouldValidate: false,
+              shouldDirty: false
+            })
+          }
+        } catch (error) {
+          console.error('Error loading staff member name:', error)
+          // Silently fail - don't show error to user, just leave field empty
+        }
+      }
+    }
+
+    loadStaffMemberName()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run once on mount - form and initialData are stable references
+
+  // Inject slider styles with different colors for different ranges
+  useEffect(() => {
+    const styleId = 'energy-level-slider-styles'
+    if (document.getElementById(styleId)) return // Styles already injected
+
+    const style = document.createElement('style')
+    style.id = styleId
+    style.textContent = `
+      /* Red slider (1-3) */
+      .energy-level-slider-red::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(239, 68, 68);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-red::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+      }
+      .energy-level-slider-red::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(239, 68, 68);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-red::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+      }
+      
+      /* Orange slider (4-6) */
+      .energy-level-slider-orange::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(249, 115, 22);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-orange::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(249, 115, 22, 0.4);
+      }
+      .energy-level-slider-orange::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(249, 115, 22);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-orange::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(249, 115, 22, 0.4);
+      }
+      
+      /* Green slider (7-10) */
+      .energy-level-slider-green::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(16, 185, 129);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-green::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+      }
+      .energy-level-slider-green::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(16, 185, 129);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-green::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+      }
+      
+      /* Gray slider (no value) */
+      .energy-level-slider-gray::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(156, 163, 175);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-gray::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+      }
+      .energy-level-slider-gray::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(156, 163, 175);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-gray::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+      }
+    `
+    document.head.appendChild(style)
+
+    return () => {
+      // Cleanup on unmount
+      const existingStyle = document.getElementById(styleId)
+      if (existingStyle) {
+        existingStyle.remove()
+      }
+    }
+  }, [])
 
   async function onSubmit(data: IntakeReportInput) {
     setIsSubmitting(true)
@@ -309,14 +486,59 @@ export function IntakeReportForm({
         
         <div>
           <Label htmlFor="energy_level">What is your current energy level from 1 to 10?</Label>
-          <Input
-            id="energy_level"
-            type="number"
-            min={1}
-            max={10}
-            {...form.register('energy_level', { valueAsNumber: true })}
-            className="mt-1"
-          />
+          {(() => {
+            const energyValue = form.watch('energy_level') ?? null
+            // Determine color based on value range (1-3: red, 4-6: orange, 7-10: green)
+            const getColorForValue = (value: number | null): { color: string; rgb: string } => {
+              if (value === null || value === undefined) return { color: 'gray', rgb: 'rgb(156, 163, 175)' }
+              if (value >= 1 && value <= 3) return { color: 'red', rgb: 'rgb(239, 68, 68)' }
+              if (value >= 4 && value <= 6) return { color: 'orange', rgb: 'rgb(249, 115, 22)' }
+              if (value >= 7 && value <= 10) return { color: 'green', rgb: 'rgb(16, 185, 129)' }
+              return { color: 'gray', rgb: 'rgb(156, 163, 175)' }
+            }
+            const colorInfo = getColorForValue(energyValue)
+            // Calculate progress percentage (0% at value 1, 100% at value 10)
+            const progressPercent = energyValue ? ((energyValue - 1) * (100 / 9)) : 0
+            const displayColor = energyValue ? colorInfo.color : 'gray'
+            const displayColorClass = displayColor === 'red' ? 'text-red-600' : 
+                                     displayColor === 'orange' ? 'text-orange-600' : 
+                                     displayColor === 'green' ? 'text-emerald-600' : 'text-gray-600'
+            
+            return (
+              <div className="mt-2 space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-sm text-gray-500 font-medium">1</span>
+                  <div className={`flex items-baseline gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200`}>
+                    <span className={`text-2xl font-bold ${displayColorClass} min-w-[2.5rem] text-center`}>
+                      {energyValue || '--'}
+                    </span>
+                    <span className="text-sm text-gray-500">/ 10</span>
+                  </div>
+                  <span className="text-sm text-gray-500 font-medium">10</span>
+                </div>
+                <div className="relative px-1">
+                  <input
+                    id="energy_level"
+                    type="range"
+                    min={1}
+                    max={10}
+                    step={1}
+                    {...form.register('energy_level', { 
+                      valueAsNumber: true
+                    })}
+                    className={`energy-level-slider energy-level-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer`}
+                    style={{
+                      background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 px-1">
+                  <span>Low Energy</span>
+                  <span>High Energy</span>
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         <div>

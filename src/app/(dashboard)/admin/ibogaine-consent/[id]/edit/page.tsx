@@ -16,8 +16,7 @@ import {
 } from '@/actions/admin-form-edit.action'
 
 const adminIbogaineConsentSchema = z.object({
-  treatment_date: z.string().min(1, 'Treatment date is required'),
-  facilitator_doctor_name: z.string().min(1, 'Facilitator/Doctor name is required'),
+  // facilitator_doctor_name comes from defaults table, not editable here
   date_of_birth: z.string().min(1, 'Date of birth is required'),
   address: z.string().min(1, 'Address is required'),
 })
@@ -32,6 +31,7 @@ export default function AdminIbogaineConsentEditPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [formData, setFormData] = useState<any>(null)
+  const [facilitatorDoctorName, setFacilitatorDoctorName] = useState<string | null>(null)
 
   const form = useForm<AdminIbogaineConsentFormValues>({
     resolver: zodResolver(adminIbogaineConsentSchema),
@@ -60,10 +60,11 @@ export default function AdminIbogaineConsentEditPage() {
       const data = result.data.data
       setFormData(data)
       
-      // Format values for form
+      // Get facilitator name from defaults (included in response)
+      setFacilitatorDoctorName(data.facilitator_doctor_name_from_defaults || 'Iboga Wellness Institute')
+      
+      // Format values for form (facilitator_doctor_name not included - comes from defaults)
       form.reset({
-        treatment_date: data.treatment_date ? new Date(data.treatment_date).toISOString().split('T')[0] : '',
-        facilitator_doctor_name: data.facilitator_doctor_name || '',
         date_of_birth: data.date_of_birth ? new Date(data.date_of_birth).toISOString().split('T')[0] : '',
         address: data.address || '',
       })
@@ -132,39 +133,22 @@ export default function AdminIbogaineConsentEditPage() {
         <div className="space-y-6">
           <h2 className="text-2xl font-semibold text-gray-900">Admin Fields</h2>
           
+          {/* Display Facilitator/Doctor Name from defaults (read-only) */}
+          {facilitatorDoctorName && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <Label className="text-base font-medium text-gray-900 mb-2 block">
+                Facilitator/Doctor Name (from defaults)
+              </Label>
+              <div className="h-12 px-4 py-2 border border-blue-300 rounded-md bg-white flex items-center text-gray-900">
+                {facilitatorDoctorName}
+              </div>
+              <p className="text-xs text-gray-600 mt-2">
+                This value comes from the form defaults table and cannot be edited here.
+              </p>
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="treatment_date" className="text-base font-medium">
-                Treatment Date <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="treatment_date"
-                type="date"
-                {...form.register('treatment_date')}
-                className={`h-12 ${form.formState.errors.treatment_date ? 'border-red-500' : ''}`}
-              />
-              {form.formState.errors.treatment_date && (
-                <p className="text-sm text-red-500 mt-1">
-                  {form.formState.errors.treatment_date.message}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="facilitator_doctor_name" className="text-base font-medium">
-                Facilitator/Doctor Name <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="facilitator_doctor_name"
-                {...form.register('facilitator_doctor_name')}
-                className={`h-12 ${form.formState.errors.facilitator_doctor_name ? 'border-red-500' : ''}`}
-              />
-              {form.formState.errors.facilitator_doctor_name && (
-                <p className="text-sm text-red-500 mt-1">
-                  {form.formState.errors.facilitator_doctor_name.message}
-                </p>
-              )}
-            </div>
 
             <div>
               <Label htmlFor="date_of_birth" className="text-base font-medium">

@@ -6,8 +6,6 @@ import {
   getPatientManagement, 
   getDailyFormsByManagementId 
 } from '@/actions/patient-management.action'
-import { DailyPsychologicalUpdateForm } from '@/components/forms/patient-management/daily-psychological-update-form'
-import { DailyMedicalUpdateForm } from '@/components/forms/patient-management/daily-medical-update-form'
 import { Button } from '@/components/ui/button'
 import { 
   Loader2, 
@@ -21,7 +19,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -39,53 +37,6 @@ interface DailyForm {
   is_completed: boolean
   started_at: string | null
   submitted_at: string | null
-  started_by: string | null
-  filled_by: string | null
-  // Daily Psychological Update fields
-  guest_first_name?: string
-  guest_last_name?: string
-  time?: string
-  emotional_state_today?: string
-  emotional_shifts_since_last_report?: string | null
-  vivid_dreams_resurfacing_memories?: string | null
-  feeling_connected_to_emotions?: string | null
-  changes_memory_focus_concentration?: string | null
-  feeling_present_aware?: string | null
-  discomfort_side_effects?: string | null
-  energy_level?: number | null
-  experiencing_tremors_muscle_stiffness?: string | null
-  motor_function_details?: string | null
-  how_guest_looks_physically?: string
-  how_guest_describes_feeling?: string
-  additional_notes_observations?: string
-  // Daily Medical Update fields
-  patient_first_name?: string
-  patient_last_name?: string
-  checked_vitals?: boolean
-  did_they_feel_hungry?: string | null
-  using_bathroom_normally?: string | null
-  hydrating?: string | null
-  experiencing_tremors_motor_function?: string | null
-  withdrawal_symptoms?: string | null
-  how_guest_looks?: string | null
-  how_guest_says_they_feel?: string | null
-  morning_vital_signs?: string | null
-  morning_symptoms?: string | null
-  morning_evolution?: string | null
-  afternoon_vital_signs?: string | null
-  afternoon_symptoms?: string | null
-  afternoon_evolution?: string | null
-  night_vital_signs?: string | null
-  night_symptoms?: string | null
-  night_evolution?: string | null
-  ibogaine_dose_time?: string | null
-  medication_schedule?: string | null
-  solutions_iv_saline_nadh?: string | null
-  medical_indications?: string | null
-  additional_observations_notes?: string | null
-  photo_of_vitals_medical_notes_url?: string | null
-  signature_data?: string | null
-  signature_date?: string | null
 }
 
 export default function DailyFormsPage() {
@@ -96,21 +47,9 @@ export default function DailyFormsPage() {
   const [management, setManagement] = useState<PatientManagementData | null>(null)
   const [psychologicalForms, setPsychologicalForms] = useState<DailyForm[]>([])
   const [medicalForms, setMedicalForms] = useState<DailyForm[]>([])
-
-  // Helper function to convert null to undefined for form initialData
-  const convertNullToUndefined = (obj: DailyForm | undefined): any => {
-    if (!obj) return undefined
-    const result: any = {}
-    for (const key in obj) {
-      const value = obj[key as keyof DailyForm]
-      result[key] = value === null ? undefined : value
-    }
-    return result
-  }
   const [isLoading, setIsLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
   const [selectedFormType, setSelectedFormType] = useState<'psychological' | 'medical' | null>(null)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [showDatePicker, setShowDatePicker] = useState(false)
 
   useEffect(() => {
@@ -143,11 +82,10 @@ export default function DailyFormsPage() {
 
   function handleOpenForm(type: 'psychological' | 'medical', date?: string) {
     if (date) {
-      setSelectedDate(date)
-      setSelectedFormType(type)
-      setIsDialogOpen(true)
+      // Navigate to the form page with date as query parameter
+      router.push(`/patient-management/${managementId}/daily-forms/${type}?date=${date}`)
     } else {
-      // Show date picker
+      // Show date picker dialog first
       setSelectedFormType(type)
       setShowDatePicker(true)
     }
@@ -156,14 +94,9 @@ export default function DailyFormsPage() {
   function handleDateSelected() {
     if (selectedDate && selectedFormType) {
       setShowDatePicker(false)
-      setIsDialogOpen(true)
+      // Navigate to the form page with selected date
+      router.push(`/patient-management/${managementId}/daily-forms/${selectedFormType}?date=${selectedDate}`)
     }
-  }
-
-  function handleCloseDialog() {
-    setIsDialogOpen(false)
-    setSelectedFormType(null)
-    loadData() // Reload to refresh form statuses
   }
 
   function getFormForDate(forms: DailyForm[], date: string) {
@@ -463,45 +396,13 @@ export default function DailyFormsPage() {
         </div>
       </div>
 
-      {/* Form Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedFormType === 'psychological' ? 'Daily Psychological Update' : 'Daily Medical Update'} - {format(new Date(selectedDate), 'MMMM dd, yyyy')}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedFormType === 'psychological' && management && (
-            <DailyPsychologicalUpdateForm
-              managementId={managementId}
-              patientFirstName={management.first_name}
-              patientLastName={management.last_name}
-              formDate={selectedDate}
-              programType={management.program_type}
-              isCompleted={getFormForDate(psychologicalForms, selectedDate)?.is_completed}
-              isStarted={!!getFormForDate(psychologicalForms, selectedDate)}
-              initialData={convertNullToUndefined(getFormForDate(psychologicalForms, selectedDate))}
-              onSuccess={handleCloseDialog}
-            />
-          )}
-          {selectedFormType === 'medical' && management && (
-            <DailyMedicalUpdateForm
-              managementId={managementId}
-              patientFirstName={management.first_name}
-              patientLastName={management.last_name}
-              formDate={selectedDate}
-              programType={management.program_type}
-              isCompleted={getFormForDate(medicalForms, selectedDate)?.is_completed}
-              isStarted={!!getFormForDate(medicalForms, selectedDate)}
-              initialData={convertNullToUndefined(getFormForDate(medicalForms, selectedDate))}
-              onSuccess={handleCloseDialog}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
       {/* Date Selection Dialog */}
-      <Dialog open={showDatePicker} onOpenChange={setShowDatePicker}>
+      <Dialog open={showDatePicker} onOpenChange={(open) => {
+        setShowDatePicker(open)
+        if (!open) {
+          setSelectedFormType(null)
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -522,7 +423,7 @@ export default function DailyFormsPage() {
             <Button
               onClick={handleDateSelected}
               className="w-full"
-              disabled={!selectedDate}
+              disabled={!selectedDate || !selectedFormType}
             >
               Open Form
             </Button>

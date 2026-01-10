@@ -442,8 +442,8 @@ export default function PatientProfilePage() {
         const data = result.data.data
         const missingFields: string[] = []
         
-        if (!data.treatment_date) missingFields.push('Treatment Date')
-        if (!data.facilitator_doctor_name || data.facilitator_doctor_name.trim() === '') missingFields.push('Facilitator/Doctor Name')
+        // treatment_date has been completely removed from the form
+        // facilitator_doctor_name comes from defaults table, not required from form
         if (!data.date_of_birth) missingFields.push('Date of Birth')
         if (!data.address || data.address.trim() === '') missingFields.push('Address')
         
@@ -2443,8 +2443,6 @@ function ActivationFormFields({
     provider_signature_name?: string
     provider_signature_date?: string
     number_of_days?: string
-    treatment_date?: string
-    facilitator_doctor_name?: string
     date_of_birth?: string
     address?: string
   }>(() => {
@@ -2460,8 +2458,7 @@ function ActivationFormFields({
       }
     } else {
       return {
-        treatment_date: initialData?.treatment_date ? new Date(initialData.treatment_date).toISOString().split('T')[0] : '',
-        facilitator_doctor_name: initialData?.facilitator_doctor_name || '',
+        // facilitator_doctor_name comes from defaults table, not editable here
         date_of_birth: initialData?.date_of_birth ? new Date(initialData.date_of_birth).toISOString().split('T')[0] : '',
         address: initialData?.address || '',
       }
@@ -2636,28 +2633,25 @@ function ActivationFormFields({
       </form>
     )
   } else {
+    // Get facilitator name from defaults (included in initialData)
+    const facilitatorDoctorName = initialData?.facilitator_doctor_name_from_defaults || 'Iboga Wellness Institute'
+    
     return (
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Display Facilitator/Doctor Name from defaults (read-only) */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <Label className="text-base font-medium text-gray-900 mb-2 block">
+            Facilitator/Doctor Name (from defaults)
+          </Label>
+          <div className="h-12 px-4 py-2 border border-blue-300 rounded-md bg-white flex items-center text-gray-900">
+            {facilitatorDoctorName}
+          </div>
+          <p className="text-xs text-gray-600 mt-2">
+            This value comes from the form defaults table and cannot be edited here.
+          </p>
+        </div>
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="treatment_date">Treatment Date *</Label>
-            <Input
-              id="treatment_date"
-              type="date"
-              value={formData.treatment_date || ''}
-              onChange={(e) => setFormData({ ...formData, treatment_date: e.target.value })}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="facilitator_doctor_name">Facilitator/Doctor Name *</Label>
-            <Input
-              id="facilitator_doctor_name"
-              value={formData.facilitator_doctor_name || ''}
-              onChange={(e) => setFormData({ ...formData, facilitator_doctor_name: e.target.value })}
-              required
-            />
-          </div>
           <div>
             <Label htmlFor="date_of_birth">Date of Birth *</Label>
             <Input

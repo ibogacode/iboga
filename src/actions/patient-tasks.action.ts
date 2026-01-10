@@ -481,30 +481,41 @@ export const getPatientTasks = authActionClient
     if (serviceAgreement) {
       if (serviceAgreement.is_activated) {
         // Check if patient signature fields are filled to determine if completed (portal flow)
-        // Use admin client to also check is_completed flag
-        const { data: fullServiceAgreement } = await adminClient
+        // Fetch full service agreement data to check completion status
+        // Use same query structure as admin view (patient-profile.action.ts) for consistency
+        const { data: fullServiceAgreement, error: fetchError } = await adminClient
           .from('service_agreements')
-          .select('patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data, is_completed')
+          .select('patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
           .eq('id', serviceAgreement.id)
-          .single()
+          .maybeSingle()
 
-        const isPatientSignatureComplete = fullServiceAgreement &&
-          fullServiceAgreement.patient_signature_name &&
-          fullServiceAgreement.patient_signature_name.trim() !== '' &&
-          fullServiceAgreement.patient_signature_first_name &&
-          fullServiceAgreement.patient_signature_first_name.trim() !== '' &&
-          fullServiceAgreement.patient_signature_last_name &&
-          fullServiceAgreement.patient_signature_last_name.trim() !== '' &&
-          fullServiceAgreement.patient_signature_date &&
-          fullServiceAgreement.patient_signature_data && // Signature data/image should also be present
-          fullServiceAgreement.patient_signature_data.trim() !== ''
+        // If error fetching, log and continue (form might still exist, check later)
+        if (fetchError) {
+          console.error('[getPatientTasks] Error fetching service agreement:', fetchError.message)
+        }
 
-        // Check if form is marked as completed (could be from admin upload, but form exists so prioritize patient view)
-        const isCompletedByAdmin = fullServiceAgreement?.is_completed === true
+        // Form is considered completed if it has the essential signature fields
+        // Match the admin view check logic from patient-profile.action.ts (lines 356-362)
+        // Essential fields: patient_signature_name, patient_signature_date, and patient_signature_data
+        // Note: This matches the simplified admin check - only requires name, date, and data (not first_name/last_name)
+        const hasSignatureName = fullServiceAgreement?.patient_signature_name && 
+          typeof fullServiceAgreement.patient_signature_name === 'string' &&
+          fullServiceAgreement.patient_signature_name.trim() !== ''
+        const hasSignatureDate = fullServiceAgreement?.patient_signature_date !== null && 
+          fullServiceAgreement?.patient_signature_date !== undefined &&
+          fullServiceAgreement?.patient_signature_date !== ''
+        const hasSignatureData = fullServiceAgreement?.patient_signature_data &&
+          typeof fullServiceAgreement.patient_signature_data === 'string' &&
+          fullServiceAgreement.patient_signature_data.trim() !== '' &&
+          fullServiceAgreement.patient_signature_data.length > 0
+        
+        // Form is complete if it has signature name, date, and signature data (exact match with admin view check)
+        const isPatientSignatureComplete = Boolean(hasSignatureName && hasSignatureDate && hasSignatureData)
         
         // If patient is in onboarding, forms should be considered completed if they exist
         // (onboarding only happens after completing all 4 initial forms)
-        const shouldConsiderCompleted = isPatientSignatureComplete || isCompletedByAdmin || isInOnboarding
+        // Note: service_agreements table doesn't have is_completed column - completion is determined by signature fields
+        const shouldConsiderCompleted = isPatientSignatureComplete || isInOnboarding
 
         tasks.push({
           id: `service-${serviceAgreement.id}`,

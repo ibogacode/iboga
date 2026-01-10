@@ -270,8 +270,8 @@ export const dailyPsychologicalUpdateSchema = z.object({
   motor_function_details: stringOptional,
 
   // 3. Staff Observations
-  how_guest_looks_physically: z.string().min(1, 'This field is required'),
-  how_guest_describes_feeling: z.string().min(1, 'This field is required'),
+  how_guest_looks_physically: z.number().min(1, 'Rating must be at least 1').max(10, 'Rating must be between 1 and 10'),
+  how_guest_describes_feeling: z.number().min(1, 'Rating must be at least 1').max(10, 'Rating must be between 1 and 10'),
   additional_notes_observations: z.string().min(1, 'This field is required'),
 })
 
@@ -299,6 +299,9 @@ export const dailyMedicalUpdateSchema = z.object({
 
   // Checked Vitals
   checked_vitals: z.boolean().default(false),
+  checked_blood_pressure: z.boolean().default(false),
+  checked_heart_rate: z.boolean().default(false),
+  checked_oxygen_saturation: z.boolean().default(false),
   did_they_feel_hungry: stringOptional,
   using_bathroom_normally: stringOptional,
   hydrating: stringOptional,
@@ -309,29 +312,64 @@ export const dailyMedicalUpdateSchema = z.object({
   how_guest_says_they_feel: stringOptional,
 
   // Patient Observations (Morning, Afternoon, Night)
-  morning_vital_signs: stringOptional,
+  // Client Presence
+  morning_client_present: z.boolean().default(true),
+  afternoon_client_present: z.boolean().default(true),
+  night_client_present: z.boolean().default(true),
+  
+  // Detailed Vital Signs
+  morning_blood_pressure: stringOptional,
+  morning_heart_rate: z.number().min(30).max(200).optional().nullable(),
+  morning_oxygen_saturation: z.number().min(0).max(100).optional().nullable(),
+  morning_vital_signs: stringOptional, // Keep for backward compatibility
   morning_symptoms: stringOptional,
   morning_evolution: stringOptional,
-  afternoon_vital_signs: stringOptional,
+  
+  afternoon_blood_pressure: stringOptional,
+  afternoon_heart_rate: z.number().min(30).max(200).optional().nullable(),
+  afternoon_oxygen_saturation: z.number().min(0).max(100).optional().nullable(),
+  afternoon_vital_signs: stringOptional, // Keep for backward compatibility
   afternoon_symptoms: stringOptional,
   afternoon_evolution: stringOptional,
-  night_vital_signs: stringOptional,
+  
+  night_blood_pressure: stringOptional,
+  night_heart_rate: z.number().min(30).max(200).optional().nullable(),
+  night_oxygen_saturation: z.number().min(0).max(100).optional().nullable(),
+  night_vital_signs: stringOptional, // Keep for backward compatibility
   night_symptoms: stringOptional,
   night_evolution: stringOptional,
 
   // Medication & Treatment
-  ibogaine_dose_time: stringOptional,
+  ibogaine_doses: z.array(z.object({
+    dose: z.number().min(0, 'Dose must be 0 or greater'),
+    time: z.string().min(1, 'Time is required'),
+  })).optional().nullable(),
+  ibogaine_frequency: z.enum(['once', 'twice']).optional().nullable(), // Keep for backward compatibility
+  ibogaine_dose: z.number().min(0).optional().nullable(), // Keep for backward compatibility
+  ibogaine_time: stringOptional, // Keep for backward compatibility
+  ibogaine_dose_time: stringOptional, // Keep for backward compatibility
   medication_schedule: stringOptional,
   solutions_iv_saline_nadh: stringOptional,
   medical_indications: stringOptional,
   additional_observations_notes: stringOptional,
 
-  // File upload
-  photo_of_vitals_medical_notes_url: stringOptional,
+  // File upload - Multiple files support
+  vitals_photos: z.array(z.object({
+    url: z.string().url(),
+    fileName: z.string(),
+    fileType: z.string(),
+  })).optional().nullable(),
+  photo_of_vitals_medical_notes_url: stringOptional, // Keep for backward compatibility
 
   // Signature
   signature_data: stringOptional,
   signature_date: isoDateOptional,
+
+  // Submission tracking
+  submitted_by_name: stringOptional,
+  morning_inspected_by: stringOptional,
+  afternoon_inspected_by: stringOptional,
+  night_inspected_by: stringOptional,
 })
 
 export const dailyMedicalUpdateAdminSchema = dailyMedicalUpdateSchema.partial().extend({

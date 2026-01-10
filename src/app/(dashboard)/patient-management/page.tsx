@@ -283,9 +283,6 @@ export default function PatientManagementPage() {
                       Status
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      One-Time Forms
-                    </th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Arrival Date
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -326,30 +323,6 @@ export default function PatientManagementPage() {
                           </span>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div className="w-24 bg-gray-200 rounded-full h-2">
-                              <div 
-                                className={`h-2 rounded-full transition-all ${
-                                  allOneTimeFormsCompleted ? 'bg-emerald-500' : 'bg-amber-500'
-                                }`}
-                                style={{ width: `${(oneTimeFormsCompleted / oneTimeFormsTotal) * 100}%` }}
-                              />
-                            </div>
-                            <span className={`text-xs sm:text-sm font-medium ${
-                              allOneTimeFormsCompleted ? 'text-emerald-600' : 'text-amber-600'
-                            }`}>
-                              {oneTimeFormsCompleted}/{oneTimeFormsTotal}
-                            </span>
-                          </div>
-                          {patient.program_type === 'neurological' && (
-                            <div className="mt-1 text-[10px] text-gray-500">
-                              {patient.intake_report_completed && <CheckCircle2 className="h-3 w-3 inline mr-1 text-emerald-500" />}
-                              {patient.parkinsons_psychological_report_completed && <CheckCircle2 className="h-3 w-3 inline mr-1 text-emerald-500" />}
-                              {patient.parkinsons_mortality_scales_completed && <CheckCircle2 className="h-3 w-3 inline mr-1 text-emerald-500" />}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <div className="text-xs sm:text-sm text-gray-500">
                             {formatDate(patient.arrival_date)}
                           </div>
@@ -372,7 +345,9 @@ export default function PatientManagementPage() {
                               className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
                             >
                               <FileText className="h-4 w-4 mr-1" />
-                              <span className="hidden sm:inline">One-Time Forms</span>
+                              <span className="hidden sm:inline">
+                                {allOneTimeFormsCompleted ? 'One-Time Forms: done' : 'One-Time Forms'}
+                              </span>
                             </Button>
                             {patient.status === 'active' && (
                               <Button

@@ -72,8 +72,8 @@ export function DailyPsychologicalUpdateForm({
       energy_level: initialData?.energy_level || 5,
       experiencing_tremors_muscle_stiffness: initialData?.experiencing_tremors_muscle_stiffness || '',
       motor_function_details: initialData?.motor_function_details || '',
-      how_guest_looks_physically: initialData?.how_guest_looks_physically || '',
-      how_guest_describes_feeling: initialData?.how_guest_describes_feeling || '',
+      how_guest_looks_physically: typeof initialData?.how_guest_looks_physically === 'number' ? initialData.how_guest_looks_physically : (initialData?.how_guest_looks_physically ? parseInt(String(initialData.how_guest_looks_physically), 10) || 5 : 5),
+      how_guest_describes_feeling: typeof initialData?.how_guest_describes_feeling === 'number' ? initialData.how_guest_describes_feeling : (initialData?.how_guest_describes_feeling ? parseInt(String(initialData.how_guest_describes_feeling), 10) || 5 : 5),
       additional_notes_observations: initialData?.additional_notes_observations || '',
     },
   })
@@ -98,13 +98,303 @@ export function DailyPsychologicalUpdateForm({
         energy_level: initialData.energy_level || 5,
         experiencing_tremors_muscle_stiffness: initialData.experiencing_tremors_muscle_stiffness || '',
         motor_function_details: initialData.motor_function_details || '',
-        how_guest_looks_physically: initialData.how_guest_looks_physically || '',
-        how_guest_describes_feeling: initialData.how_guest_describes_feeling || '',
+        how_guest_looks_physically: typeof initialData.how_guest_looks_physically === 'number' ? initialData.how_guest_looks_physically : (initialData.how_guest_looks_physically ? parseInt(String(initialData.how_guest_looks_physically), 10) || 5 : 5),
+        how_guest_describes_feeling: typeof initialData.how_guest_describes_feeling === 'number' ? initialData.how_guest_describes_feeling : (initialData.how_guest_describes_feeling ? parseInt(String(initialData.how_guest_describes_feeling), 10) || 5 : 5),
         additional_notes_observations: initialData.additional_notes_observations || '',
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialData?.id, isStarted])
+
+  // Inject slider styles for all three sliders
+  useEffect(() => {
+    const styleId = 'daily-psychological-slider-styles'
+    if (document.getElementById(styleId)) return // Styles already injected
+
+    const style = document.createElement('style')
+    style.id = styleId
+    style.textContent = `
+      /* Energy Level Slider */
+      .energy-level-slider-red::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(239, 68, 68);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-red::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+      }
+      .energy-level-slider-red::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(239, 68, 68);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-red::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+      }
+      .energy-level-slider-orange::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(249, 115, 22);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-orange::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(249, 115, 22, 0.4);
+      }
+      .energy-level-slider-orange::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(249, 115, 22);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-orange::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(249, 115, 22, 0.4);
+      }
+      .energy-level-slider-green::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(16, 185, 129);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-green::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+      }
+      .energy-level-slider-green::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(16, 185, 129);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-green::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+      }
+      .energy-level-slider-gray::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(156, 163, 175);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-gray::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(156, 163, 175);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s ease;
+      }
+      
+      /* Guest Looks Slider */
+      .guest-looks-slider-red::-webkit-slider-thumb,
+      .guest-looks-slider-orange::-webkit-slider-thumb,
+      .guest-looks-slider-green::-webkit-slider-thumb,
+      .guest-looks-slider-gray::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        transition: all 0.2s ease;
+      }
+      .guest-looks-slider-red::-webkit-slider-thumb {
+        background: rgb(239, 68, 68);
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+      }
+      .guest-looks-slider-red::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+      }
+      .guest-looks-slider-orange::-webkit-slider-thumb {
+        background: rgb(249, 115, 22);
+        box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);
+      }
+      .guest-looks-slider-orange::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(249, 115, 22, 0.4);
+      }
+      .guest-looks-slider-green::-webkit-slider-thumb {
+        background: rgb(16, 185, 129);
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+      }
+      .guest-looks-slider-green::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+      }
+      .guest-looks-slider-gray::-webkit-slider-thumb {
+        background: rgb(156, 163, 175);
+      }
+      .guest-looks-slider-red::-moz-range-thumb,
+      .guest-looks-slider-orange::-moz-range-thumb,
+      .guest-looks-slider-green::-moz-range-thumb,
+      .guest-looks-slider-gray::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        transition: all 0.2s ease;
+      }
+      .guest-looks-slider-red::-moz-range-thumb {
+        background: rgb(239, 68, 68);
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+      }
+      .guest-looks-slider-red::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+      }
+      .guest-looks-slider-orange::-moz-range-thumb {
+        background: rgb(249, 115, 22);
+        box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);
+      }
+      .guest-looks-slider-orange::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(249, 115, 22, 0.4);
+      }
+      .guest-looks-slider-green::-moz-range-thumb {
+        background: rgb(16, 185, 129);
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+      }
+      .guest-looks-slider-green::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+      }
+      .guest-looks-slider-gray::-moz-range-thumb {
+        background: rgb(156, 163, 175);
+      }
+      
+      /* Guest Feeling Slider */
+      .guest-feeling-slider-red::-webkit-slider-thumb,
+      .guest-feeling-slider-orange::-webkit-slider-thumb,
+      .guest-feeling-slider-green::-webkit-slider-thumb,
+      .guest-feeling-slider-gray::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        transition: all 0.2s ease;
+      }
+      .guest-feeling-slider-red::-webkit-slider-thumb {
+        background: rgb(239, 68, 68);
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+      }
+      .guest-feeling-slider-red::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+      }
+      .guest-feeling-slider-orange::-webkit-slider-thumb {
+        background: rgb(249, 115, 22);
+        box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);
+      }
+      .guest-feeling-slider-orange::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(249, 115, 22, 0.4);
+      }
+      .guest-feeling-slider-green::-webkit-slider-thumb {
+        background: rgb(16, 185, 129);
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+      }
+      .guest-feeling-slider-green::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+      }
+      .guest-feeling-slider-gray::-webkit-slider-thumb {
+        background: rgb(156, 163, 175);
+      }
+      .guest-feeling-slider-red::-moz-range-thumb,
+      .guest-feeling-slider-orange::-moz-range-thumb,
+      .guest-feeling-slider-green::-moz-range-thumb,
+      .guest-feeling-slider-gray::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        transition: all 0.2s ease;
+      }
+      .guest-feeling-slider-red::-moz-range-thumb {
+        background: rgb(239, 68, 68);
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+      }
+      .guest-feeling-slider-red::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+      }
+      .guest-feeling-slider-orange::-moz-range-thumb {
+        background: rgb(249, 115, 22);
+        box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);
+      }
+      .guest-feeling-slider-orange::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(249, 115, 22, 0.4);
+      }
+      .guest-feeling-slider-green::-moz-range-thumb {
+        background: rgb(16, 185, 129);
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+      }
+      .guest-feeling-slider-green::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+      }
+      .guest-feeling-slider-gray::-moz-range-thumb {
+        background: rgb(156, 163, 175);
+      }
+    `
+    document.head.appendChild(style)
+
+    return () => {
+      const existingStyle = document.getElementById(styleId)
+      if (existingStyle) {
+        existingStyle.remove()
+      }
+    }
+  }, [])
 
   async function handleStartReport() {
     setIsStarting(true)
@@ -318,16 +608,58 @@ export function DailyPsychologicalUpdateForm({
 
         <div>
           <Label htmlFor="energy_level">Energy level (1–10) *</Label>
-          <Input
-            id="energy_level"
-            type="number"
-            min={1}
-            max={10}
-            {...form.register('energy_level', { valueAsNumber: true })}
-            disabled={isCompleted}
-            className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
-            aria-invalid={!!form.formState.errors.energy_level}
-          />
+          {(() => {
+            const energyValue = form.watch('energy_level') ?? null
+            const getColorForValue = (value: number | null): { color: string; rgb: string } => {
+              if (!value) return { color: 'gray', rgb: 'rgb(156, 163, 175)' }
+              if (value >= 1 && value <= 3) return { color: 'red', rgb: 'rgb(239, 68, 68)' }
+              if (value >= 4 && value <= 6) return { color: 'orange', rgb: 'rgb(249, 115, 22)' }
+              if (value >= 7 && value <= 10) return { color: 'green', rgb: 'rgb(16, 185, 129)' }
+              return { color: 'gray', rgb: 'rgb(156, 163, 175)' }
+            }
+            const colorInfo = getColorForValue(energyValue)
+            const progressPercent = energyValue ? ((energyValue - 1) * (100 / 9)) : 0
+            const displayColor = energyValue ? colorInfo.color : 'gray'
+            const displayColorClass = displayColor === 'red' ? 'text-red-600' : 
+                                     displayColor === 'orange' ? 'text-orange-600' : 
+                                     displayColor === 'green' ? 'text-emerald-600' : 'text-gray-600'
+            
+            return (
+              <div className="mt-2 space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-sm text-gray-500 font-medium">1</span>
+                  <div className="flex items-baseline gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <span className={`text-2xl font-bold ${displayColorClass} min-w-[2.5rem] text-center`}>
+                      {energyValue || '--'}
+                    </span>
+                    <span className="text-sm text-gray-500">/ 10</span>
+                  </div>
+                  <span className="text-sm text-gray-500 font-medium">10</span>
+                </div>
+                <div className="relative px-1">
+                  <input
+                    id="energy_level"
+                    type="range"
+                    min={1}
+                    max={10}
+                    step={1}
+                    {...form.register('energy_level', { 
+                      valueAsNumber: true
+                    })}
+                    disabled={isCompleted}
+                    className={`energy-level-slider energy-level-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    style={{
+                      background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 px-1">
+                  <span>Low Energy</span>
+                  <span>High Energy</span>
+                </div>
+              </div>
+            )
+          })()}
           {form.formState.errors.energy_level && (
             <p className="text-sm text-red-500 mt-1">{form.formState.errors.energy_level.message}</p>
           )}
@@ -368,30 +700,118 @@ export function DailyPsychologicalUpdateForm({
         <h3 className="text-lg font-semibold text-gray-900">3. Staff Observations</h3>
         
         <div>
-          <Label htmlFor="how_guest_looks_physically">How does the guest look physically? *</Label>
-          <Textarea
-            id="how_guest_looks_physically"
-            {...form.register('how_guest_looks_physically')}
-            rows={3}
-            disabled={isCompleted}
-            className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
-            aria-invalid={!!form.formState.errors.how_guest_looks_physically}
-          />
+          <Label htmlFor="how_guest_looks_physically">How does the guest look physically? (1–10) *</Label>
+          {(() => {
+            const looksValue = form.watch('how_guest_looks_physically') ?? null
+            const getColorForValue = (value: number | null): { color: string; rgb: string } => {
+              if (!value) return { color: 'gray', rgb: 'rgb(156, 163, 175)' }
+              if (value >= 1 && value <= 3) return { color: 'red', rgb: 'rgb(239, 68, 68)' }
+              if (value >= 4 && value <= 6) return { color: 'orange', rgb: 'rgb(249, 115, 22)' }
+              if (value >= 7 && value <= 10) return { color: 'green', rgb: 'rgb(16, 185, 129)' }
+              return { color: 'gray', rgb: 'rgb(156, 163, 175)' }
+            }
+            const colorInfo = getColorForValue(looksValue)
+            const progressPercent = looksValue ? ((looksValue - 1) * (100 / 9)) : 0
+            const displayColor = looksValue ? colorInfo.color : 'gray'
+            const displayColorClass = displayColor === 'red' ? 'text-red-600' : 
+                                     displayColor === 'orange' ? 'text-orange-600' : 
+                                     displayColor === 'green' ? 'text-emerald-600' : 'text-gray-600'
+            
+            return (
+              <div className="mt-2 space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-sm text-gray-500 font-medium">1</span>
+                  <div className="flex items-baseline gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <span className={`text-2xl font-bold ${displayColorClass} min-w-[2.5rem] text-center`}>
+                      {looksValue || '--'}
+                    </span>
+                    <span className="text-sm text-gray-500">/ 10</span>
+                  </div>
+                  <span className="text-sm text-gray-500 font-medium">10</span>
+                </div>
+                <div className="relative px-1">
+                  <input
+                    id="how_guest_looks_physically"
+                    type="range"
+                    min={1}
+                    max={10}
+                    step={1}
+                    {...form.register('how_guest_looks_physically', { 
+                      valueAsNumber: true
+                    })}
+                    disabled={isCompleted}
+                    className={`guest-looks-slider guest-looks-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    style={{
+                      background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 px-1">
+                  <span>Poor</span>
+                  <span>Excellent</span>
+                </div>
+              </div>
+            )
+          })()}
           {form.formState.errors.how_guest_looks_physically && (
             <p className="text-sm text-red-500 mt-1">{form.formState.errors.how_guest_looks_physically.message}</p>
           )}
         </div>
 
         <div>
-          <Label htmlFor="how_guest_describes_feeling">How does the guest describe how they feel? *</Label>
-          <Textarea
-            id="how_guest_describes_feeling"
-            {...form.register('how_guest_describes_feeling')}
-            rows={3}
-            disabled={isCompleted}
-            className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
-            aria-invalid={!!form.formState.errors.how_guest_describes_feeling}
-          />
+          <Label htmlFor="how_guest_describes_feeling">How does the guest describe how they feel? (1–10) *</Label>
+          {(() => {
+            const feelingValue = form.watch('how_guest_describes_feeling') ?? null
+            const getColorForValue = (value: number | null): { color: string; rgb: string } => {
+              if (!value) return { color: 'gray', rgb: 'rgb(156, 163, 175)' }
+              if (value >= 1 && value <= 3) return { color: 'red', rgb: 'rgb(239, 68, 68)' }
+              if (value >= 4 && value <= 6) return { color: 'orange', rgb: 'rgb(249, 115, 22)' }
+              if (value >= 7 && value <= 10) return { color: 'green', rgb: 'rgb(16, 185, 129)' }
+              return { color: 'gray', rgb: 'rgb(156, 163, 175)' }
+            }
+            const colorInfo = getColorForValue(feelingValue)
+            const progressPercent = feelingValue ? ((feelingValue - 1) * (100 / 9)) : 0
+            const displayColor = feelingValue ? colorInfo.color : 'gray'
+            const displayColorClass = displayColor === 'red' ? 'text-red-600' : 
+                                     displayColor === 'orange' ? 'text-orange-600' : 
+                                     displayColor === 'green' ? 'text-emerald-600' : 'text-gray-600'
+            
+            return (
+              <div className="mt-2 space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-sm text-gray-500 font-medium">1</span>
+                  <div className="flex items-baseline gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                    <span className={`text-2xl font-bold ${displayColorClass} min-w-[2.5rem] text-center`}>
+                      {feelingValue || '--'}
+                    </span>
+                    <span className="text-sm text-gray-500">/ 10</span>
+                  </div>
+                  <span className="text-sm text-gray-500 font-medium">10</span>
+                </div>
+                <div className="relative px-1">
+                  <input
+                    id="how_guest_describes_feeling"
+                    type="range"
+                    min={1}
+                    max={10}
+                    step={1}
+                    {...form.register('how_guest_describes_feeling', { 
+                      valueAsNumber: true
+                    })}
+                    disabled={isCompleted}
+                    className={`guest-feeling-slider guest-feeling-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    style={{
+                      background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 px-1">
+                  <span>Poor</span>
+                  <span>Excellent</span>
+                </div>
+              </div>
+            )
+          })()}
           {form.formState.errors.how_guest_describes_feeling && (
             <p className="text-sm text-red-500 mt-1">{form.formState.errors.how_guest_describes_feeling.message}</p>
           )}
