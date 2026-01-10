@@ -47,10 +47,14 @@ export const serviceAgreementSchema = z.object({
   
   // Provider Signature
   provider_signature_name: z.string().min(1, 'Provider signature name is required'),
-  provider_signature_first_name: z.string().min(1, 'Provider first name is required'),
-  provider_signature_last_name: z.string().min(1, 'Provider last name is required'),
+  provider_signature_first_name: z.string().optional(),
+  provider_signature_last_name: z.string().optional(),
   provider_signature_date: z.string().min(1, 'Provider signature date is required'),
   provider_signature_data: z.string().optional(),
+  
+  // Program Information
+  program_type: z.enum(['neurological', 'mental_health', 'addiction']).optional(),
+  number_of_days: z.number().int().positive().optional(),
   
   // File Upload
   uploaded_file_url: z.string().optional(),

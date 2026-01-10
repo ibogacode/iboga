@@ -1,7 +1,7 @@
 'use client'
 
 import { format } from 'date-fns'
-import { SERVICE_AGREEMENT_TEXT, ServiceAgreementContent } from '@/components/forms/form-content'
+import { getServiceAgreementText, ServiceAgreementContent } from '@/components/forms/form-content'
 
 interface ServiceAgreement {
   id: string
@@ -22,12 +22,14 @@ interface ServiceAgreement {
   patient_signature_date: string
   patient_signature_data: string | null
   provider_signature_name: string
-  provider_signature_first_name: string
-  provider_signature_last_name: string
+  provider_signature_first_name?: string | null
+  provider_signature_last_name?: string | null
   provider_signature_date: string
   provider_signature_data: string | null
   uploaded_file_url: string | null
   uploaded_file_name: string | null
+  program_type?: 'neurological' | 'mental_health' | 'addiction' | null
+  number_of_days?: number | null
   created_at: string
   updated_at: string
 }
@@ -72,7 +74,16 @@ export function ServiceAgreementFormView({ form }: ServiceAgreementFormViewProps
         <div className="space-y-6 mb-8 print:mb-6 print:break-inside-avoid">
           <div className="bg-gray-50 p-8 rounded-lg print:p-4">
             <div className="prose prose-sm max-w-none">
-              <ServiceAgreementContent text={SERVICE_AGREEMENT_TEXT} />
+              <ServiceAgreementContent 
+                text={getServiceAgreementText({
+                  programType: form.program_type || 'neurological',
+                  totalProgramFee: typeof form.total_program_fee === 'number' ? form.total_program_fee : parseFloat(String(form.total_program_fee).replace(/[^0-9.]/g, '')) || 0,
+                  depositPercentage: typeof form.deposit_percentage === 'number' ? form.deposit_percentage : parseFloat(String(form.deposit_percentage)) || 50,
+                  depositAmount: typeof form.deposit_amount === 'number' ? form.deposit_amount : parseFloat(String(form.deposit_amount).replace(/[^0-9.]/g, '')) || 0,
+                  remainingBalance: typeof form.remaining_balance === 'number' ? form.remaining_balance : parseFloat(String(form.remaining_balance).replace(/[^0-9.]/g, '')) || 0,
+                  numberOfDays: form.number_of_days || 14,
+                })} 
+              />
             </div>
           </div>
         </div>
@@ -225,20 +236,26 @@ export function ServiceAgreementFormView({ form }: ServiceAgreementFormViewProps
                     {form.provider_signature_name}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-base font-medium text-gray-900">First Name</label>
-                    <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center mt-2">
-                      {form.provider_signature_first_name}
-                    </div>
+                {(form.provider_signature_first_name || form.provider_signature_last_name) && (
+                  <div className="grid grid-cols-2 gap-4">
+                    {form.provider_signature_first_name && (
+                      <div>
+                        <label className="text-base font-medium text-gray-900">First Name</label>
+                        <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center mt-2">
+                          {form.provider_signature_first_name}
+                        </div>
+                      </div>
+                    )}
+                    {form.provider_signature_last_name && (
+                      <div>
+                        <label className="text-base font-medium text-gray-900">Last Name</label>
+                        <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center mt-2">
+                          {form.provider_signature_last_name}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="text-base font-medium text-gray-900">Last Name</label>
-                    <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center mt-2">
-                      {form.provider_signature_last_name}
-                    </div>
-                  </div>
-                </div>
+                )}
                 <div className="grid grid-cols-2 gap-6 mt-6">
                   <div>
                     <label className="text-base font-medium text-gray-900">Signature</label>

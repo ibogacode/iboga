@@ -111,11 +111,52 @@ export const IBOGAINE_THERAPY_CONSENT_SECTIONS = [
   }
 ]
 
-// Service Agreement text
-export const SERVICE_AGREEMENT_TEXT = `Between: Iboga Wellness Institute, LLC("Provider") and ("Patient")
+// Service Agreement text template function
+export function getServiceAgreementText(params: {
+  programType?: 'neurological' | 'mental_health' | 'addiction'
+  totalProgramFee?: number | string
+  depositPercentage?: number | string
+  depositAmount?: number | string
+  remainingBalance?: number | string
+  numberOfDays?: number | string
+}): string {
+  const {
+    programType = 'neurological',
+    totalProgramFee = 0,
+    depositPercentage = 50,
+    depositAmount = 0,
+    remainingBalance = 0,
+    numberOfDays = 14,
+  } = params
+
+  // Format amounts
+  const formattedTotal = typeof totalProgramFee === 'number' 
+    ? `$${totalProgramFee.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : totalProgramFee || '$0.00'
+  const formattedDeposit = typeof depositAmount === 'number'
+    ? `$${depositAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : depositAmount || '$0.00'
+  const formattedRemaining = typeof remainingBalance === 'number'
+    ? `$${remainingBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : remainingBalance || '$0.00'
+  
+  const depositPct = typeof depositPercentage === 'number' ? depositPercentage : parseFloat(String(depositPercentage)) || 50
+  const days = typeof numberOfDays === 'number' ? numberOfDays : parseInt(String(numberOfDays), 10) || 14
+
+  // Program-specific text
+  const isNeurological = programType === 'neurological'
+  const purposeText = isNeurological
+    ? "The services are focused on supporting patients' health and well-being while addressing symptoms associated with Parkinson's disease."
+    : "The services are focused on supporting patients' health and well-being through wellness and therapeutic services."
+  
+  const treatmentPurposeText = isNeurological
+    ? "Treatment is being sought for Parkinson's disease and related symptoms."
+    : "Treatment is being sought for wellness, therapeutic support, and personal growth."
+
+  return `Between: Iboga Wellness Institute, LLC("Provider") and ("Patient")
 
 1. Purpose of Agreement
-This Agreement sets forth the terms and conditions under which Iboga Wellness Institute, LLC will provide wellness and therapeutic services to the Patient. The services are focused on supporting patients' health and well-being while addressing symptoms associated with Parkinson's disease.
+This Agreement sets forth the terms and conditions under which Iboga Wellness Institute, LLC will provide wellness and therapeutic services to the Patient. ${purposeText}
 
 2a. Pre-Treatment Services Provided
 Provider agrees to deliver the following services prior to the Patient's arrival for Onsite Treatment Services:
@@ -124,7 +165,7 @@ Identification of medical screening processes and tests which Provider requires 
 Provider to issue a written, electronically signed Treatment Qualification/Approval letter.
 
 2b. Onsite Treatment Services Provided
-Provider agrees to deliver the following services for a 14-day period from 10/27-11/10 2025 at clinic in Cozumel Mexico:
+Provider agrees to deliver the following services for a ${days}-day period at clinic in Cozumel Mexico:
 
 Wellness support and therapeutic care.
 Administration of ibogaine-based microdosing protocols in accordance with Dr. Omar Calderon's clinical guidelines.
@@ -148,15 +189,15 @@ Assistance with obtaining ibogaine for Patient assuming Provider deems that to b
 3. Acknowledgment of Treatment Purpose
 Patient acknowledges that:
 
-Treatment is being sought for Parkinson's disease and related symptoms.
+${treatmentPurposeText}
 The services provided are considered alternative and experimental therapy, and outcomes may vary.
 No guarantee of improvement or cure is made or implied.
 
 4. Fees and Payment
 Payment Schedule:
 
-50% of the total program fee (USD) is due upon issuance of the electronically signed Treatment Qualification/Approval letter.
-The remaining 50% (USD) is due no later than three (3) days prior to the patient's scheduled arrival at the clinic.
+${depositPct}% of the total program fee (${formattedTotal} USD) is due upon issuance of the electronically signed Treatment Qualification/Approval letter.
+The remaining ${100 - depositPct}% (${formattedRemaining} USD) is due no later than three (3) days prior to the patient's scheduled arrival at the clinic.
 If paying by card, a 3% processing fee applies to the amount paid by card.
 
 5a. Cancellation & Refund Policy
@@ -207,6 +248,17 @@ This Agreement shall be governed by and construed in accordance with the laws of
 
 11. Entire Agreement
 This Agreement contains the entire understanding between Provider and Patient regarding the subject matter and supersedes all prior discussions or agreements. `
+}
+
+// Default Service Agreement text (for backward compatibility)
+export const SERVICE_AGREEMENT_TEXT = getServiceAgreementText({
+  programType: 'neurological',
+  totalProgramFee: 0,
+  depositPercentage: 50,
+  depositAmount: 0,
+  remainingBalance: 0,
+  numberOfDays: 14,
+})
 
 // Release Consent text
 export const RELEASE_CONSENT_TEXT = `Acknowledgment and Consent

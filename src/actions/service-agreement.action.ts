@@ -82,6 +82,7 @@ export async function getPatientDataForServiceAgreement() {
         last_name: latestIntakeForm.last_name,
         email: latestIntakeForm.email,
         phone_number: latestIntakeForm.phone_number,
+        program_type: latestIntakeForm.program_type || null,
       } : null,
       existingForm: existingAgreement ? {
         id: existingAgreement.id,
@@ -91,9 +92,11 @@ export async function getPatientDataForServiceAgreement() {
         remaining_balance: existingAgreement.remaining_balance,
         payment_method: existingAgreement.payment_method || null,
         provider_signature_name: existingAgreement.provider_signature_name,
-        provider_signature_first_name: existingAgreement.provider_signature_first_name,
-        provider_signature_last_name: existingAgreement.provider_signature_last_name,
+        provider_signature_first_name: existingAgreement.provider_signature_first_name || null,
+        provider_signature_last_name: existingAgreement.provider_signature_last_name || null,
         provider_signature_date: existingAgreement.provider_signature_date,
+        program_type: existingAgreement.program_type || latestIntakeForm?.program_type || null,
+        number_of_days: existingAgreement.number_of_days || null,
       } : null,
     }
   }
@@ -102,6 +105,7 @@ export async function getPatientDataForServiceAgreement() {
 export const submitServiceAgreement = authActionClient
   .schema(serviceAgreementSchema)
   .action(async ({ parsedInput, ctx }) => {
+    const supabase = createAdminClient()
     // Allow patients to submit their own service agreements, or admins/owners to create any
     const isPatient = ctx.user.role === 'patient'
     const isAdminOrOwner = ctx.user.role === 'admin' || ctx.user.role === 'owner'
@@ -115,8 +119,6 @@ export const submitServiceAgreement = authActionClient
     if (isPatient && !patientId) {
       patientId = ctx.user.id
     }
-
-    const supabase = createAdminClient()
     
     // Parse numeric values
     const totalProgramFee = parseFloat(parsedInput.total_program_fee.replace(/[^0-9.]/g, ''))
@@ -202,36 +204,71 @@ export const submitServiceAgreement = authActionClient
       
       return { success: true, data: { id: data.id } }
     } else {
+      // Get program_type from intake_form if available
+      let programType: 'neurological' | 'mental_health' | 'addiction' | null = parsedInput.program_type || null
+      if (!programType && parsedInput.intake_form_id) {
+        const { data: intakeData } = await supabase
+          .from('patient_intake_forms')
+          .select('program_type')
+          .eq('id', parsedInput.intake_form_id)
+          .maybeSingle()
+        
+        if (intakeData?.program_type && ['neurological', 'mental_health', 'addiction'].includes(intakeData.program_type)) {
+          programType = intakeData.program_type as 'neurological' | 'mental_health' | 'addiction'
+        }
+      }
+
       // Insert new service agreement (for admin/owner creating forms, or if no draft exists)
+      const insertData: any = {
+        patient_id: patientId || parsedInput.patient_id || null,
+        intake_form_id: parsedInput.intake_form_id || null,
+        patient_first_name: parsedInput.patient_first_name,
+        patient_last_name: parsedInput.patient_last_name,
+        patient_email: parsedInput.patient_email,
+        patient_phone_number: parsedInput.patient_phone_number,
+        total_program_fee: totalProgramFee,
+        deposit_amount: depositAmount,
+        deposit_percentage: depositPercentage,
+        remaining_balance: remainingBalance,
+        payment_method: parsedInput.payment_method,
+        patient_signature_name: parsedInput.patient_signature_name,
+        patient_signature_first_name: parsedInput.patient_signature_first_name,
+        patient_signature_last_name: parsedInput.patient_signature_last_name,
+        patient_signature_date: patientSignatureDate.toISOString().split('T')[0],
+        patient_signature_data: parsedInput.patient_signature_data || null,
+        provider_signature_name: parsedInput.provider_signature_name,
+        provider_signature_date: providerSignatureDate.toISOString().split('T')[0],
+        provider_signature_data: parsedInput.provider_signature_data || null,
+        uploaded_file_url: parsedInput.uploaded_file_url || null,
+        uploaded_file_name: parsedInput.uploaded_file_name || null,
+        created_by: ctx.user.id,
+        is_activated: isAdminOrOwner ? true : false, // Admins can create activated forms
+      }
+
+      // Only include optional provider fields if provided
+      if (parsedInput.provider_signature_first_name) {
+        insertData.provider_signature_first_name = parsedInput.provider_signature_first_name
+      }
+      if (parsedInput.provider_signature_last_name) {
+        insertData.provider_signature_last_name = parsedInput.provider_signature_last_name
+      }
+
+      // Include program_type and number_of_days if provided
+      if (programType) {
+        insertData.program_type = programType
+      }
+      if (parsedInput.number_of_days !== undefined && parsedInput.number_of_days !== null) {
+        const days = typeof parsedInput.number_of_days === 'number' 
+          ? parsedInput.number_of_days 
+          : parseInt(String(parsedInput.number_of_days), 10)
+        if (!isNaN(days) && days > 0) {
+          insertData.number_of_days = days
+        }
+      }
+
       const { data, error } = await supabase
         .from('service_agreements')
-        .insert({
-          patient_id: patientId || parsedInput.patient_id || null,
-          intake_form_id: parsedInput.intake_form_id || null,
-          patient_first_name: parsedInput.patient_first_name,
-          patient_last_name: parsedInput.patient_last_name,
-          patient_email: parsedInput.patient_email,
-          patient_phone_number: parsedInput.patient_phone_number,
-          total_program_fee: totalProgramFee,
-          deposit_amount: depositAmount,
-          deposit_percentage: depositPercentage,
-          remaining_balance: remainingBalance,
-          payment_method: parsedInput.payment_method,
-          patient_signature_name: parsedInput.patient_signature_name,
-          patient_signature_first_name: parsedInput.patient_signature_first_name,
-          patient_signature_last_name: parsedInput.patient_signature_last_name,
-          patient_signature_date: patientSignatureDate.toISOString().split('T')[0],
-          patient_signature_data: parsedInput.patient_signature_data || null,
-          provider_signature_name: parsedInput.provider_signature_name,
-          provider_signature_first_name: parsedInput.provider_signature_first_name,
-          provider_signature_last_name: parsedInput.provider_signature_last_name,
-          provider_signature_date: providerSignatureDate.toISOString().split('T')[0],
-          provider_signature_data: parsedInput.provider_signature_data || null,
-          uploaded_file_url: parsedInput.uploaded_file_url || null,
-          uploaded_file_name: parsedInput.uploaded_file_name || null,
-          created_by: ctx.user.id,
-          is_activated: isAdminOrOwner ? true : false, // Admins can create activated forms
-        })
+        .insert(insertData)
         .select()
         .single()
 

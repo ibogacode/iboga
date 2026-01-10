@@ -367,7 +367,7 @@ function generatePatientLoginReminderEmail(
             
             <div class="reminder-box">
               <p><strong>⏰ Action Required</strong></p>
-              <p>We noticed you haven't logged into your patient portal yet or haven't changed your temporary password. Please complete this important step to access your account and complete your tasks.</p>
+              <p>We noticed you haven't logged into your Client portal yet or haven't changed your temporary password. Please complete this important step to access your account and complete your tasks.</p>
             </div>
             
             <div class="credentials-box">
@@ -383,7 +383,7 @@ function generatePatientLoginReminderEmail(
             <ol style="color: #555; line-height: 2;">
               <li><strong>Login to your portal</strong> using your email and the temporary password above</li>
               <li><strong>Change your password</strong> (you'll be prompted automatically after login)</li>
-              <li><strong>Complete your tasks</strong> in the patient dashboard</li>
+              <li><strong>Complete your tasks</strong> in the Client dashboard</li>
             </ol>
             
             <div class="cta-container">
@@ -474,17 +474,17 @@ function generateFillerLoginReminderEmail(
             
             <div class="reminder-box">
               <p><strong>⏰ Action Required</strong></p>
-              <p>You previously filled out the application form for <strong>${patientFirstName} ${patientLastName}</strong>. They haven't logged into their patient portal yet. Please help them complete this important step.</p>
+              <p>You previously filled out the application form for <strong>${patientFirstName} ${patientLastName}</strong>. They haven't logged into their Client portal yet. Please help them complete this important step.</p>
             </div>
             
             <div class="credentials-box">
-              <p><strong>Patient Email:</strong> ${patientEmail}</p>
+              <p><strong>Client Email:</strong> ${patientEmail}</p>
               <p><strong>Temporary Password:</strong> ${patientPassword}</p>
             </div>
             
             <p>Please share these login credentials with ${patientFirstName} so they can:</p>
             <ol style="color: #555; line-height: 2;">
-              <li>Login to their patient portal</li>
+              <li>Login to their Client portal</li>
               <li>Change their password</li>
               <li>Complete their required tasks</li>
             </ol>

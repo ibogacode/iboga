@@ -25,6 +25,12 @@ export function MedicalHistoryForm() {
   const [isLoadingIntake, setIsLoadingIntake] = useState(false)
   const [uploadedFile, setUploadedFile] = useState<{ url: string; name: string } | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [physicalExamFile, setPhysicalExamFile] = useState<{ url: string; name: string } | null>(null)
+  const [cardiacEvalFile, setCardiacEvalFile] = useState<{ url: string; name: string } | null>(null)
+  const [liverTestFile, setLiverTestFile] = useState<{ url: string; name: string } | null>(null)
+  const [isUploadingPhysicalExam, setIsUploadingPhysicalExam] = useState(false)
+  const [isUploadingCardiac, setIsUploadingCardiac] = useState(false)
+  const [isUploadingLiver, setIsUploadingLiver] = useState(false)
   
   const form = useForm<MedicalHistoryFormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,9 +70,18 @@ export function MedicalHistoryForm() {
       mental_health_treatment: '',
       allergies: '',
       previous_psychedelics_experiences: '',
+      has_physical_examination: false,
       physical_examination_records: '',
+      physical_examination_file_url: '',
+      physical_examination_file_name: '',
+      has_cardiac_evaluation: false,
       cardiac_evaluation: '',
+      cardiac_evaluation_file_url: '',
+      cardiac_evaluation_file_name: '',
+      has_liver_function_tests: false,
       liver_function_tests: '',
+      liver_function_tests_file_url: '',
+      liver_function_tests_file_name: '',
       is_pregnant: false,
       dietary_lifestyle_habits: '',
       physical_activity_exercise: '',
@@ -103,7 +118,12 @@ export function MedicalHistoryForm() {
                 'other': 'other',
                 'prefer-not-to-say': 'other'
               }
-              form.setValue('gender', genderMap[intakeData.gender] || 'other')
+              const mappedGender = genderMap[intakeData.gender] || 'other'
+              form.setValue('gender', mappedGender)
+              // If male, set is_pregnant to false
+              if (mappedGender === 'M') {
+                form.setValue('is_pregnant', false)
+              }
             }
             form.setValue('emergency_contact_name', 
               `${intakeData.emergency_contact_first_name || ''} ${intakeData.emergency_contact_last_name || ''}`.trim()
@@ -122,6 +142,7 @@ export function MedicalHistoryForm() {
     }
   }, [intakeFormId, form])
 
+
   const [isLoading, setIsLoading] = useState(false)
 
   async function onSubmit(data: MedicalHistoryFormValues) {
@@ -130,12 +151,23 @@ export function MedicalHistoryForm() {
     try {
       // Format signature date
       const today = new Date().toISOString().split('T')[0]
-      const result = await submitMedicalHistoryForm({
+      
+      // Ensure is_pregnant is false for males
+      const submitData = {
         ...data,
+        is_pregnant: data.gender === 'M' ? false : data.is_pregnant,
         signature_date: today,
         uploaded_file_url: uploadedFile?.url || null,
         uploaded_file_name: uploadedFile?.name || null,
-      })
+        physical_examination_file_url: physicalExamFile?.url || null,
+        physical_examination_file_name: physicalExamFile?.name || null,
+        cardiac_evaluation_file_url: cardiacEvalFile?.url || null,
+        cardiac_evaluation_file_name: cardiacEvalFile?.name || null,
+        liver_function_tests_file_url: liverTestFile?.url || null,
+        liver_function_tests_file_name: liverTestFile?.name || null,
+      }
+      
+      const result = await submitMedicalHistoryForm(submitData)
       
       if (result?.data?.success) {
         setIsSubmitted(true)
@@ -186,12 +218,15 @@ export function MedicalHistoryForm() {
           url: result.data.fileUrl,
           name: result.data.fileName
         })
+        form.setValue('uploaded_file_url', result.data.fileUrl)
+        form.setValue('uploaded_file_name', result.data.fileName)
         toast.success('File uploaded successfully')
       } else {
         toast.error(result.error || 'Failed to upload file')
       }
     } catch (error) {
-      toast.error('An unexpected error occurred while uploading file')
+      console.error('File upload error:', error)
+      toast.error(error instanceof Error ? error.message : 'An unexpected error occurred while uploading file')
     } finally {
       setIsUploading(false)
       // Reset file input
@@ -205,6 +240,123 @@ export function MedicalHistoryForm() {
     setUploadedFile(null)
     form.setValue('uploaded_file_url', '')
     form.setValue('uploaded_file_name', '')
+  }
+
+  async function handlePhysicalExamFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingPhysicalExam(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      const result = await uploadMedicalHistoryDocument(formData, 'physical-exam')
+      
+      if (result.success && result.data) {
+        setPhysicalExamFile({
+          url: result.data.fileUrl,
+          name: result.data.fileName
+        })
+        form.setValue('physical_examination_file_url', result.data.fileUrl)
+        form.setValue('physical_examination_file_name', result.data.fileName)
+        toast.success('Physical examination file uploaded successfully')
+      } else {
+        toast.error(result.error || 'Failed to upload file')
+      }
+    } catch (error) {
+      console.error('Physical exam file upload error:', error)
+      toast.error(error instanceof Error ? error.message : 'An unexpected error occurred while uploading file')
+    } finally {
+      setIsUploadingPhysicalExam(false)
+      if (e.target) {
+        e.target.value = ''
+      }
+    }
+  }
+
+  function handleRemovePhysicalExamFile() {
+    setPhysicalExamFile(null)
+    form.setValue('physical_examination_file_url', '')
+    form.setValue('physical_examination_file_name', '')
+  }
+
+  async function handleCardiacEvalFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingCardiac(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      const result = await uploadMedicalHistoryDocument(formData, 'cardiac-eval')
+      
+      if (result.success && result.data) {
+        setCardiacEvalFile({
+          url: result.data.fileUrl,
+          name: result.data.fileName
+        })
+        form.setValue('cardiac_evaluation_file_url', result.data.fileUrl)
+        form.setValue('cardiac_evaluation_file_name', result.data.fileName)
+        toast.success('Cardiac evaluation file uploaded successfully')
+      } else {
+        toast.error(result.error || 'Failed to upload file')
+      }
+    } catch (error) {
+      console.error('Cardiac eval file upload error:', error)
+      toast.error(error instanceof Error ? error.message : 'An unexpected error occurred while uploading file')
+    } finally {
+      setIsUploadingCardiac(false)
+      if (e.target) {
+        e.target.value = ''
+      }
+    }
+  }
+
+  function handleRemoveCardiacEvalFile() {
+    setCardiacEvalFile(null)
+    form.setValue('cardiac_evaluation_file_url', '')
+    form.setValue('cardiac_evaluation_file_name', '')
+  }
+
+  async function handleLiverTestFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingLiver(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      const result = await uploadMedicalHistoryDocument(formData, 'liver-test')
+      
+      if (result.success && result.data) {
+        setLiverTestFile({
+          url: result.data.fileUrl,
+          name: result.data.fileName
+        })
+        form.setValue('liver_function_tests_file_url', result.data.fileUrl)
+        form.setValue('liver_function_tests_file_name', result.data.fileName)
+        toast.success('Liver function test file uploaded successfully')
+      } else {
+        toast.error(result.error || 'Failed to upload file')
+      }
+    } catch (error) {
+      console.error('Liver test file upload error:', error)
+      toast.error(error instanceof Error ? error.message : 'An unexpected error occurred while uploading file')
+    } finally {
+      setIsUploadingLiver(false)
+      if (e.target) {
+        e.target.value = ''
+      }
+    }
+  }
+
+  function handleRemoveLiverTestFile() {
+    setLiverTestFile(null)
+    form.setValue('liver_function_tests_file_url', '')
+    form.setValue('liver_function_tests_file_name', '')
   }
 
   const totalSteps = 8
@@ -223,7 +375,12 @@ export function MedicalHistoryForm() {
       case 5:
         return ['medications_medical_use', 'medications_mental_health', 'mental_health_conditions', 'mental_health_treatment']
       case 6:
-        return ['allergies', 'previous_psychedelics_experiences', 'physical_examination_records', 'cardiac_evaluation', 'liver_function_tests', 'is_pregnant']
+        const step6Fields: (keyof MedicalHistoryFormValues)[] = ['allergies', 'previous_psychedelics_experiences', 'has_physical_examination', 'has_cardiac_evaluation', 'has_liver_function_tests']
+        // Only include is_pregnant if gender is not male
+        if (form.watch('gender') !== 'M') {
+          step6Fields.push('is_pregnant')
+        }
+        return step6Fields
       case 7:
         return ['dietary_lifestyle_habits', 'physical_activity_exercise']
       case 8:
@@ -237,30 +394,40 @@ export function MedicalHistoryForm() {
     <div className="min-h-screen bg-#EDE9E4">
       <div className="max-w-4xl mx-auto bg-white p-8">
         {isSubmitted ? (
-          <div className="text-center py-12">
-            <div className="mb-6">
-              <svg
-                className="mx-auto h-16 w-16 text-green-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+          <div className="text-center py-16 px-4">
+            <div className="mb-8">
+              <div className="mx-auto w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6">
+                <svg
+                  className="h-12 w-12 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2.5}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
               Thank You!
             </h1>
-            <p className="text-lg text-gray-600 mb-2">
-              Your medical history form has been submitted successfully.
+            <p className="text-xl text-gray-700 mb-4 font-medium">
+              Your Medical Health History form has been submitted successfully.
             </p>
-            <p className="text-base text-gray-500">
-              We will review your information and get back to you soon.
+            <div className="max-w-2xl mx-auto mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-base text-gray-700 mb-2">
+                <strong>What happens next?</strong>
+              </p>
+              <p className="text-sm text-gray-600">
+                Our medical team will review your health history information. We will contact you if we need any additional details or to proceed with the next steps in your wellness journey.
+              </p>
+            </div>
+            <p className="text-sm text-gray-500 mt-8">
+              You will be redirected to your dashboard shortly...
             </p>
           </div>
         ) : (
@@ -350,7 +517,13 @@ export function MedicalHistoryForm() {
                       </Label>
                       <RadioGroup
                         value={form.watch('gender')}
-                        onValueChange={(value) => form.setValue('gender', value as 'M' | 'F' | 'other')}
+                        onValueChange={(value) => {
+                          form.setValue('gender', value as 'M' | 'F' | 'other')
+                          // If gender changes to male, automatically set is_pregnant to false
+                          if (value === 'M') {
+                            form.setValue('is_pregnant', false)
+                          }
+                        }}
                         className="mt-2"
                       >
                         <div className="flex gap-6">
@@ -812,66 +985,312 @@ export function MedicalHistoryForm() {
                       )}
                     </div>
 
-                    <div>
-                      <Label htmlFor="physical_examination_records" className="text-base font-medium">
-                        Physical Examination Records
-                      </Label>
-                      <p className="text-sm text-gray-600 mb-2">Have you had a physical examination in the last 12 months? If yes, please provide details of the findings.</p>
-                      <Textarea
-                        id="physical_examination_records"
-                        placeholder="Provide physical examination details"
-                        {...form.register('physical_examination_records')}
-                        className="mt-2 min-h-32"
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="cardiac_evaluation" className="text-base font-medium">
-                        Cardiac Evaluation
-                      </Label>
-                      <p className="text-sm text-gray-600 mb-2">Have you undergone any cardiac evaluations (e.g., EKG)? If so, please provide the date and results.</p>
-                      <Textarea
-                        id="cardiac_evaluation"
-                        placeholder="Provide cardiac evaluation details"
-                        {...form.register('cardiac_evaluation')}
-                        className="mt-2 min-h-32"
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="liver_function_tests" className="text-base font-medium">
-                        Liver Function Tests
-                      </Label>
-                      <p className="text-sm text-gray-600 mb-2">Have you had any liver function tests (e.g., blood work)? If yes, provide the date and results.</p>
-                      <Textarea
-                        id="liver_function_tests"
-                        placeholder="Provide liver function test details"
-                        {...form.register('liver_function_tests')}
-                        className="mt-2 min-h-32"
-                      />
-                    </div>
-
+                    {/* Physical Examination */}
                     <div>
                       <Label className="text-base font-medium">
-                        Are you currently pregnant or suspect you might be pregnant? <span className="text-red-500">*</span>
+                        Have you had a physical examination in the last 12 months? <span className="text-red-500">*</span>
                       </Label>
                       <RadioGroup
-                        value={form.watch('is_pregnant') ? 'yes' : 'no'}
-                        onValueChange={(value) => form.setValue('is_pregnant', value === 'yes')}
+                        value={form.watch('has_physical_examination') ? 'yes' : 'no'}
+                        onValueChange={(value) => {
+                          form.setValue('has_physical_examination', value === 'yes')
+                          if (value === 'no') {
+                            form.setValue('physical_examination_records', '')
+                            handleRemovePhysicalExamFile()
+                          }
+                        }}
                         className="mt-2"
                       >
                         <div className="flex gap-6">
                           <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="yes" id="pregnant-yes" />
-                            <Label htmlFor="pregnant-yes" className="font-normal cursor-pointer">Yes</Label>
+                            <RadioGroupItem value="yes" id="physical-exam-yes" />
+                            <Label htmlFor="physical-exam-yes" className="font-normal cursor-pointer">Yes</Label>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="no" id="pregnant-no" />
-                            <Label htmlFor="pregnant-no" className="font-normal cursor-pointer">No</Label>
+                            <RadioGroupItem value="no" id="physical-exam-no" />
+                            <Label htmlFor="physical-exam-no" className="font-normal cursor-pointer">No</Label>
                           </div>
                         </div>
                       </RadioGroup>
+                      
+                      {form.watch('has_physical_examination') && (
+                        <div className="mt-4 space-y-4">
+                          <div>
+                            <Label htmlFor="physical_examination_records" className="text-sm font-medium">
+                              Please provide details of the findings
+                            </Label>
+                            <Textarea
+                              id="physical_examination_records"
+                              placeholder="Provide physical examination details"
+                              {...form.register('physical_examination_records')}
+                              className="mt-2 min-h-32"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="physical_exam_file" className="text-sm font-medium">
+                              Upload Physical Examination Report (Optional)
+                            </Label>
+                            <div className="mt-2">
+                              {physicalExamFile ? (
+                                <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-md">
+                                  <div className="flex items-center space-x-2">
+                                    <Upload className="h-4 w-4 text-gray-500" />
+                                    <span className="text-sm text-gray-700">{physicalExamFile.name}</span>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleRemovePhysicalExamFile}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <label
+                                  htmlFor="physical_exam_file"
+                                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                                >
+                                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    {isUploadingPhysicalExam ? (
+                                      <Loader2 className="w-8 h-8 mb-2 text-gray-400 animate-spin" />
+                                    ) : (
+                                      <Upload className="w-8 h-8 mb-2 text-gray-400" />
+                                    )}
+                                    <p className="mb-2 text-sm text-gray-500">
+                                      <span className="font-semibold">Click to upload</span> or drag and drop
+                                    </p>
+                                    <p className="text-xs text-gray-500">PDF, DOC, DOCX, PNG, JPG</p>
+                                  </div>
+                                  <input
+                                    id="physical_exam_file"
+                                    type="file"
+                                    className="hidden"
+                                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                                    onChange={handlePhysicalExamFileUpload}
+                                    disabled={isUploadingPhysicalExam}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
+
+                    {/* Cardiac Evaluation */}
+                    <div>
+                      <Label className="text-base font-medium">
+                        Have you undergone any cardiac evaluations (e.g., EKG)? <span className="text-red-500">*</span>
+                      </Label>
+                      <RadioGroup
+                        value={form.watch('has_cardiac_evaluation') ? 'yes' : 'no'}
+                        onValueChange={(value) => {
+                          form.setValue('has_cardiac_evaluation', value === 'yes')
+                          if (value === 'no') {
+                            form.setValue('cardiac_evaluation', '')
+                            handleRemoveCardiacEvalFile()
+                          }
+                        }}
+                        className="mt-2"
+                      >
+                        <div className="flex gap-6">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="yes" id="cardiac-yes" />
+                            <Label htmlFor="cardiac-yes" className="font-normal cursor-pointer">Yes</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="no" id="cardiac-no" />
+                            <Label htmlFor="cardiac-no" className="font-normal cursor-pointer">No</Label>
+                          </div>
+                        </div>
+                      </RadioGroup>
+                      
+                      {form.watch('has_cardiac_evaluation') && (
+                        <div className="mt-4 space-y-4">
+                          <div>
+                            <Label htmlFor="cardiac_evaluation" className="text-sm font-medium">
+                              Please provide the date and results
+                            </Label>
+                            <Textarea
+                              id="cardiac_evaluation"
+                              placeholder="Provide cardiac evaluation details"
+                              {...form.register('cardiac_evaluation')}
+                              className="mt-2 min-h-32"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="cardiac_eval_file" className="text-sm font-medium">
+                              Upload Cardiac Evaluation Report (Optional)
+                            </Label>
+                            <div className="mt-2">
+                              {cardiacEvalFile ? (
+                                <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-md">
+                                  <div className="flex items-center space-x-2">
+                                    <Upload className="h-4 w-4 text-gray-500" />
+                                    <span className="text-sm text-gray-700">{cardiacEvalFile.name}</span>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleRemoveCardiacEvalFile}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <label
+                                  htmlFor="cardiac_eval_file"
+                                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                                >
+                                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    {isUploadingCardiac ? (
+                                      <Loader2 className="w-8 h-8 mb-2 text-gray-400 animate-spin" />
+                                    ) : (
+                                      <Upload className="w-8 h-8 mb-2 text-gray-400" />
+                                    )}
+                                    <p className="mb-2 text-sm text-gray-500">
+                                      <span className="font-semibold">Click to upload</span> or drag and drop
+                                    </p>
+                                    <p className="text-xs text-gray-500">PDF, DOC, DOCX, PNG, JPG</p>
+                                  </div>
+                                  <input
+                                    id="cardiac_eval_file"
+                                    type="file"
+                                    className="hidden"
+                                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                                    onChange={handleCardiacEvalFileUpload}
+                                    disabled={isUploadingCardiac}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Liver Function Tests */}
+                    <div>
+                      <Label className="text-base font-medium">
+                        Have you had any liver function tests (e.g., blood work)? <span className="text-red-500">*</span>
+                      </Label>
+                      <RadioGroup
+                        value={form.watch('has_liver_function_tests') ? 'yes' : 'no'}
+                        onValueChange={(value) => {
+                          form.setValue('has_liver_function_tests', value === 'yes')
+                          if (value === 'no') {
+                            form.setValue('liver_function_tests', '')
+                            handleRemoveLiverTestFile()
+                          }
+                        }}
+                        className="mt-2"
+                      >
+                        <div className="flex gap-6">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="yes" id="liver-yes" />
+                            <Label htmlFor="liver-yes" className="font-normal cursor-pointer">Yes</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="no" id="liver-no" />
+                            <Label htmlFor="liver-no" className="font-normal cursor-pointer">No</Label>
+                          </div>
+                        </div>
+                      </RadioGroup>
+                      
+                      {form.watch('has_liver_function_tests') && (
+                        <div className="mt-4 space-y-4">
+                          <div>
+                            <Label htmlFor="liver_function_tests" className="text-sm font-medium">
+                              Please provide the date and results
+                            </Label>
+                            <Textarea
+                              id="liver_function_tests"
+                              placeholder="Provide liver function test details"
+                              {...form.register('liver_function_tests')}
+                              className="mt-2 min-h-32"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="liver_test_file" className="text-sm font-medium">
+                              Upload Liver Function Test Report (Optional)
+                            </Label>
+                            <div className="mt-2">
+                              {liverTestFile ? (
+                                <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-md">
+                                  <div className="flex items-center space-x-2">
+                                    <Upload className="h-4 w-4 text-gray-500" />
+                                    <span className="text-sm text-gray-700">{liverTestFile.name}</span>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleRemoveLiverTestFile}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <label
+                                  htmlFor="liver_test_file"
+                                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+                                >
+                                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    {isUploadingLiver ? (
+                                      <Loader2 className="w-8 h-8 mb-2 text-gray-400 animate-spin" />
+                                    ) : (
+                                      <Upload className="w-8 h-8 mb-2 text-gray-400" />
+                                    )}
+                                    <p className="mb-2 text-sm text-gray-500">
+                                      <span className="font-semibold">Click to upload</span> or drag and drop
+                                    </p>
+                                    <p className="text-xs text-gray-500">PDF, DOC, DOCX, PNG, JPG</p>
+                                  </div>
+                                  <input
+                                    id="liver_test_file"
+                                    type="file"
+                                    className="hidden"
+                                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                                    onChange={handleLiverTestFileUpload}
+                                    disabled={isUploadingLiver}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Pregnancy question - only show for females */}
+                    {form.watch('gender') !== 'M' && (
+                      <div>
+                        <Label className="text-base font-medium">
+                          Are you currently pregnant or suspect you might be pregnant? <span className="text-red-500">*</span>
+                        </Label>
+                        <RadioGroup
+                          value={form.watch('is_pregnant') ? 'yes' : 'no'}
+                          onValueChange={(value) => form.setValue('is_pregnant', value === 'yes')}
+                          className="mt-2"
+                        >
+                          <div className="flex gap-6">
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="yes" id="pregnant-yes" />
+                              <Label htmlFor="pregnant-yes" className="font-normal cursor-pointer">Yes</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="no" id="pregnant-no" />
+                              <Label htmlFor="pregnant-no" className="font-normal cursor-pointer">No</Label>
+                            </div>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -954,7 +1373,7 @@ export function MedicalHistoryForm() {
                               <p className="text-sm text-gray-600 mb-1">
                                 <span className="text-blue-600 hover:text-blue-700">Browse Files</span> or drag and drop files here
                               </p>
-                              <p className="text-xs text-gray-500">PDF, Images, or Word documents (Max 10MB)</p>
+                              <p className="text-xs text-gray-500">PDF, Images, or Word documents</p>
                             </label>
                           </div>
                         )}

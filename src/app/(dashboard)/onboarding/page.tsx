@@ -1,17 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { getOnboardingPatientsNew, moveToPatientManagement } from '@/actions/onboarding-forms.action'
+import { getOnboardingPatientsNew, moveToPatientManagement, uploadOnboardingFormDocument } from '@/actions/onboarding-forms.action'
 import { 
   Loader2, Users, CheckCircle2, Clock, Eye, Calendar, CreditCard, 
   Plane, Stethoscope, FileCheck, ArrowRight, Send, UserCheck,
-  FileText, FileSignature, Camera, BookOpen, FileX
+  FileText, FileSignature, Camera, BookOpen, FileX, Upload, File
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import type { PatientOnboardingWithProgress } from '@/types'
+import { useUser } from '@/hooks/use-user.hook'
+import { hasStaffAccess } from '@/lib/utils'
 
 // Onboarding forms
 const ONBOARDING_FORMS = [
@@ -22,10 +24,14 @@ const ONBOARDING_FORMS = [
 
 export default function OnboardingPage() {
   const router = useRouter()
+  const { profile } = useUser()
+  const isAdmin = hasStaffAccess(profile?.role)
   const [patients, setPatients] = useState<PatientOnboardingWithProgress[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [movingPatient, setMovingPatient] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'completed'>('all')
+  const [uploadingForm, setUploadingForm] = useState<{ onboardingId: string; formType: string } | null>(null)
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   useEffect(() => {
     loadOnboardingPatients()
@@ -99,6 +105,47 @@ export default function OnboardingPage() {
     }
   }
 
+  function handleUploadClick(onboardingId: string, formType: string) {
+    const key = `${onboardingId}-${formType}`
+    fileInputRefs.current[key]?.click()
+  }
+
+  async function handleFileChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+    onboardingId: string,
+    formType: 'release' | 'outing' | 'regulations'
+  ) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setUploadingForm({ onboardingId, formType })
+    
+    try {
+      const result = await uploadOnboardingFormDocument({
+        onboarding_id: onboardingId,
+        form_type: formType,
+        file: file,
+      })
+
+      if (result?.data?.success) {
+        toast.success(`${ONBOARDING_FORMS.find(f => f.id === formType)?.label || 'Form'} uploaded successfully`)
+        loadOnboardingPatients()
+      } else {
+        toast.error(result?.data?.error || 'Failed to upload form')
+      }
+    } catch (error) {
+      console.error('Error uploading form:', error)
+      toast.error('An error occurred while uploading the form')
+    } finally {
+      setUploadingForm(null)
+      // Reset file input
+      const key = `${onboardingId}-${formType}`
+      if (fileInputRefs.current[key]) {
+        fileInputRefs.current[key]!.value = ''
+      }
+    }
+  }
+
   // Calculate stats
   const totalOnboarding = patients.length
   const completedForms = patients.filter(p => p.forms_completed === 3).length
@@ -167,7 +214,7 @@ export default function OnboardingPage() {
           ) : (
             <>
               <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">{completedForms}</p>
-              <p className="text-emerald-600 text-xs sm:text-sm font-medium">All 5 forms completed</p>
+              <p className="text-emerald-600 text-xs sm:text-sm font-medium">All 3 forms completed</p>
             </>
           )}
         </div>
@@ -301,16 +348,48 @@ export default function OnboardingPage() {
                             {ONBOARDING_FORMS.map((form) => {
                               const isCompleted = (patient as any)[form.key] as boolean | undefined
                               const FormIcon = form.icon
+                              const formType = form.id as 'release' | 'outing' | 'regulations'
+                              const isUploading = uploadingForm?.onboardingId === patient.id && uploadingForm?.formType === form.id
+                              const inputKey = `${patient.id}-${form.id}`
+                              
                               return (
                                 <div
                                   key={form.id}
-                                  className="flex items-center"
+                                  className="flex items-center gap-1"
                                   title={`${form.label}: ${isCompleted ? 'Completed' : 'Pending'}`}
                                 >
                                   {isCompleted ? (
                                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                                   ) : (
                                     <Clock className="h-4 w-4 text-gray-300" />
+                                  )}
+                                  {isAdmin && (
+                                    <>
+                                      <input
+                                        ref={(el) => {
+                                          fileInputRefs.current[inputKey] = el
+                                        }}
+                                        type="file"
+                                        accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx"
+                                        className="hidden"
+                                        onChange={(e) => handleFileChange(e, patient.id, formType)}
+                                        disabled={isUploading}
+                                      />
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 hover:bg-gray-100"
+                                        onClick={() => handleUploadClick(patient.id, form.id)}
+                                        disabled={isUploading}
+                                        title={`Upload ${form.label}`}
+                                      >
+                                        {isUploading ? (
+                                          <Loader2 className="h-3 w-3 animate-spin text-gray-500" />
+                                        ) : (
+                                          <Upload className="h-3 w-3 text-gray-500" />
+                                        )}
+                                      </Button>
+                                    </>
                                   )}
                                 </div>
                               )

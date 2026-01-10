@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById, activateServiceAgreement, activateIbogaineConsent } from '@/actions/patient-profile.action'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { sendFormEmail } from '@/actions/send-form-email.action'
-import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding } from '@/actions/onboarding-forms.action'
+import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding, uploadOnboardingFormDocument } from '@/actions/onboarding-forms.action'
 import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -78,8 +78,11 @@ export default function PatientProfilePage() {
   const [isMovingToOnboarding, setIsMovingToOnboarding] = useState(false)
   const [loadingOnboarding, setLoadingOnboarding] = useState(false)
   const [uploadingDocument, setUploadingDocument] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
+  const [uploadingOnboardingForm, setUploadingOnboardingForm] = useState<{ onboardingId: string; formType: string } | null>(null)
+  const onboardingFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   
   const isAdminOrOwner = profile?.role === 'admin' || profile?.role === 'owner'
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'manager'
   
   // Form state for editing
   const [formData, setFormData] = useState({
@@ -235,6 +238,50 @@ export default function PatientProfilePage() {
     }
   }
 
+  function handleOnboardingUploadClick(onboardingId: string, formType: string) {
+    const key = `${onboardingId}-${formType}`
+    onboardingFileInputRefs.current[key]?.click()
+  }
+
+  async function handleOnboardingFileChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+    onboardingId: string,
+    formType: 'release' | 'outing' | 'regulations'
+  ) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setUploadingOnboardingForm({ onboardingId, formType })
+    
+    try {
+      const result = await uploadOnboardingFormDocument({
+        onboarding_id: onboardingId,
+        form_type: formType,
+        file: file,
+      })
+
+      if (result?.data?.success) {
+        const formName = formType === 'release' ? 'Release Form' : formType === 'outing' ? 'Outing Consent' : 'Internal Regulations'
+        toast.success(`${formName} uploaded successfully`)
+        
+        // Reload patient profile which will also reload onboarding data
+        await loadPatientProfile()
+      } else {
+        toast.error(result?.data?.error || 'Failed to upload form')
+      }
+    } catch (error) {
+      console.error('Error uploading onboarding form:', error)
+      toast.error('An error occurred while uploading the form')
+    } finally {
+      setUploadingOnboardingForm(null)
+      // Reset file input
+      const key = `${onboardingId}-${formType}`
+      if (onboardingFileInputRefs.current[key]) {
+        onboardingFileInputRefs.current[key]!.value = ''
+      }
+    }
+  }
+
   async function handleUploadDocument(formType: 'intake' | 'medical' | 'service' | 'ibogaine', file: File) {
     if (!profileData?.patient?.id) {
       toast.error('Patient ID not found')
@@ -382,9 +429,8 @@ export default function PatientProfilePage() {
         if (!data.deposit_amount || data.deposit_amount === 0) missingFields.push('Deposit Amount')
         if (data.deposit_percentage === null || data.deposit_percentage === undefined) missingFields.push('Deposit Percentage')
         if (data.remaining_balance === null || data.remaining_balance === undefined) missingFields.push('Remaining Balance')
+        if (!data.number_of_days || data.number_of_days <= 0) missingFields.push('Number of Days of Program')
         if (!data.provider_signature_name || data.provider_signature_name.trim() === '') missingFields.push('Provider Signature Name')
-        if (!data.provider_signature_first_name || data.provider_signature_first_name.trim() === '') missingFields.push('Provider First Name')
-        if (!data.provider_signature_last_name || data.provider_signature_last_name.trim() === '') missingFields.push('Provider Last Name')
         if (!data.provider_signature_date) missingFields.push('Provider Signature Date')
         
         return { missing: missingFields.length > 0, formData: data }
@@ -1302,13 +1348,16 @@ export default function PatientProfilePage() {
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">Onboarding Forms</h2>
                 <div className="space-y-4">
                   {[
-                    { key: 'releaseForm', label: 'Release Form', icon: FileSignature, completed: profileData.onboarding.onboarding.release_form_completed },
-                    { key: 'outingForm', label: 'Outing/Transfer Consent', icon: Plane, completed: profileData.onboarding.onboarding.outing_consent_completed },
-                    { key: 'regulationsForm', label: 'Internal Regulations', icon: BookOpen, completed: profileData.onboarding.onboarding.internal_regulations_completed },
+                    { key: 'releaseForm', label: 'Release Form', icon: FileSignature, completed: profileData.onboarding.onboarding.release_form_completed, formType: 'release' as const },
+                    { key: 'outingForm', label: 'Outing/Transfer Consent', icon: Plane, completed: profileData.onboarding.onboarding.outing_consent_completed, formType: 'outing' as const },
+                    { key: 'regulationsForm', label: 'Internal Regulations', icon: BookOpen, completed: profileData.onboarding.onboarding.internal_regulations_completed, formType: 'regulations' as const },
                   ].map((form) => {
                     const FormIcon = form.icon
                     const formData = profileData.onboarding?.forms[form.key as keyof typeof profileData.onboarding.forms]
                     const status: 'completed' | 'pending' | 'not_started' = form.completed ? 'completed' : (formData ? 'pending' : 'not_started')
+                    const onboardingId = profileData.onboarding?.onboarding.id
+                    const inputKey = onboardingId ? `${onboardingId}-${form.formType}` : ''
+                    const isUploading = uploadingOnboardingForm?.onboardingId === onboardingId && uploadingOnboardingForm?.formType === form.formType
                     
                     return (
                       <div key={form.key} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
@@ -1321,6 +1370,40 @@ export default function PatientProfilePage() {
                         </div>
                         <div className="flex items-center gap-3">
                           {getStatusBadge(status)}
+                          {isAdmin && !form.completed && onboardingId && (
+                            <>
+                              <input
+                                ref={(el) => {
+                                  if (inputKey) onboardingFileInputRefs.current[inputKey] = el
+                                }}
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx"
+                                className="hidden"
+                                onChange={(e) => handleOnboardingFileChange(e, onboardingId, form.formType)}
+                                disabled={isUploading}
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOnboardingUploadClick(onboardingId, form.formType)}
+                                disabled={isUploading}
+                                className="gap-2"
+                                title={`Upload ${form.label}`}
+                              >
+                                {isUploading ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Uploading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="h-4 w-4" />
+                                    Upload
+                                  </>
+                                )}
+                              </Button>
+                            </>
+                          )}
                           {status === 'completed' && (() => {
                             // Map form keys to form types and viewing form states
                             const formTypeMap: Record<string, { type: 'release' | 'outing' | 'regulations', viewState: typeof viewingForm }> = {
@@ -1337,20 +1420,33 @@ export default function PatientProfilePage() {
                                 variant="outline"
                                 size="sm"
                                 onClick={async () => {
-                                  if (!mapping || !profileData.onboarding?.onboarding.id) return
+                                  if (!mapping || !onboardingId) return
                                   
                                   setLoadingViewForm(currentViewState)
                                   try {
                                     const result = await getFormByOnboarding({
-                                      onboarding_id: profileData.onboarding.onboarding.id,
+                                      onboarding_id: onboardingId,
                                       form_type: mapping.type,
                                     })
                                     
                                     if (result?.data?.success && result.data.data) {
-                                      // getFormByOnboarding returns { form: {...}, onboarding: {...} }
+                                      // Check if form has uploaded document
                                       const responseData = result.data.data
                                       const formData = responseData.form || responseData
-                                      setViewFormData(formData)
+                                      
+                                      // If form has document_url, show it; otherwise show form fields
+                                      if (formData.document_url) {
+                                        setViewFormData({ 
+                                          type: 'uploaded_document',
+                                          document_url: formData.document_url,
+                                          document_name: `${form.label} Document`,
+                                          form_type: mapping.type,
+                                          uploaded_at: formData.uploaded_at,
+                                          uploaded_by: formData.uploaded_by,
+                                        })
+                                      } else {
+                                        setViewFormData(formData)
+                                      }
                                       setViewingForm(mapping.viewState)
                                     } else {
                                       toast.error(result?.data?.error || 'Failed to load form data')
@@ -2345,9 +2441,8 @@ function ActivationFormFields({
     deposit_percentage?: string
     remaining_balance?: string
     provider_signature_name?: string
-    provider_signature_first_name?: string
-    provider_signature_last_name?: string
     provider_signature_date?: string
+    number_of_days?: string
     treatment_date?: string
     facilitator_doctor_name?: string
     date_of_birth?: string
@@ -2357,12 +2452,11 @@ function ActivationFormFields({
       return {
         total_program_fee: initialData?.total_program_fee ? `$${Number(initialData.total_program_fee).toLocaleString()}` : '',
         deposit_amount: initialData?.deposit_amount ? `$${Number(initialData.deposit_amount).toLocaleString()}` : '',
-        deposit_percentage: initialData?.deposit_percentage ? String(initialData.deposit_percentage) : '',
+        deposit_percentage: initialData?.deposit_percentage ? String(initialData.deposit_percentage) : '50',
         remaining_balance: initialData?.remaining_balance ? `$${Number(initialData.remaining_balance).toLocaleString()}` : '',
         provider_signature_name: initialData?.provider_signature_name || '',
-        provider_signature_first_name: initialData?.provider_signature_first_name || '',
-        provider_signature_last_name: initialData?.provider_signature_last_name || '',
         provider_signature_date: initialData?.provider_signature_date ? new Date(initialData.provider_signature_date).toISOString().split('T')[0] : '',
+        number_of_days: initialData?.number_of_days ? String(initialData.number_of_days) : '',
       }
     } else {
       return {
@@ -2374,12 +2468,12 @@ function ActivationFormFields({
     }
   })
 
-  // Handle total program fee change - auto-calculate deposit (40% default) and remaining balance
+  // Handle total program fee change - auto-calculate deposit (50% default) and remaining balance
   const handleTotalChange = (value: string) => {
     const num = parseFloat(value.replace(/[^0-9.]/g, ''))
     if (!isNaN(num) && num > 0) {
-      // Default to 40% deposit
-      const depositPct = 40
+      // Use existing percentage or default to 50%
+      const depositPct = parseFloat(formData.deposit_percentage || '50')
       const depositAmt = (num * depositPct) / 100
       const remaining = num - depositAmt
       
@@ -2394,6 +2488,7 @@ function ActivationFormFields({
       setFormData({ ...formData, total_program_fee: value })
     }
   }
+  
 
   // Handle deposit amount change - recalculate percentage and remaining balance
   const handleDepositChange = (value: string) => {
@@ -2451,17 +2546,7 @@ function ActivationFormFields({
               placeholder="$0.00"
               required
             />
-            <p className="text-xs text-gray-500 mt-1">Entering total will auto-calculate 40% deposit</p>
-          </div>
-          <div>
-            <Label htmlFor="deposit_amount">Deposit Amount *</Label>
-            <Input
-              id="deposit_amount"
-              value={formData.deposit_amount || ''}
-              onChange={(e) => handleDepositChange(e.target.value)}
-              placeholder="$0.00"
-              required
-            />
+            <p className="text-xs text-gray-500 mt-1">Auto-calculates deposit based on percentage</p>
           </div>
           <div>
             <Label htmlFor="deposit_percentage">Deposit Percentage *</Label>
@@ -2471,9 +2556,20 @@ function ActivationFormFields({
               min="0"
               max="100"
               step="0.01"
-              value={formData.deposit_percentage || ''}
+              value={formData.deposit_percentage || '50'}
               onChange={(e) => handleDepositPercentageChange(e.target.value)}
-              placeholder="0"
+              placeholder="50"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">Default is 50%</p>
+          </div>
+          <div>
+            <Label htmlFor="deposit_amount">Deposit Amount *</Label>
+            <Input
+              id="deposit_amount"
+              value={formData.deposit_amount || ''}
+              onChange={(e) => handleDepositChange(e.target.value)}
+              placeholder="$0.00"
               required
             />
           </div>
@@ -2490,29 +2586,24 @@ function ActivationFormFields({
             <p className="text-xs text-gray-500 mt-1">Auto-calculated</p>
           </div>
           <div>
+            <Label htmlFor="number_of_days">Number of Days of Program *</Label>
+            <Input
+              id="number_of_days"
+              type="number"
+              min="1"
+              step="1"
+              value={formData.number_of_days || ''}
+              onChange={(e) => setFormData({ ...formData, number_of_days: e.target.value })}
+              placeholder="14"
+              required
+            />
+          </div>
+          <div>
             <Label htmlFor="provider_signature_name">Provider Signature Name *</Label>
             <Input
               id="provider_signature_name"
               value={formData.provider_signature_name || ''}
               onChange={(e) => setFormData({ ...formData, provider_signature_name: e.target.value })}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="provider_signature_first_name">Provider First Name *</Label>
-            <Input
-              id="provider_signature_first_name"
-              value={formData.provider_signature_first_name || ''}
-              onChange={(e) => setFormData({ ...formData, provider_signature_first_name: e.target.value })}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="provider_signature_last_name">Provider Last Name *</Label>
-            <Input
-              id="provider_signature_last_name"
-              value={formData.provider_signature_last_name || ''}
-              onChange={(e) => setFormData({ ...formData, provider_signature_last_name: e.target.value })}
               required
             />
           </div>
