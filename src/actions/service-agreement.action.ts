@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { authActionClient } from '@/lib/safe-action'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { serviceAgreementSchema } from '@/lib/validations/service-agreement'
-import { sendServiceAgreementConfirmationEmail } from './email.action'
+import { sendServiceAgreementConfirmationEmail, sendEmailDirect } from './email.action'
 
 /**
  * Get patient data for service agreement pre-population
@@ -159,9 +159,9 @@ export const submitServiceAgreement = authActionClient
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingForm.id)
-        .select()
+        .select('*, total_program_fee, deposit_amount, deposit_percentage, remaining_balance')
         .single()
-      
+
       if (error || !data) {
         return { success: false, error: error?.message || 'Failed to update service agreement' }
       }
@@ -181,24 +181,138 @@ export const submitServiceAgreement = authActionClient
       }
       
       // Send confirmation email to patient (fire and forget - don't block response)
-      sendServiceAgreementConfirmationEmail(
-        parsedInput.patient_email,
-        parsedInput.patient_first_name,
-        parsedInput.patient_last_name
-      ).catch((error) => {
-        console.error('Failed to send service agreement confirmation email to patient:', error)
-      })
-      
-      // Send email to filler if application has filler details
-      if (intakeFormData && intakeFormData.filled_by === 'someone_else' && intakeFormData.filler_email) {
+      // Only send if patient completed the form (has patient signature)
+      if (parsedInput.patient_signature_name && parsedInput.patient_signature_name.trim() !== '') {
         sendServiceAgreementConfirmationEmail(
-          intakeFormData.filler_email,
-          intakeFormData.filler_first_name || 'Filler',
-          intakeFormData.filler_last_name || '',
-          intakeFormData.first_name || parsedInput.patient_first_name,
-          intakeFormData.last_name || parsedInput.patient_last_name
+          parsedInput.patient_email,
+          parsedInput.patient_first_name,
+          parsedInput.patient_last_name
         ).catch((error) => {
-          console.error('Failed to send service agreement confirmation email to filler:', error)
+          console.error('Failed to send service agreement confirmation email to patient:', error)
+        })
+        
+        // Send email to filler if application has filler details
+        if (intakeFormData && intakeFormData.filled_by === 'someone_else' && intakeFormData.filler_email) {
+          sendServiceAgreementConfirmationEmail(
+            intakeFormData.filler_email,
+            intakeFormData.filler_first_name || 'Filler',
+            intakeFormData.filler_last_name || '',
+            intakeFormData.first_name || parsedInput.patient_first_name,
+            intakeFormData.last_name || parsedInput.patient_last_name
+          ).catch((error) => {
+            console.error('Failed to send service agreement confirmation email to filler:', error)
+          })
+        }
+        
+        // Send admin notification email when client completes service agreement (fire and forget)
+        const clientName = `${parsedInput.patient_first_name} ${parsedInput.patient_last_name}`.trim()
+        // Use fee amounts from the updated database record (data already contains all fields from .select())
+        const feeAmount = typeof data.total_program_fee === 'number' ? data.total_program_fee : parseFloat(String(data.total_program_fee || 0))
+        const depAmount = typeof data.deposit_amount === 'number' ? data.deposit_amount : parseFloat(String(data.deposit_amount || 0))
+        const depPct = typeof data.deposit_percentage === 'number' ? data.deposit_percentage : parseFloat(String(data.deposit_percentage || 0))
+        const remBalance = typeof data.remaining_balance === 'number' ? data.remaining_balance : parseFloat(String(data.remaining_balance || 0))
+        
+        const adminNotificationBody = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { 
+                font-family: 'Helvetica Neue', Arial, sans-serif; 
+                line-height: 1.8; 
+                color: #333; 
+                margin: 0;
+                padding: 0;
+                background-color: #f5f5f5;
+              }
+              .container { 
+                max-width: 600px; 
+                margin: 0 auto; 
+                background: white;
+              }
+              .header { 
+                background: #5D7A5F; 
+                color: white; 
+                padding: 40px 30px; 
+                text-align: center; 
+              }
+              .header h1 {
+                margin: 0;
+                font-size: 28px;
+                font-weight: 400;
+              }
+              .content { 
+                padding: 40px 30px; 
+                background: white; 
+              }
+              .content h2 {
+                color: #5D7A5F;
+                font-size: 24px;
+                margin-top: 0;
+              }
+              .content p {
+                font-size: 16px;
+                color: #555;
+                margin-bottom: 20px;
+              }
+              .info-box {
+                background: #f0f7f0;
+                border-left: 4px solid #5D7A5F;
+                padding: 20px;
+                margin: 20px 0;
+              }
+              .footer { 
+                padding: 30px; 
+                text-align: center; 
+                font-size: 14px; 
+                color: #888;
+                background: #f9f9f9;
+                border-top: 1px solid #eee;
+              }
+              .footer a {
+                color: #5D7A5F;
+                text-decoration: none;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>Iboga Wellness Institute</h1>
+              </div>
+              <div class="content">
+                <h2>Client Service Agreement Completed</h2>
+                
+                <div class="info-box">
+                  <p><strong>✅ Service Agreement Completed</strong></p>
+                  <p><strong>Client Name:</strong> ${clientName}</p>
+                  <p><strong>Client Email:</strong> ${parsedInput.patient_email}</p>
+                  <p><strong>Program Fee:</strong> $${feeAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p><strong>Deposit:</strong> $${depAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${depPct.toFixed(2)}%)</p>
+                  <p><strong>Remaining Balance:</strong> $${remBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+                
+                <p>The client has successfully completed and signed their Service Agreement. Please review the agreement and proceed with the next steps in the client onboarding process.</p>
+                
+                <p>You can view the completed Service Agreement in the patient profile section of the portal.</p>
+                
+                <p>Best regards,<br><strong>Iboga Wellness Institute System</strong></p>
+              </div>
+              <div class="footer">
+                <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+                <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `
+        
+        sendEmailDirect({
+          to: 'james@theibogainstitute.org',
+          subject: `Client Service Agreement Completed - ${clientName} | Iboga Wellness Institute`,
+          body: adminNotificationBody,
+        }).catch((error) => {
+          console.error('Failed to send admin notification email for service agreement:', error)
         })
       }
       
@@ -314,6 +428,111 @@ export const submitServiceAgreement = authActionClient
             console.error('Failed to send service agreement confirmation email to filler:', error)
           })
         }
+        
+        // Send admin notification email when client completes service agreement (fire and forget)
+        const clientName = `${parsedInput.patient_first_name} ${parsedInput.patient_last_name}`.trim()
+        const adminNotificationBody = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { 
+                font-family: 'Helvetica Neue', Arial, sans-serif; 
+                line-height: 1.8; 
+                color: #333; 
+                margin: 0;
+                padding: 0;
+                background-color: #f5f5f5;
+              }
+              .container { 
+                max-width: 600px; 
+                margin: 0 auto; 
+                background: white;
+              }
+              .header { 
+                background: #5D7A5F; 
+                color: white; 
+                padding: 40px 30px; 
+                text-align: center; 
+              }
+              .header h1 {
+                margin: 0;
+                font-size: 28px;
+                font-weight: 400;
+              }
+              .content { 
+                padding: 40px 30px; 
+                background: white; 
+              }
+              .content h2 {
+                color: #5D7A5F;
+                font-size: 24px;
+                margin-top: 0;
+              }
+              .content p {
+                font-size: 16px;
+                color: #555;
+                margin-bottom: 20px;
+              }
+              .info-box {
+                background: #f0f7f0;
+                border-left: 4px solid #5D7A5F;
+                padding: 20px;
+                margin: 20px 0;
+              }
+              .footer { 
+                padding: 30px; 
+                text-align: center; 
+                font-size: 14px; 
+                color: #888;
+                background: #f9f9f9;
+                border-top: 1px solid #eee;
+              }
+              .footer a {
+                color: #5D7A5F;
+                text-decoration: none;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>Iboga Wellness Institute</h1>
+              </div>
+              <div class="content">
+                <h2>Client Service Agreement Completed</h2>
+                
+                <div class="info-box">
+                  <p><strong>✅ Service Agreement Completed</strong></p>
+                  <p><strong>Client Name:</strong> ${clientName}</p>
+                  <p><strong>Client Email:</strong> ${parsedInput.patient_email}</p>
+                  <p><strong>Program Fee:</strong> $${totalProgramFee.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p><strong>Deposit:</strong> $${depositAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${depositPercentage.toFixed(2)}%)</p>
+                  <p><strong>Remaining Balance:</strong> $${remainingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+                
+                <p>The client has successfully completed and signed their Service Agreement. Please review the agreement and proceed with the next steps in the client onboarding process.</p>
+                
+                <p>You can view the completed Service Agreement in the patient profile section of the portal.</p>
+                
+                <p>Best regards,<br><strong>Iboga Wellness Institute System</strong></p>
+              </div>
+              <div class="footer">
+                <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+                <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `
+        
+        sendEmailDirect({
+          to: 'james@theibogainstitute.org',
+          subject: `Client Service Agreement Completed - ${clientName} | Iboga Wellness Institute`,
+          body: adminNotificationBody,
+        }).catch((error) => {
+          console.error('Failed to send admin notification email for service agreement:', error)
+        })
       }
 
       return { success: true, data: { id: data.id } }
