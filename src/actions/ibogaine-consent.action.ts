@@ -131,6 +131,23 @@ export async function checkIbogaineConsentActivation() {
     }
   }
   
+  // Get facilitator_doctor_name from form_defaults if not set on the form
+  let facilitatorDoctorName = existingForm.facilitator_doctor_name
+  if (!facilitatorDoctorName || facilitatorDoctorName.trim() === '') {
+    const { data: defaults } = await supabase
+      .from('form_defaults')
+      .select('default_values')
+      .eq('form_type', 'ibogaine_consent')
+      .single()
+    
+    if (defaults?.default_values) {
+      const defaultValues = typeof defaults.default_values === 'string' 
+        ? JSON.parse(defaults.default_values) 
+        : defaults.default_values
+      facilitatorDoctorName = defaultValues?.facilitator_doctor_name || null
+    }
+  }
+  
   return { 
     success: true, 
     data: { 
@@ -146,8 +163,8 @@ export async function checkIbogaineConsentActivation() {
         address: existingForm.address,
         patient_id: existingForm.patient_id,
         intake_form_id: existingForm.intake_form_id,
-        // Admin fields (read-only for patients)
-        facilitator_doctor_name: existingForm.facilitator_doctor_name,
+        // Admin fields (read-only for patients) - get from defaults if not on form
+        facilitator_doctor_name: facilitatorDoctorName,
         // Patient signature fields (if already filled)
         signature_data: existingForm.signature_data,
         signature_date: existingForm.signature_date,
