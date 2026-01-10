@@ -153,6 +153,24 @@ export function getServiceAgreementText(params: {
     ? "Treatment is being sought for Parkinson's disease and related symptoms."
     : "Treatment is being sought for wellness, therapeutic support, and personal growth."
 
+  // Build services list conditionally
+  const servicesList = [
+    'Wellness support and therapeutic care.',
+    isNeurological
+      ? 'Administration of ibogaine-based microdosing protocols in accordance with Dr. Omar Calderon\'s clinical guidelines.'
+      : 'Administration of ibogaine-based protocols in accordance with Dr. Omar Calderon\'s clinical guidelines.',
+    'Medical monitoring during treatment, including regular EKG and heart monitoring, vital sign checks, any medicines needed and observation of overall physical condition to ensure safety.',
+    'Education, preparation, and integration sessions designed to maximize treatment benefit.',
+    ...(isNeurological ? ['Daily Physical Therapy or Aqua Sessions.'] : []),
+    'Complimentary somatic & sound therapy sessions.',
+    'Weekly Massage sessions.',
+    'Weekly beach club excursion.',
+    'Daily meals (breakfast, lunch, dinner and meals) provided by our personal Chef and staff.',
+    'Transportation to and from the Airport in private transportation and private transportation around the island.',
+    'Concierge services available to ensure a 5 star experience for each patient.',
+    'Psychologist available to each patient if needed.',
+  ]
+
   return `Between: Iboga Wellness Institute, LLC("Provider") and ("Patient")
 
 1. Purpose of Agreement
@@ -167,18 +185,7 @@ Provider to issue a written, electronically signed Treatment Qualification/Appro
 2b. Onsite Treatment Services Provided
 Provider agrees to deliver the following services for a ${days}-day period at clinic in Cozumel Mexico:
 
-Wellness support and therapeutic care.
-Administration of ibogaine-based microdosing protocols in accordance with Dr. Omar Calderon's clinical guidelines.
-Medical monitoring during treatment, including regular EKG and heart monitoring, vital sign checks, any medicines needed and observation of overall physical condition to ensure safety.
-Education, preparation, and integration sessions designed to maximize treatment benefit.
-Daily Physical Therapy or Aqua Sessions.
-Daily Yoga sessions.
-Weekly Massage sessions.
-Weekly boat excursion to a sandbar for lunch or dinner if the patient is able.
-Daily meals (breakfast, lunch, dinner and meals) provided by our personal Chef and staff.
-Transportation to and from the Airport in private transportation and private transportation around the island.
-Concierge services available to ensure a 5 star experience for each patient.
-Psychologist available to each patient if needed.
+${servicesList.join('\n')}
 
 2c. Post-Treatment Services Provided
 The provider agrees to provide the following services remotely.
@@ -198,7 +205,7 @@ Payment Schedule:
 
 ${depositPct}% of the total program fee (${formattedTotal} USD) is due upon issuance of the electronically signed Treatment Qualification/Approval letter.
 The remaining ${100 - depositPct}% (${formattedRemaining} USD) is due no later than three (3) days prior to the patient's scheduled arrival at the clinic.
-If paying by card, a 3% processing fee applies to the amount paid by card.
+If paying by credit card, a 3% processing fee applies to the amount paid by credit card.
 
 5a. Cancellation & Refund Policy
 Cancellations made at least 30 days before your scheduled treatment date are eligible for a full refund of the program fee (minus any transfer or processing costs).
@@ -237,7 +244,9 @@ All medical and personal information will be kept confidential in accordance wit
 By signing this Agreement, Patient acknowledges and consents to the following:
 
 I voluntarily choose to receive treatment at Iboga Wellness Institute in Cozumel Mexico.
-I understand the treatment involves ibogaine microdosing following Dr. Omar Calderón's protocol.
+${isNeurological 
+  ? 'I understand the treatment involves ibogaine microdosing following Dr. Omar Calderón\'s protocol.'
+  : 'I understand the treatment involves ibogaine following Dr. Omar Calderón\'s protocol.'}
 I have been informed of potential risks, benefits, and alternatives.
 I understand this treatment is alternative and experimental and not guaranteed to improve my condition.
 I release Iboga Wellness Institute, LLC, its staff, contractors, and affiliates from liability for outcomes reasonably associated with treatment, except in cases of gross negligence or willful misconduct.
