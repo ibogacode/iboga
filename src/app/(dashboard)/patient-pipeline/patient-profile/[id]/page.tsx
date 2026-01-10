@@ -75,6 +75,21 @@ export default function PatientProfilePage() {
     formData: any
   } | null>(null)
   const [isSavingActivationFields, setIsSavingActivationFields] = useState(false)
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false)
+  const [confirmationModalData, setConfirmationModalData] = useState<{
+    formType: 'ibogaine'
+    formId: string
+    doctorName: string | null
+    dateOfBirth: string | null
+    address: string | null
+  } | null>(null)
+  const [isEditingConfirmationFields, setIsEditingConfirmationFields] = useState(false)
+  const [editingConfirmationData, setEditingConfirmationData] = useState<{
+    doctorName: string
+    dateOfBirth: string
+    address: string
+  } | null>(null)
+  const [isSavingConfirmationFields, setIsSavingConfirmationFields] = useState(false)
   const [isMovingToOnboarding, setIsMovingToOnboarding] = useState(false)
   const [loadingOnboarding, setLoadingOnboarding] = useState(false)
   const [uploadingDocument, setUploadingDocument] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
@@ -544,7 +559,24 @@ export default function PatientProfilePage() {
       return
     }
     
-    // No missing fields, proceed with activation
+    // For ibogaine consent, always show confirmation modal before activating
+    if (formType === 'ibogaine') {
+      const doctorName = formData?.facilitator_doctor_name_from_defaults || formData?.facilitator_doctor_name || null
+      const dateOfBirth = formData?.date_of_birth || null
+      const address = formData?.address || null
+      
+      setConfirmationModalData({
+        formType: 'ibogaine',
+        formId,
+        doctorName,
+        dateOfBirth,
+        address,
+      })
+      setShowConfirmationModal(true)
+      return
+    }
+    
+    // For service agreement, proceed directly if no missing fields
     await performActivation(formType, formId, isActivated)
   }
 
@@ -1918,9 +1950,30 @@ export default function PatientProfilePage() {
                   if (result?.data?.success) {
                     toast.success('Fields saved successfully')
                     setShowActivationModal(false)
+                    const formType = activationModalData.formType
+                    const formId = activationModalData.formId
                     setActivationModalData(null)
-                    // Now activate the form
-                    await performActivation(activationModalData.formType, activationModalData.formId, true)
+                    
+                    // For ibogaine consent, show confirmation modal after saving fields
+                    if (formType === 'ibogaine') {
+                      // Re-fetch form data to get updated values
+                      const { formData: updatedFormData } = await checkMissingFields('ibogaine', formId)
+                      const doctorName = updatedFormData?.facilitator_doctor_name_from_defaults || updatedFormData?.facilitator_doctor_name || null
+                      const dateOfBirth = updatedFormData?.date_of_birth || null
+                      const address = updatedFormData?.address || null
+                      
+                      setConfirmationModalData({
+                        formType: 'ibogaine',
+                        formId,
+                        doctorName,
+                        dateOfBirth,
+                        address,
+                      })
+                      setShowConfirmationModal(true)
+                    } else {
+                      // For service agreement, proceed directly
+                      await performActivation(formType, formId, true)
+                    }
                   } else {
                     const errorMsg = result?.data?.error || result?.serverError || 'Failed to save fields'
                     toast.error(String(errorMsg))
@@ -1938,6 +1991,228 @@ export default function PatientProfilePage() {
               isSaving={isSavingActivationFields}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Modal for Ibogaine Consent Activation */}
+      <Dialog open={showConfirmationModal} onOpenChange={(open) => {
+        setShowConfirmationModal(open)
+        if (!open) {
+          setConfirmationModalData(null)
+          setIsEditingConfirmationFields(false)
+          setEditingConfirmationData(null)
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-gray-900">
+              Confirm Activation - Ibogaine Consent Form
+            </DialogTitle>
+            <DialogDescription className="text-base text-gray-600">
+              Please review and confirm the following information before activating the form. You can edit if needed.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {confirmationModalData && (
+            <div className="space-y-4 py-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900">Form Information</h3>
+                  {!isEditingConfirmationFields && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsEditingConfirmationFields(true)
+                        setEditingConfirmationData({
+                          doctorName: confirmationModalData.doctorName || '',
+                          dateOfBirth: confirmationModalData.dateOfBirth ? format(new Date(confirmationModalData.dateOfBirth), 'yyyy-MM-dd') : '',
+                          address: confirmationModalData.address || '',
+                        })
+                      }}
+                    >
+                      <Edit2 className="h-3 w-3 mr-1" />
+                      Edit
+                    </Button>
+                  )}
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-sm font-semibold text-gray-700 mb-1 block">
+                      Facilitator/Doctor Name
+                      {!isEditingConfirmationFields && (
+                        <span className="text-xs font-normal text-gray-500 ml-2">(from defaults, can be overridden)</span>
+                      )}
+                    </Label>
+                    {isEditingConfirmationFields ? (
+                      <Input
+                        value={editingConfirmationData?.doctorName || ''}
+                        onChange={(e) => setEditingConfirmationData(prev => prev ? { ...prev, doctorName: e.target.value } : null)}
+                        placeholder="Enter doctor name"
+                        className="bg-white"
+                      />
+                    ) : (
+                      <div className="bg-white border border-gray-300 rounded-md px-3 py-2 text-gray-900 font-medium">
+                        {confirmationModalData.doctorName || (
+                          <span className="text-red-600 italic">Not set</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-semibold text-gray-700 mb-1 block">
+                      Date of Birth
+                    </Label>
+                    {isEditingConfirmationFields ? (
+                      <Input
+                        type="date"
+                        value={editingConfirmationData?.dateOfBirth || ''}
+                        onChange={(e) => setEditingConfirmationData(prev => prev ? { ...prev, dateOfBirth: e.target.value } : null)}
+                        className="bg-white"
+                      />
+                    ) : (
+                      <div className="bg-white border border-gray-300 rounded-md px-3 py-2 text-gray-900 font-medium">
+                        {confirmationModalData.dateOfBirth ? (
+                          format(new Date(confirmationModalData.dateOfBirth), 'MMMM dd, yyyy')
+                        ) : (
+                          <span className="text-red-600 italic">Not set</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <Label className="text-sm font-semibold text-gray-700 mb-1 block">
+                      Address
+                    </Label>
+                    {isEditingConfirmationFields ? (
+                      <textarea
+                        value={editingConfirmationData?.address || ''}
+                        onChange={(e) => setEditingConfirmationData(prev => prev ? { ...prev, address: e.target.value } : null)}
+                        placeholder="Enter address"
+                        rows={3}
+                        className="w-full bg-white border border-gray-300 rounded-md px-3 py-2 text-gray-900 font-medium resize-y"
+                      />
+                    ) : (
+                      <div className="bg-white border border-gray-300 rounded-md px-3 py-2 text-gray-900 font-medium min-h-[60px] whitespace-pre-wrap">
+                        {confirmationModalData.address || (
+                          <span className="text-red-600 italic">Not set</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-sm text-amber-800">
+                  <strong>Note:</strong> Once activated, the patient will receive an email notification to complete their signature fields.
+                </p>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowConfirmationModal(false)
+                setConfirmationModalData(null)
+                setIsEditingConfirmationFields(false)
+                setEditingConfirmationData(null)
+              }}
+            >
+              Cancel
+            </Button>
+            {isEditingConfirmationFields ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditingConfirmationFields(false)
+                    setEditingConfirmationData(null)
+                  }}
+                  disabled={isSavingConfirmationFields}
+                >
+                  Cancel Edit
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (confirmationModalData && editingConfirmationData) {
+                      // Validate required fields
+                      if (!editingConfirmationData.dateOfBirth) {
+                        toast.error('Date of birth is required')
+                        return
+                      }
+                      if (!editingConfirmationData.address || editingConfirmationData.address.trim() === '') {
+                        toast.error('Address is required')
+                        return
+                      }
+                      
+                      setIsSavingConfirmationFields(true)
+                      try {
+                        const result = await updateIbogaineConsentAdminFields({
+                          formId: confirmationModalData.formId,
+                          date_of_birth: editingConfirmationData.dateOfBirth,
+                          address: editingConfirmationData.address,
+                          facilitator_doctor_name: editingConfirmationData.doctorName || undefined,
+                        })
+                        
+                        if (result?.data?.success) {
+                          toast.success('Fields updated successfully')
+                          // Update confirmation modal data with new values
+                          setConfirmationModalData({
+                            ...confirmationModalData,
+                            doctorName: editingConfirmationData.doctorName || confirmationModalData.doctorName,
+                            dateOfBirth: editingConfirmationData.dateOfBirth,
+                            address: editingConfirmationData.address,
+                          })
+                          setIsEditingConfirmationFields(false)
+                          setEditingConfirmationData(null)
+                        } else {
+                          const errorMsg = result?.data?.error || result?.serverError || 'Failed to update fields'
+                          toast.error(String(errorMsg))
+                        }
+                      } catch (error) {
+                        toast.error(`Failed to update fields: ${error instanceof Error ? error.message : 'Unknown error'}`)
+                      } finally {
+                        setIsSavingConfirmationFields(false)
+                      }
+                    }
+                  }}
+                  disabled={isSavingConfirmationFields || !editingConfirmationData?.dateOfBirth || !editingConfirmationData?.address?.trim()}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {isSavingConfirmationFields ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={async () => {
+                  if (confirmationModalData) {
+                    setShowConfirmationModal(false)
+                    await performActivation(confirmationModalData.formType, confirmationModalData.formId, true)
+                    setConfirmationModalData(null)
+                    setIsEditingConfirmationFields(false)
+                    setEditingConfirmationData(null)
+                  }
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                Confirm & Activate
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

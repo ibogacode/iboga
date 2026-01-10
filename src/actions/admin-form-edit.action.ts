@@ -48,11 +48,12 @@ const adminServiceAgreementSchema = z.object({
 })
 
 // Schema for admin editing Ibogaine Consent (only admin fields)
-// Note: facilitator_doctor_name comes from defaults table, not editable here
+// facilitator_doctor_name can be overridden per form if needed
 const adminIbogaineConsentSchema = z.object({
   formId: z.string().uuid(),
   date_of_birth: z.string().min(1, 'Date of birth is required'),
   address: z.string().min(1, 'Address is required'),
+  facilitator_doctor_name: z.string().min(1, 'Facilitator/Doctor name is required').optional(),
 })
 
 // Get Service Agreement for admin editing
@@ -330,10 +331,14 @@ export const updateIbogaineConsentAdminFields = authActionClient
     // Parse date
     const dateOfBirth = new Date(parsedInput.date_of_birth)
     const updateData: any = {
-      // facilitator_doctor_name comes from defaults table, not updated here
       date_of_birth: dateOfBirth.toISOString().split('T')[0],
       address: parsedInput.address,
       updated_at: new Date().toISOString(),
+    }
+    
+    // Allow overriding facilitator_doctor_name if provided (normally comes from defaults)
+    if (parsedInput.facilitator_doctor_name) {
+      updateData.facilitator_doctor_name = parsedInput.facilitator_doctor_name
     }
 
     // Update only admin fields
