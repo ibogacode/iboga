@@ -118,7 +118,12 @@ export function MedicalHistoryForm() {
                 'other': 'other',
                 'prefer-not-to-say': 'other'
               }
-              form.setValue('gender', genderMap[intakeData.gender] || 'other')
+              const mappedGender = genderMap[intakeData.gender] || 'other'
+              form.setValue('gender', mappedGender)
+              // If male, set is_pregnant to false
+              if (mappedGender === 'M') {
+                form.setValue('is_pregnant', false)
+              }
             }
             form.setValue('emergency_contact_name', 
               `${intakeData.emergency_contact_first_name || ''} ${intakeData.emergency_contact_last_name || ''}`.trim()
@@ -137,6 +142,7 @@ export function MedicalHistoryForm() {
     }
   }, [intakeFormId, form])
 
+
   const [isLoading, setIsLoading] = useState(false)
 
   async function onSubmit(data: MedicalHistoryFormValues) {
@@ -145,8 +151,11 @@ export function MedicalHistoryForm() {
     try {
       // Format signature date
       const today = new Date().toISOString().split('T')[0]
-      const result = await submitMedicalHistoryForm({
+      
+      // Ensure is_pregnant is false for males
+      const submitData = {
         ...data,
+        is_pregnant: data.gender === 'M' ? false : data.is_pregnant,
         signature_date: today,
         uploaded_file_url: uploadedFile?.url || null,
         uploaded_file_name: uploadedFile?.name || null,
@@ -156,7 +165,9 @@ export function MedicalHistoryForm() {
         cardiac_evaluation_file_name: cardiacEvalFile?.name || null,
         liver_function_tests_file_url: liverTestFile?.url || null,
         liver_function_tests_file_name: liverTestFile?.name || null,
-      })
+      }
+      
+      const result = await submitMedicalHistoryForm(submitData)
       
       if (result?.data?.success) {
         setIsSubmitted(true)
@@ -364,7 +375,12 @@ export function MedicalHistoryForm() {
       case 5:
         return ['medications_medical_use', 'medications_mental_health', 'mental_health_conditions', 'mental_health_treatment']
       case 6:
-        return ['allergies', 'previous_psychedelics_experiences', 'has_physical_examination', 'has_cardiac_evaluation', 'has_liver_function_tests', 'is_pregnant']
+        const step6Fields: (keyof MedicalHistoryFormValues)[] = ['allergies', 'previous_psychedelics_experiences', 'has_physical_examination', 'has_cardiac_evaluation', 'has_liver_function_tests']
+        // Only include is_pregnant if gender is not male
+        if (form.watch('gender') !== 'M') {
+          step6Fields.push('is_pregnant')
+        }
+        return step6Fields
       case 7:
         return ['dietary_lifestyle_habits', 'physical_activity_exercise']
       case 8:
@@ -378,30 +394,40 @@ export function MedicalHistoryForm() {
     <div className="min-h-screen bg-#EDE9E4">
       <div className="max-w-4xl mx-auto bg-white p-8">
         {isSubmitted ? (
-          <div className="text-center py-12">
-            <div className="mb-6">
-              <svg
-                className="mx-auto h-16 w-16 text-green-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+          <div className="text-center py-16 px-4">
+            <div className="mb-8">
+              <div className="mx-auto w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-6">
+                <svg
+                  className="h-12 w-12 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2.5}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
               Thank You!
             </h1>
-            <p className="text-lg text-gray-600 mb-2">
-              Your medical history form has been submitted successfully.
+            <p className="text-xl text-gray-700 mb-4 font-medium">
+              Your Medical Health History form has been submitted successfully.
             </p>
-            <p className="text-base text-gray-500">
-              We will review your information and get back to you soon.
+            <div className="max-w-2xl mx-auto mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-base text-gray-700 mb-2">
+                <strong>What happens next?</strong>
+              </p>
+              <p className="text-sm text-gray-600">
+                Our medical team will review your health history information. We will contact you if we need any additional details or to proceed with the next steps in your wellness journey.
+              </p>
+            </div>
+            <p className="text-sm text-gray-500 mt-8">
+              You will be redirected to your dashboard shortly...
             </p>
           </div>
         ) : (
@@ -491,7 +517,13 @@ export function MedicalHistoryForm() {
                       </Label>
                       <RadioGroup
                         value={form.watch('gender')}
-                        onValueChange={(value) => form.setValue('gender', value as 'M' | 'F' | 'other')}
+                        onValueChange={(value) => {
+                          form.setValue('gender', value as 'M' | 'F' | 'other')
+                          // If gender changes to male, automatically set is_pregnant to false
+                          if (value === 'M') {
+                            form.setValue('is_pregnant', false)
+                          }
+                        }}
                         className="mt-2"
                       >
                         <div className="flex gap-6">
@@ -1235,27 +1267,30 @@ export function MedicalHistoryForm() {
                       )}
                     </div>
 
-                    <div>
-                      <Label className="text-base font-medium">
-                        Are you currently pregnant or suspect you might be pregnant? <span className="text-red-500">*</span>
-                      </Label>
-                      <RadioGroup
-                        value={form.watch('is_pregnant') ? 'yes' : 'no'}
-                        onValueChange={(value) => form.setValue('is_pregnant', value === 'yes')}
-                        className="mt-2"
-                      >
-                        <div className="flex gap-6">
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="yes" id="pregnant-yes" />
-                            <Label htmlFor="pregnant-yes" className="font-normal cursor-pointer">Yes</Label>
+                    {/* Pregnancy question - only show for females */}
+                    {form.watch('gender') !== 'M' && (
+                      <div>
+                        <Label className="text-base font-medium">
+                          Are you currently pregnant or suspect you might be pregnant? <span className="text-red-500">*</span>
+                        </Label>
+                        <RadioGroup
+                          value={form.watch('is_pregnant') ? 'yes' : 'no'}
+                          onValueChange={(value) => form.setValue('is_pregnant', value === 'yes')}
+                          className="mt-2"
+                        >
+                          <div className="flex gap-6">
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="yes" id="pregnant-yes" />
+                              <Label htmlFor="pregnant-yes" className="font-normal cursor-pointer">Yes</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="no" id="pregnant-no" />
+                              <Label htmlFor="pregnant-no" className="font-normal cursor-pointer">No</Label>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="no" id="pregnant-no" />
-                            <Label htmlFor="pregnant-no" className="font-normal cursor-pointer">No</Label>
-                          </div>
-                        </div>
-                      </RadioGroup>
-                    </div>
+                        </RadioGroup>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

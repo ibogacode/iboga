@@ -436,7 +436,8 @@ export function ServiceAgreementForm({ prefillPatientData = false }: ServiceAgre
                 const depositPct = parseFloat(form.watch('deposit_percentage') || '50') || 50
                 const depositAmt = parseFloat((form.watch('deposit_amount') || '').replace(/[^0-9.]/g, '')) || 0
                 const remaining = parseFloat((form.watch('remaining_balance') || '0').replace(/[^0-9.]/g, '')) || 0
-                const days = numberOfDays || parseInt(form.watch('number_of_days') || '14', 10) || 14
+                const watchedDays = form.watch('number_of_days')
+                const days = numberOfDays || (typeof watchedDays === 'number' ? watchedDays : 14) || 14
                 const progType = programType || (form.watch('program_type') as 'neurological' | 'mental_health' | 'addiction') || 'neurological'
                 
                 const agreementText = getServiceAgreementText({

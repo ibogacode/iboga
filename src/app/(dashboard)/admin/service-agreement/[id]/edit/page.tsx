@@ -153,18 +153,6 @@ export default function AdminServiceAgreementEditPage() {
     }
   }
 
-  const handleDepositChange = (value: string) => {
-    const num = parseFloat(value.replace(/[^0-9.]/g, ''))
-    const total = parseFloat(form.watch('total_program_fee').replace(/[^0-9.]/g, ''))
-    if (!isNaN(num) && !isNaN(total) && total > 0) {
-      const pct = (num / total) * 100
-      const remaining = total - num
-      
-      form.setValue('deposit_percentage', pct.toFixed(2))
-      form.setValue('remaining_balance', `$${remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
-    }
-  }
-
   const onSubmit = async (data: AdminServiceAgreementFormValues) => {
     if (!formId) return
     
