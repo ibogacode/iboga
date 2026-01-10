@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Upload, X, FileText, Loader2, Image as ImageIcon, File } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -35,6 +35,7 @@ export function MultiFileUpload({
   disabled = false,
 }: MultiFileUploadProps) {
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set())
+  const [viewingImage, setViewingImage] = useState<{ url: string; fileName: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const files = value || []
 
@@ -106,6 +107,23 @@ export function MultiFileUpload({
     toast.success('File removed')
   }
 
+  // Close modal on ESC key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && viewingImage) {
+        setViewingImage(null)
+      }
+    }
+    if (viewingImage) {
+      document.addEventListener('keydown', handleEscape)
+      document.body.style.overflow = 'hidden'
+    }
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+      document.body.style.overflow = ''
+    }
+  }, [viewingImage])
+
   return (
     <div className="space-y-3">
       <Label>{label}</Label>
@@ -158,7 +176,10 @@ export function MultiFileUpload({
               className="relative group border border-gray-200 rounded-lg overflow-hidden bg-white"
             >
               {isImage(file.fileType) ? (
-                <div className="relative aspect-square">
+                <div 
+                  className="relative aspect-square cursor-pointer"
+                  onClick={() => !disabled && setViewingImage({ url: file.url, fileName: file.fileName })}
+                >
                   <Image
                     src={file.url}
                     alt={file.fileName}
@@ -171,12 +192,20 @@ export function MultiFileUpload({
                       type="button"
                       variant="destructive"
                       size="sm"
-                      onClick={() => handleRemove(index)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRemove(index)
+                      }}
                       disabled={disabled}
                       className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
                     >
                       <X className="h-4 w-4" />
                     </Button>
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10">
+                    <div className="bg-white/90 rounded-full p-2 shadow-lg">
+                      <ImageIcon className="h-5 w-5 text-gray-700" />
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -199,19 +228,31 @@ export function MultiFileUpload({
                 </div>
               )}
               <div className="absolute top-1 right-1">
-                <a
-                  href={file.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-white/90 hover:bg-white rounded-full p-1.5 shadow-sm transition-colors"
-                  title="View full size"
-                >
-                  {isImage(file.fileType) ? (
+                {isImage(file.fileType) ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setViewingImage({ url: file.url, fileName: file.fileName })
+                    }}
+                    className="bg-white/90 hover:bg-white rounded-full p-1.5 shadow-sm transition-colors"
+                    title="View full size"
+                    disabled={disabled}
+                  >
                     <ImageIcon className="h-3 w-3 text-gray-600" />
-                  ) : (
+                  </button>
+                ) : (
+                  <a
+                    href={file.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-white/90 hover:bg-white rounded-full p-1.5 shadow-sm transition-colors"
+                    title="Open file"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <File className="h-3 w-3 text-gray-600" />
-                  )}
-                </a>
+                  </a>
+                )}
               </div>
             </div>
           ))}
@@ -221,6 +262,40 @@ export function MultiFileUpload({
       <p className="text-xs text-gray-500">
         Max size: {maxSizeMB}MB per file. Max files: {maxFiles}. Accepted: {accept}
       </p>
+
+      {/* Full-Size Image Viewer Modal */}
+      {viewingImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setViewingImage(null)}
+        >
+          <div className="relative max-w-[95vw] max-h-[95vh] w-full h-full flex items-center justify-center">
+            <button
+              onClick={() => setViewingImage(null)}
+              className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center shadow-lg transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5 text-gray-700" />
+            </button>
+            <div 
+              className="relative w-full h-full flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Image
+                src={viewingImage.url}
+                alt={viewingImage.fileName}
+                fill
+                className="object-contain"
+                unoptimized
+                priority
+              />
+            </div>
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 rounded-lg px-4 py-2 shadow-lg">
+              <p className="text-sm font-medium text-gray-900">{viewingImage.fileName}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
