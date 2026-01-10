@@ -777,6 +777,24 @@ export const activateIbogaineConsent = authActionClient
     if (parsedInput.isActivated) {
       updateData.activated_at = new Date().toISOString()
       updateData.activated_by = user.id
+      
+      // Copy facilitator_doctor_name from form_defaults if not already set on form
+      if (!formData.facilitator_doctor_name || formData.facilitator_doctor_name.trim() === '') {
+        const { data: defaults } = await adminClient
+          .from('form_defaults')
+          .select('default_values')
+          .eq('form_type', 'ibogaine_consent')
+          .single()
+        
+        if (defaults?.default_values) {
+          const defaultValues = typeof defaults.default_values === 'string' 
+            ? JSON.parse(defaults.default_values) 
+            : defaults.default_values
+          if (defaultValues?.facilitator_doctor_name) {
+            updateData.facilitator_doctor_name = defaultValues.facilitator_doctor_name
+          }
+        }
+      }
     } else {
       updateData.activated_at = null
       updateData.activated_by = null
