@@ -22,6 +22,32 @@ import {
   getPatientManagementListSchema,
   getDailyFormsByManagementIdSchema,
 } from '@/lib/validations/patient-management-forms'
+
+// Get current logged-in staff member's name for autofill
+export const getCurrentStaffMemberName = authActionClient
+  .schema(z.object({}))
+  .action(async ({ ctx }) => {
+    const supabase = await createClient()
+
+    // Get user profile with name information
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('name, first_name, last_name')
+      .eq('id', ctx.user.id)
+      .single()
+
+    if (error || !profile) {
+      return { success: false, error: 'Failed to get staff member information' }
+    }
+
+    // Construct full name: prefer 'name' field, then first_name + last_name, then just first_name or last_name
+    const fullName = profile.name || 
+      (profile.first_name && profile.last_name 
+        ? `${profile.first_name} ${profile.last_name}` 
+        : profile.first_name || profile.last_name || '')
+
+    return { success: true, data: { fullName } }
+  })
 import type {
   PatientManagement,
   PatientManagementWithForms,

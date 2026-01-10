@@ -143,7 +143,7 @@ export default function OneTimeFormsPage() {
                 <FileText className="h-6 w-6 text-blue-600" />
                 <h3 className="text-lg font-semibold text-gray-900">Intake Report</h3>
               </div>
-              {intakeStatus.completed ? (
+              {(intakeStatus.completed || intakeStatus.data) ? (
                 <CheckCircle2 className="h-5 w-5 text-emerald-500" />
               ) : (
                 <Clock className="h-5 w-5 text-amber-500" />
@@ -154,10 +154,10 @@ export default function OneTimeFormsPage() {
             </p>
           <Button
             onClick={() => router.push(`/patient-management/${managementId}/one-time-forms/intake-report`)}
-            variant={intakeStatus.completed ? 'outline' : 'default'}
+            variant={(intakeStatus.completed || intakeStatus.data) ? 'outline' : 'default'}
             className="w-full"
           >
-            {intakeStatus.completed ? (
+            {(intakeStatus.completed || intakeStatus.data) ? (
               <>
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 View Form
@@ -181,7 +181,7 @@ export default function OneTimeFormsPage() {
                   <Brain className="h-6 w-6 text-purple-600" />
                   <h3 className="text-lg font-semibold text-gray-900">Parkinson’s Intake Psychological Report</h3>
                 </div>
-                {parkinsonsPsychologicalStatus.completed ? (
+                {(parkinsonsPsychologicalStatus.completed || parkinsonsPsychologicalStatus.data) ? (
                   <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                 ) : (
                   <Clock className="h-5 w-5 text-amber-500" />
@@ -192,10 +192,10 @@ export default function OneTimeFormsPage() {
               </p>
               <Button
                 onClick={() => router.push(`/patient-management/${managementId}/one-time-forms/parkinsons-psychological`)}
-                variant={parkinsonsPsychologicalStatus.completed ? 'outline' : 'default'}
+                variant={(parkinsonsPsychologicalStatus.completed || parkinsonsPsychologicalStatus.data) ? 'outline' : 'default'}
                 className="w-full"
               >
-                {parkinsonsPsychologicalStatus.completed ? (
+                {(parkinsonsPsychologicalStatus.completed || parkinsonsPsychologicalStatus.data) ? (
                   <>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     View Form
@@ -216,7 +216,7 @@ export default function OneTimeFormsPage() {
                   <Activity className="h-6 w-6 text-red-600" />
                   <h3 className="text-lg font-semibold text-gray-900">Parkinson's Mortality Scales</h3>
                 </div>
-                {parkinsonsMortalityStatus.completed ? (
+                {(parkinsonsMortalityStatus.completed || parkinsonsMortalityStatus.data) ? (
                   <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                 ) : (
                   <Clock className="h-5 w-5 text-amber-500" />
@@ -227,10 +227,10 @@ export default function OneTimeFormsPage() {
               </p>
               <Button
                 onClick={() => router.push(`/patient-management/${managementId}/one-time-forms/parkinsons-mortality`)}
-                variant={parkinsonsMortalityStatus.completed ? 'outline' : 'default'}
+                variant={(parkinsonsMortalityStatus.completed || parkinsonsMortalityStatus.data) ? 'outline' : 'default'}
                 className="w-full"
               >
-                {parkinsonsMortalityStatus.completed ? (
+                {(parkinsonsMortalityStatus.completed || parkinsonsMortalityStatus.data) ? (
                   <>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
                     View Form

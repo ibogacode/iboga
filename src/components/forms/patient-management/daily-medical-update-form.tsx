@@ -11,7 +11,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { SignaturePad } from '@/components/forms/signature-pad'
 import { 
   startDailyMedicalUpdate, 
-  submitDailyMedicalUpdate 
+  submitDailyMedicalUpdate,
+  updateDailyMedicalUpdate,
+  getCurrentStaffMemberName
 } from '@/actions/patient-management.action'
 import { 
   dailyMedicalUpdateSchema, 
@@ -19,8 +21,10 @@ import {
   type DailyMedicalUpdateInput 
 } from '@/lib/validations/patient-management-forms'
 import { toast } from 'sonner'
-import { Loader2, CheckCircle, Calendar } from 'lucide-react'
+import { Loader2, CheckCircle, Calendar, Plus, X, Sunrise, Sun, Moon, Activity, Heart, Droplets, FileText, TrendingUp } from 'lucide-react'
 import { format } from 'date-fns'
+import { MultiFileUpload } from '@/components/forms/multi-file-upload'
+import { uploadDocumentClient } from '@/lib/supabase/client-storage'
 
 interface DailyMedicalUpdateFormProps {
   managementId: string
@@ -46,6 +50,7 @@ export function DailyMedicalUpdateForm({
   onSuccess 
 }: DailyMedicalUpdateFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
 
   const form = useForm<DailyMedicalUpdateInput>({
@@ -56,6 +61,9 @@ export function DailyMedicalUpdateForm({
       patient_last_name: patientLastName,
       form_date: formDate,
       checked_vitals: initialData?.checked_vitals || false,
+      checked_blood_pressure: initialData?.checked_blood_pressure || false,
+      checked_heart_rate: initialData?.checked_heart_rate || false,
+      checked_oxygen_saturation: initialData?.checked_oxygen_saturation || false,
       did_they_feel_hungry: initialData?.did_they_feel_hungry || '',
       using_bathroom_normally: initialData?.using_bathroom_normally || '',
       hydrating: initialData?.hydrating || '',
@@ -64,25 +72,198 @@ export function DailyMedicalUpdateForm({
       how_guest_looks: initialData?.how_guest_looks || '',
       energy_level: initialData?.energy_level || null,
       how_guest_says_they_feel: initialData?.how_guest_says_they_feel || '',
+      morning_client_present: initialData?.morning_client_present ?? true,
+      morning_blood_pressure: initialData?.morning_blood_pressure || '',
+      morning_heart_rate: initialData?.morning_heart_rate || null,
+      morning_oxygen_saturation: initialData?.morning_oxygen_saturation || null,
       morning_vital_signs: initialData?.morning_vital_signs || '',
       morning_symptoms: initialData?.morning_symptoms || '',
       morning_evolution: initialData?.morning_evolution || '',
+      afternoon_client_present: initialData?.afternoon_client_present ?? true,
+      afternoon_blood_pressure: initialData?.afternoon_blood_pressure || '',
+      afternoon_heart_rate: initialData?.afternoon_heart_rate || null,
+      afternoon_oxygen_saturation: initialData?.afternoon_oxygen_saturation || null,
       afternoon_vital_signs: initialData?.afternoon_vital_signs || '',
       afternoon_symptoms: initialData?.afternoon_symptoms || '',
       afternoon_evolution: initialData?.afternoon_evolution || '',
+      night_client_present: initialData?.night_client_present ?? true,
+      night_blood_pressure: initialData?.night_blood_pressure || '',
+      night_heart_rate: initialData?.night_heart_rate || null,
+      night_oxygen_saturation: initialData?.night_oxygen_saturation || null,
       night_vital_signs: initialData?.night_vital_signs || '',
       night_symptoms: initialData?.night_symptoms || '',
       night_evolution: initialData?.night_evolution || '',
+      ibogaine_doses: initialData?.ibogaine_doses 
+        ? (Array.isArray(initialData.ibogaine_doses) ? initialData.ibogaine_doses : [])
+        : (initialData?.ibogaine_dose && initialData?.ibogaine_time 
+          ? [{ dose: initialData.ibogaine_dose, time: initialData.ibogaine_time }] 
+          : [{ dose: 0, time: '' }]),
+      ibogaine_frequency: initialData?.ibogaine_frequency || null,
+      ibogaine_dose: initialData?.ibogaine_dose || null,
+      ibogaine_time: initialData?.ibogaine_time || '',
       ibogaine_dose_time: initialData?.ibogaine_dose_time || '',
       medication_schedule: initialData?.medication_schedule || '',
       solutions_iv_saline_nadh: initialData?.solutions_iv_saline_nadh || '',
       medical_indications: initialData?.medical_indications || '',
       additional_observations_notes: initialData?.additional_observations_notes || '',
+      vitals_photos: (() => {
+        if (initialData?.vitals_photos) {
+          if (typeof initialData.vitals_photos === 'string') {
+            try {
+              return JSON.parse(initialData.vitals_photos)
+            } catch {
+              return []
+            }
+          }
+          return Array.isArray(initialData.vitals_photos) ? initialData.vitals_photos : []
+        }
+        // Migrate from old single URL field if exists
+        if (initialData?.photo_of_vitals_medical_notes_url) {
+          return [{
+            url: initialData.photo_of_vitals_medical_notes_url,
+            fileName: 'Vitals Photo',
+            fileType: 'image/jpeg'
+          }]
+        }
+        return []
+      })(),
       photo_of_vitals_medical_notes_url: initialData?.photo_of_vitals_medical_notes_url || '',
       signature_data: initialData?.signature_data || '',
       signature_date: initialData?.signature_date || '',
+      submitted_by_name: initialData?.submitted_by_name || '',
+      morning_inspected_by: initialData?.morning_inspected_by || '',
+      afternoon_inspected_by: initialData?.afternoon_inspected_by || '',
+      night_inspected_by: initialData?.night_inspected_by || '',
     },
   })
+
+  // Inject slider styles for energy level
+  useEffect(() => {
+    const styleId = 'daily-medical-energy-slider-styles'
+    if (document.getElementById(styleId)) return // Styles already injected
+
+    const style = document.createElement('style')
+    style.id = styleId
+    style.textContent = `
+      /* Energy Level Slider */
+      .energy-level-slider-red::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(239, 68, 68);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-red::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+      }
+      .energy-level-slider-red::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(239, 68, 68);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-red::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(239, 68, 68, 0.4);
+      }
+      .energy-level-slider-orange::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(249, 115, 22);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-orange::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(249, 115, 22, 0.4);
+      }
+      .energy-level-slider-orange::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(249, 115, 22);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(249, 115, 22, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-orange::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(249, 115, 22, 0.4);
+      }
+      .energy-level-slider-green::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(16, 185, 129);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-green::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+      }
+      .energy-level-slider-green::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(16, 185, 129);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-green::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 3px 8px rgba(16, 185, 129, 0.4);
+      }
+      .energy-level-slider-gray::-webkit-slider-thumb {
+        appearance: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(156, 163, 175);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s ease;
+      }
+      .energy-level-slider-gray::-moz-range-thumb {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgb(156, 163, 175);
+        cursor: pointer;
+        border: 3px solid white;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s ease;
+      }
+    `
+    document.head.appendChild(style)
+
+    return () => {
+      const existingStyle = document.getElementById(styleId)
+      if (existingStyle) {
+        existingStyle.remove()
+      }
+    }
+  }, [])
 
   // Reset form values when initialData changes (for viewing existing forms)
   useEffect(() => {
@@ -93,6 +274,9 @@ export function DailyMedicalUpdateForm({
         patient_last_name: patientLastName,
         form_date: formDate,
         checked_vitals: initialData.checked_vitals || false,
+        checked_blood_pressure: initialData.checked_blood_pressure || false,
+        checked_heart_rate: initialData.checked_heart_rate || false,
+        checked_oxygen_saturation: initialData.checked_oxygen_saturation || false,
         did_they_feel_hungry: initialData.did_they_feel_hungry || '',
         using_bathroom_normally: initialData.using_bathroom_normally || '',
         hydrating: initialData.hydrating || '',
@@ -101,27 +285,123 @@ export function DailyMedicalUpdateForm({
         how_guest_looks: initialData.how_guest_looks || '',
         energy_level: initialData.energy_level || null,
         how_guest_says_they_feel: initialData.how_guest_says_they_feel || '',
+        morning_client_present: initialData.morning_client_present ?? true,
+        morning_blood_pressure: initialData.morning_blood_pressure || '',
+        morning_heart_rate: initialData.morning_heart_rate || null,
+        morning_oxygen_saturation: initialData.morning_oxygen_saturation || null,
         morning_vital_signs: initialData.morning_vital_signs || '',
         morning_symptoms: initialData.morning_symptoms || '',
         morning_evolution: initialData.morning_evolution || '',
+        afternoon_client_present: initialData.afternoon_client_present ?? true,
+        afternoon_blood_pressure: initialData.afternoon_blood_pressure || '',
+        afternoon_heart_rate: initialData.afternoon_heart_rate || null,
+        afternoon_oxygen_saturation: initialData.afternoon_oxygen_saturation || null,
         afternoon_vital_signs: initialData.afternoon_vital_signs || '',
         afternoon_symptoms: initialData.afternoon_symptoms || '',
         afternoon_evolution: initialData.afternoon_evolution || '',
+        night_client_present: initialData.night_client_present ?? true,
+        night_blood_pressure: initialData.night_blood_pressure || '',
+        night_heart_rate: initialData.night_heart_rate || null,
+        night_oxygen_saturation: initialData.night_oxygen_saturation || null,
         night_vital_signs: initialData.night_vital_signs || '',
         night_symptoms: initialData.night_symptoms || '',
         night_evolution: initialData.night_evolution || '',
+        ibogaine_doses: initialData.ibogaine_doses 
+          ? (Array.isArray(initialData.ibogaine_doses) ? initialData.ibogaine_doses : [])
+          : (initialData.ibogaine_dose && initialData.ibogaine_time 
+            ? [{ dose: initialData.ibogaine_dose, time: initialData.ibogaine_time }] 
+            : [{ dose: 0, time: '' }]),
+        ibogaine_frequency: initialData.ibogaine_frequency || null,
+        ibogaine_dose: initialData.ibogaine_dose || null,
+        ibogaine_time: initialData.ibogaine_time || '',
         ibogaine_dose_time: initialData.ibogaine_dose_time || '',
         medication_schedule: initialData.medication_schedule || '',
         solutions_iv_saline_nadh: initialData.solutions_iv_saline_nadh || '',
         medical_indications: initialData.medical_indications || '',
         additional_observations_notes: initialData.additional_observations_notes || '',
+        vitals_photos: (() => {
+          if (initialData.vitals_photos) {
+            if (typeof initialData.vitals_photos === 'string') {
+              try {
+                return JSON.parse(initialData.vitals_photos)
+              } catch {
+                return []
+              }
+            }
+            return Array.isArray(initialData.vitals_photos) ? initialData.vitals_photos : []
+          }
+          // Migrate from old single URL field if exists
+          if (initialData.photo_of_vitals_medical_notes_url) {
+            return [{
+              url: initialData.photo_of_vitals_medical_notes_url,
+              fileName: 'Vitals Photo',
+              fileType: 'image/jpeg'
+            }]
+          }
+          return []
+        })(),
         photo_of_vitals_medical_notes_url: initialData.photo_of_vitals_medical_notes_url || '',
         signature_data: initialData.signature_data || '',
         signature_date: initialData.signature_date || '',
+        submitted_by_name: initialData.submitted_by_name || '',
+        morning_inspected_by: initialData.morning_inspected_by || '',
+        afternoon_inspected_by: initialData.afternoon_inspected_by || '',
+        night_inspected_by: initialData.night_inspected_by || '',
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialData?.id, isStarted])
+
+  // Initialize ibogaine_doses if empty
+  useEffect(() => {
+    const currentDoses = form.watch('ibogaine_doses')
+    if (!currentDoses || currentDoses.length === 0) {
+      // If we have old single dose/time data, convert it
+      const oldDose = form.getValues('ibogaine_dose')
+      const oldTime = form.getValues('ibogaine_time')
+      if (oldDose && oldTime) {
+        form.setValue('ibogaine_doses', [{ dose: oldDose, time: oldTime }], { shouldValidate: false, shouldDirty: false })
+      } else {
+        // Otherwise, add one empty dose entry
+        form.setValue('ibogaine_doses', [{ dose: 0, time: '' }], { shouldValidate: false, shouldDirty: false })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Autofill staff member name for inspector fields and submitted_by_name if empty
+  useEffect(() => {
+    async function loadStaffMemberName() {
+      try {
+        const result = await getCurrentStaffMemberName({})
+        if (result?.data?.success && result.data.data?.fullName) {
+          const staffName = result.data.data.fullName
+          
+          // Autofill inspector fields if they're empty
+          if (!form.getValues('morning_inspected_by')?.trim()) {
+            form.setValue('morning_inspected_by', staffName, { shouldValidate: false, shouldDirty: false })
+          }
+          if (!form.getValues('afternoon_inspected_by')?.trim()) {
+            form.setValue('afternoon_inspected_by', staffName, { shouldValidate: false, shouldDirty: false })
+          }
+          if (!form.getValues('night_inspected_by')?.trim()) {
+            form.setValue('night_inspected_by', staffName, { shouldValidate: false, shouldDirty: false })
+          }
+          // Autofill submitted_by_name if empty
+          if (!form.getValues('submitted_by_name')?.trim()) {
+            form.setValue('submitted_by_name', staffName, { shouldValidate: false, shouldDirty: false })
+          }
+        }
+      } catch (error) {
+        console.error('Error loading staff member name:', error)
+      }
+    }
+
+    if (isStarted && !isCompleted) {
+      loadStaffMemberName()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStarted, isCompleted])
 
   async function handleStartReport() {
     setIsStarting(true)
@@ -144,10 +424,60 @@ export function DailyMedicalUpdateForm({
     }
   }
 
+  async function onSaveDraft(data: DailyMedicalUpdateInput) {
+    setIsSavingDraft(true)
+    try {
+      // Use updateDailyMedicalUpdate which handles both create and update
+      // First ensure the form is started if it doesn't exist
+      if (!isStarted) {
+        const startResult = await startDailyMedicalUpdate({ 
+          management_id: managementId, 
+          form_date: formDate 
+        })
+        if (!startResult?.data?.success) {
+          toast.error('Failed to start form. Please try again.')
+          setIsSavingDraft(false)
+          return
+        }
+      }
+
+      const result = await updateDailyMedicalUpdate({
+        ...data,
+        management_id: managementId,
+        form_date: formDate,
+        is_completed: false, // Keep as draft - don't mark as completed
+      } as any)
+      
+      if (result?.data?.success) {
+        toast.success('Draft saved successfully. You can continue updating afternoon and night data later.')
+        // Trigger a refresh to show updated data
+        setTimeout(() => {
+          window.location.reload()
+        }, 1000)
+      } else {
+        toast.error(result?.data?.error || 'Failed to save draft')
+      }
+    } catch (error) {
+      console.error('Error saving draft:', error)
+      toast.error('An error occurred while saving draft')
+    } finally {
+      setIsSavingDraft(false)
+    }
+  }
+
   async function onSubmit(data: DailyMedicalUpdateInput) {
     setIsSubmitting(true)
     try {
-      const result = await submitDailyMedicalUpdate(data as any)
+      // Get current staff member name for submitted_by_name
+      const staffResult = await getCurrentStaffMemberName({})
+      const submittedByName = staffResult?.data?.success && staffResult.data.data?.fullName 
+        ? staffResult.data.data.fullName 
+        : data.submitted_by_name || ''
+
+      const result = await submitDailyMedicalUpdate({
+        ...data,
+        submitted_by_name: submittedByName,
+      } as any)
       if (result?.data?.success) {
         toast.success('Daily medical update submitted successfully')
         onSuccess?.()
@@ -236,17 +566,93 @@ export function DailyMedicalUpdateForm({
 
       {/* Checked Vitals */}
       <div className="border-t pt-4">
-        <div className="flex items-center space-x-2 mb-4">
-          <Checkbox
-            id="checked_vitals"
-            checked={form.watch('checked_vitals')}
-            onCheckedChange={(checked) => form.setValue('checked_vitals', checked as boolean)}
-            disabled={isCompleted}
-          />
-          <Label htmlFor="checked_vitals" className="font-semibold text-lg">
-            Checked Vitals *
+        <div className="mb-4">
+          <Label className="font-semibold text-lg mb-3 block">
+            Check Vitals? *
           </Label>
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2">
+              <input
+                type="radio"
+                id="checked_vitals_yes"
+                name="checked_vitals"
+                checked={form.watch('checked_vitals') === true}
+                onChange={() => {
+                  form.setValue('checked_vitals', true)
+                }}
+                disabled={isCompleted}
+                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
+              />
+              <Label htmlFor="checked_vitals_yes" className="text-base font-normal cursor-pointer">
+                Yes
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="radio"
+                id="checked_vitals_no"
+                name="checked_vitals"
+                checked={form.watch('checked_vitals') === false}
+                onChange={() => {
+                  form.setValue('checked_vitals', false)
+                  // Clear all vital checkboxes when No is selected
+                  form.setValue('checked_blood_pressure', false)
+                  form.setValue('checked_heart_rate', false)
+                  form.setValue('checked_oxygen_saturation', false)
+                }}
+                disabled={isCompleted}
+                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
+              />
+              <Label htmlFor="checked_vitals_no" className="text-base font-normal cursor-pointer">
+                No
+              </Label>
+            </div>
+          </div>
         </div>
+
+        {/* Show vital sign checkboxes only if "Yes" is selected */}
+        {form.watch('checked_vitals') && (
+          <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+            <Label className="font-semibold text-base mb-3 block text-emerald-900">
+              Which vitals were checked? (Select all that apply)
+            </Label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="checked_blood_pressure"
+                  checked={form.watch('checked_blood_pressure')}
+                  onCheckedChange={(checked) => form.setValue('checked_blood_pressure', checked as boolean)}
+                  disabled={isCompleted}
+                />
+                <Label htmlFor="checked_blood_pressure" className="text-sm font-normal cursor-pointer">
+                  Blood Pressure
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="checked_heart_rate"
+                  checked={form.watch('checked_heart_rate')}
+                  onCheckedChange={(checked) => form.setValue('checked_heart_rate', checked as boolean)}
+                  disabled={isCompleted}
+                />
+                <Label htmlFor="checked_heart_rate" className="text-sm font-normal cursor-pointer">
+                  Heart Rate
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="checked_oxygen_saturation"
+                  checked={form.watch('checked_oxygen_saturation')}
+                  onCheckedChange={(checked) => form.setValue('checked_oxygen_saturation', checked as boolean)}
+                  disabled={isCompleted}
+                />
+                <Label htmlFor="checked_oxygen_saturation" className="text-sm font-normal cursor-pointer">
+                  Oxygen Saturation
+                </Label>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -321,15 +727,58 @@ export function DailyMedicalUpdateForm({
 
           <div>
             <Label htmlFor="energy_level">Energy Level (1–10)</Label>
-            <Input
-              id="energy_level"
-              type="number"
-              min={1}
-              max={10}
-              {...form.register('energy_level', { valueAsNumber: true })}
-              disabled={isCompleted}
-              className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
-            />
+            {(() => {
+              const energyValue = form.watch('energy_level') ?? null
+              const getColorForValue = (value: number | null): { color: string; rgb: string } => {
+                if (!value) return { color: 'gray', rgb: 'rgb(156, 163, 175)' }
+                if (value >= 1 && value <= 3) return { color: 'red', rgb: 'rgb(239, 68, 68)' }
+                if (value >= 4 && value <= 6) return { color: 'orange', rgb: 'rgb(249, 115, 22)' }
+                if (value >= 7 && value <= 10) return { color: 'green', rgb: 'rgb(16, 185, 129)' }
+                return { color: 'gray', rgb: 'rgb(156, 163, 175)' }
+              }
+              const colorInfo = getColorForValue(energyValue)
+              const progressPercent = energyValue ? ((energyValue - 1) * (100 / 9)) : 0
+              const displayColor = energyValue ? colorInfo.color : 'gray'
+              const displayColorClass = displayColor === 'red' ? 'text-red-600' : 
+                                       displayColor === 'orange' ? 'text-orange-600' : 
+                                       displayColor === 'green' ? 'text-emerald-600' : 'text-gray-600'
+              
+              return (
+                <div className="mt-2 space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-sm text-gray-500 font-medium">1</span>
+                    <div className="flex items-baseline gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                      <span className={`text-2xl font-bold ${displayColorClass} min-w-[2.5rem] text-center`}>
+                        {energyValue || '--'}
+                      </span>
+                      <span className="text-sm text-gray-500">/ 10</span>
+                    </div>
+                    <span className="text-sm text-gray-500 font-medium">10</span>
+                  </div>
+                  <div className="relative px-1">
+                    <input
+                      id="energy_level"
+                      type="range"
+                      min={1}
+                      max={10}
+                      step={1}
+                      {...form.register('energy_level', { 
+                        valueAsNumber: true
+                      })}
+                      disabled={isCompleted}
+                      className={`energy-level-slider energy-level-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      style={{
+                        background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400 px-1">
+                    <span>Low Energy</span>
+                    <span>High Energy</span>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
 
           <div>
@@ -345,104 +794,478 @@ export function DailyMedicalUpdateForm({
         </div>
       </div>
 
-      {/* Patient Observations */}
-      <div className="border-t pt-4 space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900">Patient Observations</h3>
+      {/* Patient Observations - Vitals & Symptoms (3 times per day) */}
+      <div className="border-t pt-6 space-y-6">
+        <div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+            <Activity className="h-5 w-5 text-emerald-600" />
+            Patient Observations
+          </h3>
+          <p className="text-sm text-gray-600">
+            <span className="font-semibold text-emerald-700">Enter vitals and observations 3 times per day:</span> Morning, Afternoon, and Night
+          </p>
+        </div>
         
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Vital Signs</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Symptoms</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Evolution</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              <tr>
-                <td className="px-4 py-2 text-sm font-medium text-gray-900">MORNING</td>
-                <td className="px-4 py-2">
-                  <Textarea
-                    {...form.register('morning_vital_signs')}
-                    rows={2}
-                    disabled={isCompleted}
-                    className={`text-sm ${isCompleted ? 'bg-gray-50' : ''}`}
-                  />
-                </td>
-                <td className="px-4 py-2">
-                  <Textarea
-                    {...form.register('morning_symptoms')}
-                    rows={2}
-                    disabled={isCompleted}
-                    className={`text-sm ${isCompleted ? 'bg-gray-50' : ''}`}
-                  />
-                </td>
-                <td className="px-4 py-2">
-                  <Textarea
-                    {...form.register('morning_evolution')}
-                    rows={2}
-                    disabled={isCompleted}
-                    className={`text-sm ${isCompleted ? 'bg-gray-50' : ''}`}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <td className="px-4 py-2 text-sm font-medium text-gray-900">AFTERNOON</td>
-                <td className="px-4 py-2">
-                  <Textarea
-                    {...form.register('afternoon_vital_signs')}
-                    rows={2}
-                    disabled={isCompleted}
-                    className={`text-sm ${isCompleted ? 'bg-gray-50' : ''}`}
-                  />
-                </td>
-                <td className="px-4 py-2">
-                  <Textarea
-                    {...form.register('afternoon_symptoms')}
-                    rows={2}
-                    disabled={isCompleted}
-                    className={`text-sm ${isCompleted ? 'bg-gray-50' : ''}`}
-                  />
-                </td>
-                <td className="px-4 py-2">
-                  <Textarea
-                    {...form.register('afternoon_evolution')}
-                    rows={2}
-                    disabled={isCompleted}
-                    className={`text-sm ${isCompleted ? 'bg-gray-50' : ''}`}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <td className="px-4 py-2 text-sm font-medium text-gray-900">NIGHT</td>
-                <td className="px-4 py-2">
-                  <Textarea
-                    {...form.register('night_vital_signs')}
-                    rows={2}
-                    disabled={isCompleted}
-                    className={`text-sm ${isCompleted ? 'bg-gray-50' : ''}`}
-                  />
-                </td>
-                <td className="px-4 py-2">
-                  <Textarea
-                    {...form.register('night_symptoms')}
-                    rows={2}
-                    disabled={isCompleted}
-                    className={`text-sm ${isCompleted ? 'bg-gray-50' : ''}`}
-                  />
-                </td>
-                <td className="px-4 py-2">
-                  <Textarea
-                    {...form.register('night_evolution')}
-                    rows={2}
-                    disabled={isCompleted}
-                    className={`text-sm ${isCompleted ? 'bg-gray-50' : ''}`}
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div className="space-y-6">
+          {/* Morning Card */}
+          {(() => {
+            const isClientPresent = form.watch('morning_client_present')
+            return (
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-amber-100 rounded-lg">
+                      <Sunrise className="h-6 w-6 text-amber-600" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-900">Morning</h4>
+                      <p className="text-xs text-gray-600">Early day observations</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="morning_client_present"
+                        checked={isClientPresent}
+                        onCheckedChange={(checked) => {
+                          form.setValue('morning_client_present', checked as boolean)
+                          if (!checked) {
+                            form.setValue('morning_blood_pressure', '')
+                            form.setValue('morning_heart_rate', null)
+                            form.setValue('morning_oxygen_saturation', null)
+                          }
+                        }}
+                        disabled={isCompleted}
+                      />
+                      <Label htmlFor="morning_client_present" className="text-sm font-medium cursor-pointer">
+                        Client present
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Vital Signs Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Activity className="h-4 w-4 text-emerald-600" />
+                      <h5 className="font-semibold text-gray-900">Vital Signs</h5>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="morning_blood_pressure" className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Activity className="h-3 w-3" />
+                          Blood Pressure
+                        </Label>
+                        <Input
+                          id="morning_blood_pressure"
+                          {...form.register('morning_blood_pressure')}
+                          placeholder="131/80"
+                          disabled={isCompleted || !isClientPresent}
+                          className={`h-10 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="morning_heart_rate" className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Heart className="h-3 w-3" />
+                          Heart Rate
+                        </Label>
+                        <Input
+                          id="morning_heart_rate"
+                          type="number"
+                          min={30}
+                          max={200}
+                          {...form.register('morning_heart_rate', { valueAsNumber: true })}
+                          placeholder="66"
+                          disabled={isCompleted || !isClientPresent}
+                          className={`h-10 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                        />
+                        <p className="text-xs text-gray-500">bpm</p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="morning_oxygen_saturation" className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Droplets className="h-3 w-3" />
+                          O2 Saturation
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id="morning_oxygen_saturation"
+                            type="number"
+                            min={0}
+                            max={100}
+                            {...form.register('morning_oxygen_saturation', { valueAsNumber: true })}
+                            placeholder="95"
+                            disabled={isCompleted || !isClientPresent}
+                            className={`h-10 pr-8 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-medium">%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-amber-200">
+                      <Label htmlFor="morning_inspected_by" className="text-xs font-medium text-gray-700">
+                        Inspected by:
+                      </Label>
+                      <Input
+                        id="morning_inspected_by"
+                        {...form.register('morning_inspected_by')}
+                        placeholder="Staff member name"
+                        disabled={isCompleted}
+                        className={`h-9 mt-1 ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Symptoms & Evolution Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText className="h-4 w-4 text-emerald-600" />
+                      <h5 className="font-semibold text-gray-900">Observations</h5>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="morning_symptoms" className="text-xs font-medium text-gray-700">
+                          Symptoms
+                        </Label>
+                        <Textarea
+                          id="morning_symptoms"
+                          {...form.register('morning_symptoms')}
+                          rows={4}
+                          disabled={isCompleted}
+                          placeholder="e.g., Apathetic, tired, good mood..."
+                          className={`text-sm resize-y ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="morning_evolution" className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <TrendingUp className="h-3 w-3" />
+                          Evolution
+                        </Label>
+                        <Textarea
+                          id="morning_evolution"
+                          {...form.register('morning_evolution')}
+                          rows={4}
+                          disabled={isCompleted}
+                          placeholder="Progress notes, changes, improvements..."
+                          className={`text-sm resize-y ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Afternoon Card */}
+          {(() => {
+            const isClientPresent = form.watch('afternoon_client_present') ?? true
+            return (
+              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-xl p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Sun className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-900">Afternoon</h4>
+                      <p className="text-xs text-gray-600">Mid-day observations</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="afternoon_client_present"
+                        checked={isClientPresent}
+                        onCheckedChange={(checked) => {
+                          form.setValue('afternoon_client_present', checked as boolean)
+                          if (!checked) {
+                            form.setValue('afternoon_blood_pressure', '')
+                            form.setValue('afternoon_heart_rate', null)
+                            form.setValue('afternoon_oxygen_saturation', null)
+                          }
+                        }}
+                        disabled={isCompleted}
+                        defaultChecked={true}
+                      />
+                      <Label htmlFor="afternoon_client_present" className="text-sm font-medium cursor-pointer">
+                        Client present
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Vital Signs Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Activity className="h-4 w-4 text-emerald-600" />
+                      <h5 className="font-semibold text-gray-900">Vital Signs</h5>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="afternoon_blood_pressure" className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Activity className="h-3 w-3" />
+                          Blood Pressure
+                        </Label>
+                        <Input
+                          id="afternoon_blood_pressure"
+                          {...form.register('afternoon_blood_pressure')}
+                          placeholder="131/80"
+                          disabled={isCompleted || !isClientPresent}
+                          className={`h-10 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="afternoon_heart_rate" className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Heart className="h-3 w-3" />
+                          Heart Rate
+                        </Label>
+                        <Input
+                          id="afternoon_heart_rate"
+                          type="number"
+                          min={30}
+                          max={200}
+                          {...form.register('afternoon_heart_rate', { valueAsNumber: true })}
+                          placeholder="66"
+                          disabled={isCompleted || !isClientPresent}
+                          className={`h-10 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                        />
+                        <p className="text-xs text-gray-500">bpm</p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="afternoon_oxygen_saturation" className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Droplets className="h-3 w-3" />
+                          O2 Saturation
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id="afternoon_oxygen_saturation"
+                            type="number"
+                            min={0}
+                            max={100}
+                            {...form.register('afternoon_oxygen_saturation', { valueAsNumber: true })}
+                            placeholder="95"
+                            disabled={isCompleted || !isClientPresent}
+                            className={`h-10 pr-8 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-medium">%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-blue-200">
+                      <Label htmlFor="afternoon_inspected_by" className="text-xs font-medium text-gray-700">
+                        Inspected by:
+                      </Label>
+                      <Input
+                        id="afternoon_inspected_by"
+                        {...form.register('afternoon_inspected_by')}
+                        placeholder="Staff member name"
+                        disabled={isCompleted}
+                        className={`h-9 mt-1 ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Symptoms & Evolution Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText className="h-4 w-4 text-emerald-600" />
+                      <h5 className="font-semibold text-gray-900">Observations</h5>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="afternoon_symptoms" className="text-xs font-medium text-gray-700">
+                          Symptoms
+                        </Label>
+                        <Textarea
+                          id="afternoon_symptoms"
+                          {...form.register('afternoon_symptoms')}
+                          rows={4}
+                          disabled={isCompleted}
+                          placeholder="e.g., Good attitude, alert, responsive..."
+                          className={`text-sm resize-y ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="afternoon_evolution" className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <TrendingUp className="h-3 w-3" />
+                          Evolution
+                        </Label>
+                        <Textarea
+                          id="afternoon_evolution"
+                          {...form.register('afternoon_evolution')}
+                          rows={4}
+                          disabled={isCompleted}
+                          placeholder="Progress notes, changes, improvements..."
+                          className={`text-sm resize-y ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Night Card */}
+          {(() => {
+            const isClientPresent = form.watch('night_client_present')
+            return (
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-100 rounded-lg">
+                      <Moon className="h-6 w-6 text-indigo-600" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-900">Night</h4>
+                      <p className="text-xs text-gray-600">Evening observations</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="night_client_present"
+                        checked={isClientPresent}
+                        onCheckedChange={(checked) => {
+                          form.setValue('night_client_present', checked as boolean)
+                          if (!checked) {
+                            form.setValue('night_blood_pressure', '')
+                            form.setValue('night_heart_rate', null)
+                            form.setValue('night_oxygen_saturation', null)
+                          }
+                        }}
+                        disabled={isCompleted}
+                      />
+                      <Label htmlFor="night_client_present" className="text-sm font-medium cursor-pointer">
+                        Client present
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Vital Signs Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Activity className="h-4 w-4 text-emerald-600" />
+                      <h5 className="font-semibold text-gray-900">Vital Signs</h5>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="night_blood_pressure" className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Activity className="h-3 w-3" />
+                          Blood Pressure
+                        </Label>
+                        <Input
+                          id="night_blood_pressure"
+                          {...form.register('night_blood_pressure')}
+                          placeholder="117/76"
+                          disabled={isCompleted || !isClientPresent}
+                          className={`h-10 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="night_heart_rate" className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Heart className="h-3 w-3" />
+                          Heart Rate
+                        </Label>
+                        <Input
+                          id="night_heart_rate"
+                          type="number"
+                          min={30}
+                          max={200}
+                          {...form.register('night_heart_rate', { valueAsNumber: true })}
+                          placeholder="63"
+                          disabled={isCompleted || !isClientPresent}
+                          className={`h-10 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                        />
+                        <p className="text-xs text-gray-500">bpm</p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="night_oxygen_saturation" className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <Droplets className="h-3 w-3" />
+                          O2 Saturation
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id="night_oxygen_saturation"
+                            type="number"
+                            min={0}
+                            max={100}
+                            {...form.register('night_oxygen_saturation', { valueAsNumber: true })}
+                            placeholder="97"
+                            disabled={isCompleted || !isClientPresent}
+                            className={`h-10 pr-8 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-medium">%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-indigo-200">
+                      <Label htmlFor="night_inspected_by" className="text-xs font-medium text-gray-700">
+                        Inspected by:
+                      </Label>
+                      <Input
+                        id="night_inspected_by"
+                        {...form.register('night_inspected_by')}
+                        placeholder="Staff member name"
+                        disabled={isCompleted}
+                        className={`h-9 mt-1 ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Symptoms & Evolution Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText className="h-4 w-4 text-emerald-600" />
+                      <h5 className="font-semibold text-gray-900">Observations</h5>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="night_symptoms" className="text-xs font-medium text-gray-700">
+                          Symptoms
+                        </Label>
+                        <Textarea
+                          id="night_symptoms"
+                          {...form.register('night_symptoms')}
+                          rows={4}
+                          disabled={isCompleted}
+                          placeholder="e.g., Resting well, calm, peaceful..."
+                          className={`text-sm resize-y ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="night_evolution" className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                          <TrendingUp className="h-3 w-3" />
+                          Evolution
+                        </Label>
+                        <Textarea
+                          id="night_evolution"
+                          {...form.register('night_evolution')}
+                          rows={4}
+                          disabled={isCompleted}
+                          placeholder="Progress notes, changes, improvements..."
+                          className={`text-sm resize-y ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       </div>
 
@@ -451,14 +1274,96 @@ export function DailyMedicalUpdateForm({
         <h3 className="text-lg font-semibold text-gray-900">Medication & Treatment</h3>
         
         <div>
-          <Label htmlFor="ibogaine_dose_time">Ibogaine (dose & time)</Label>
-          <Input
-            id="ibogaine_dose_time"
-            {...form.register('ibogaine_dose_time')}
-            placeholder="e.g., 500mg at 10:00 AM"
-            disabled={isCompleted}
-            className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
-          />
+          <div className="flex items-center justify-between mb-3">
+            <Label className="block">Ibogaine Doses *</Label>
+            {!isCompleted && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const currentDoses = form.watch('ibogaine_doses') || []
+                  form.setValue('ibogaine_doses', [...currentDoses, { dose: 0, time: '' }])
+                }}
+                className="text-xs"
+              >
+                + Add Dose
+              </Button>
+            )}
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Record each ibogaine administration with its dose and time. You can add multiple doses if administered more than once.
+          </p>
+          
+          <div className="space-y-3">
+            {(form.watch('ibogaine_doses') || []).map((dose: { dose: number; time: string }, index: number) => (
+              <div key={index} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor={`ibogaine_dose_${index}`} className="text-sm">
+                      Dose {index + 1} (mg) *
+                    </Label>
+                    <div className="relative mt-1">
+                      <Input
+                        id={`ibogaine_dose_${index}`}
+                        type="number"
+                        min={0}
+                        value={dose.dose || ''}
+                        onChange={(e) => {
+                          const currentDoses = form.watch('ibogaine_doses') || []
+                          const updatedDoses = [...currentDoses]
+                          updatedDoses[index] = { ...updatedDoses[index], dose: parseFloat(e.target.value) || 0 }
+                          form.setValue('ibogaine_doses', updatedDoses)
+                        }}
+                        placeholder="500"
+                        disabled={isCompleted}
+                        className={`pr-10 ${isCompleted ? 'bg-gray-50' : ''}`}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">mg</span>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor={`ibogaine_time_${index}`} className="text-sm">
+                      Time {index + 1} *
+                    </Label>
+                    <Input
+                      id={`ibogaine_time_${index}`}
+                      type="time"
+                      value={dose.time || ''}
+                      onChange={(e) => {
+                        const currentDoses = form.watch('ibogaine_doses') || []
+                        const updatedDoses = [...currentDoses]
+                        updatedDoses[index] = { ...updatedDoses[index], time: e.target.value }
+                        form.setValue('ibogaine_doses', updatedDoses)
+                      }}
+                      disabled={isCompleted}
+                      className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+                    />
+                  </div>
+                </div>
+                {!isCompleted && (form.watch('ibogaine_doses') || []).length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const currentDoses = form.watch('ibogaine_doses') || []
+                      const updatedDoses = currentDoses.filter((_: any, i: number) => i !== index)
+                      form.setValue('ibogaine_doses', updatedDoses)
+                    }}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 mt-6"
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+            ))}
+            {(!form.watch('ibogaine_doses') || form.watch('ibogaine_doses')?.length === 0) && (
+              <div className="text-center py-4 text-gray-500 text-sm border border-dashed border-gray-300 rounded-lg">
+                No doses added yet. Click "Add Dose" to add the first dose.
+              </div>
+            )}
+          </div>
         </div>
 
         <div>
@@ -507,19 +1412,35 @@ export function DailyMedicalUpdateForm({
         </div>
       </div>
 
-      {/* File Upload */}
+      {/* File Upload - Multiple Files */}
       <div className="border-t pt-4">
-        <Label htmlFor="photo_of_vitals_medical_notes_url">Photo of Vitals and Medical Notes (URL)</Label>
+        <MultiFileUpload
+          label="Photos of Vitals and Medical Notes *"
+          value={form.watch('vitals_photos') || []}
+          onChange={(files) => form.setValue('vitals_photos', files)}
+          onUpload={async (file) => {
+            const result = await uploadDocumentClient('medical-history-documents', file, 'daily-medical-vitals')
+            return { url: result.url, fileName: file.name }
+          }}
+          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
+          maxSizeMB={10}
+          maxFiles={20}
+          disabled={isCompleted}
+        />
+      </div>
+
+      {/* Submitted By */}
+      <div className="border-t pt-4">
+        <Label htmlFor="submitted_by_name">Submitted By *</Label>
         <Input
-          id="photo_of_vitals_medical_notes_url"
-          type="url"
-          {...form.register('photo_of_vitals_medical_notes_url')}
-          placeholder="https://..."
+          id="submitted_by_name"
+          {...form.register('submitted_by_name')}
+          placeholder="Staff member name"
           disabled={isCompleted}
           className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
         />
         <p className="text-xs text-gray-500 mt-1">
-          Upload photo to storage first, then paste the URL here
+          Name of the staff member who submitted this form
         </p>
       </div>
 
@@ -561,23 +1482,45 @@ export function DailyMedicalUpdateForm({
         )}
       </div>
 
-      {/* Submit Button */}
+      {/* Save Draft and Submit Buttons */}
       {!isCompleted && (
-        <div className="flex justify-end gap-3 border-t pt-4">
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="bg-emerald-600 hover:bg-emerald-700"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Submitting...
-              </>
-            ) : (
-              'Submit Report'
-            )}
-          </Button>
+        <div className="flex justify-between items-center gap-3 border-t pt-4">
+          <div className="text-sm text-gray-600">
+            <p className="font-medium mb-1">💡 Tip:</p>
+            <p>You can save your progress and return later to update afternoon and night data.</p>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              onClick={form.handleSubmit(onSaveDraft)}
+              disabled={isSavingDraft || isSubmitting}
+              variant="outline"
+              className="border-gray-300"
+            >
+              {isSavingDraft ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Draft'
+              )}
+            </Button>
+            <Button
+              type="submit"
+              disabled={isSubmitting || isSavingDraft}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Report'
+              )}
+            </Button>
+          </div>
         </div>
       )}
     </form>

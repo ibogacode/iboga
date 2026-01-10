@@ -5,7 +5,7 @@ import { actionClient, authActionClient } from '@/lib/safe-action'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { ibogaineConsentFormSchema } from '@/lib/validations/ibogaine-consent'
 import { headers } from 'next/headers'
-import { sendIbogaineConsentConfirmationEmail } from './email.action'
+import { sendIbogaineConsentConfirmationEmail, sendEmailDirect } from './email.action'
 
 /**
  * Get intake form data by ID for auto-population
@@ -147,7 +147,6 @@ export async function checkIbogaineConsentActivation() {
         patient_id: existingForm.patient_id,
         intake_form_id: existingForm.intake_form_id,
         // Admin fields (read-only for patients)
-        treatment_date: existingForm.treatment_date,
         facilitator_doctor_name: existingForm.facilitator_doctor_name,
         // Patient signature fields (if already filled)
         signature_data: existingForm.signature_data,
@@ -181,7 +180,6 @@ export const submitIbogaineConsentForm = actionClient
     
     // Parse dates
     const dateOfBirth = new Date(parsedInput.date_of_birth)
-    const treatmentDate = new Date(parsedInput.treatment_date)
     const signatureDate = new Date(parsedInput.signature_date)
     
     // Check if a draft form already exists for this patient
@@ -258,6 +256,114 @@ export const submitIbogaineConsentForm = actionClient
         })
       }
       
+      // Send admin notification email when client completes ibogaine consent form (fire and forget)
+      // Only send if form is completed (has signature)
+      if (parsedInput.signature_name && parsedInput.signature_name.trim() !== '' && parsedInput.signature_data) {
+        const clientName = `${parsedInput.first_name} ${parsedInput.last_name}`.trim()
+        const adminNotificationBody = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { 
+                font-family: 'Helvetica Neue', Arial, sans-serif; 
+                line-height: 1.8; 
+                color: #333; 
+                margin: 0;
+                padding: 0;
+                background-color: #f5f5f5;
+              }
+              .container { 
+                max-width: 600px; 
+                margin: 0 auto; 
+                background: white;
+              }
+              .header { 
+                background: #5D7A5F; 
+                color: white; 
+                padding: 40px 30px; 
+                text-align: center; 
+              }
+              .header h1 {
+                margin: 0;
+                font-size: 28px;
+                font-weight: 400;
+              }
+              .content { 
+                padding: 40px 30px; 
+                background: white; 
+              }
+              .content h2 {
+                color: #5D7A5F;
+                font-size: 24px;
+                margin-top: 0;
+              }
+              .content p {
+                font-size: 16px;
+                color: #555;
+                margin-bottom: 20px;
+              }
+              .info-box {
+                background: #f0f7f0;
+                border-left: 4px solid #5D7A5F;
+                padding: 20px;
+                margin: 20px 0;
+              }
+              .footer { 
+                padding: 30px; 
+                text-align: center; 
+                font-size: 14px; 
+                color: #888;
+                background: #f9f9f9;
+                border-top: 1px solid #eee;
+              }
+              .footer a {
+                color: #5D7A5F;
+                text-decoration: none;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>Iboga Wellness Institute</h1>
+              </div>
+              <div class="content">
+                <h2>Client Ibogaine Consent Form Completed</h2>
+                
+                <div class="info-box">
+                  <p><strong>✅ Ibogaine Consent Form Completed</strong></p>
+                  <p><strong>Client Name:</strong> ${clientName}</p>
+                  <p><strong>Client Email:</strong> ${parsedInput.email}</p>
+                  <p><strong>Form Status:</strong> Ready for Onboarding</p>
+                </div>
+                
+                <p>The client has successfully completed and signed their Ibogaine Therapy Consent Form. The client is now ready to proceed with the onboarding steps.</p>
+                
+                <p>Please review the completed form and proceed with the next steps in the onboarding process.</p>
+                
+                <p>You can view the completed Ibogaine Consent Form in the patient profile section of the portal.</p>
+                
+                <p>Best regards,<br><strong>Iboga Wellness Institute System</strong></p>
+              </div>
+              <div class="footer">
+                <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+                <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `
+        
+        sendEmailDirect({
+          to: 'james@theibogainstitute.org',
+          subject: `Client Ibogaine Consent Form Completed - ${clientName} | Ready for Onboarding`,
+          body: adminNotificationBody,
+        }).catch((error) => {
+          console.error('Failed to send admin notification email for ibogaine consent:', error)
+        })
+      }
+      
       return { 
         success: true, 
         data: { 
@@ -278,7 +384,6 @@ export const submitIbogaineConsentForm = actionClient
           phone_number: parsedInput.phone_number,
           email: parsedInput.email,
           address: parsedInput.address,
-          treatment_date: treatmentDate,
           facilitator_doctor_name: parsedInput.facilitator_doctor_name,
           consent_for_treatment: parsedInput.consent_for_treatment,
           risks_and_benefits: parsedInput.risks_and_benefits,
@@ -332,6 +437,114 @@ export const submitIbogaineConsentForm = actionClient
           intakeFormData.last_name || parsedInput.last_name
         ).catch((error) => {
           console.error('Failed to send ibogaine consent confirmation email to filler:', error)
+        })
+      }
+      
+      // Send admin notification email when client completes ibogaine consent form (fire and forget)
+      // Only send if form is completed (has signature)
+      if (parsedInput.signature_name && parsedInput.signature_name.trim() !== '' && parsedInput.signature_data) {
+        const clientName = `${parsedInput.first_name} ${parsedInput.last_name}`.trim()
+        const adminNotificationBody = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { 
+                font-family: 'Helvetica Neue', Arial, sans-serif; 
+                line-height: 1.8; 
+                color: #333; 
+                margin: 0;
+                padding: 0;
+                background-color: #f5f5f5;
+              }
+              .container { 
+                max-width: 600px; 
+                margin: 0 auto; 
+                background: white;
+              }
+              .header { 
+                background: #5D7A5F; 
+                color: white; 
+                padding: 40px 30px; 
+                text-align: center; 
+              }
+              .header h1 {
+                margin: 0;
+                font-size: 28px;
+                font-weight: 400;
+              }
+              .content { 
+                padding: 40px 30px; 
+                background: white; 
+              }
+              .content h2 {
+                color: #5D7A5F;
+                font-size: 24px;
+                margin-top: 0;
+              }
+              .content p {
+                font-size: 16px;
+                color: #555;
+                margin-bottom: 20px;
+              }
+              .info-box {
+                background: #f0f7f0;
+                border-left: 4px solid #5D7A5F;
+                padding: 20px;
+                margin: 20px 0;
+              }
+              .footer { 
+                padding: 30px; 
+                text-align: center; 
+                font-size: 14px; 
+                color: #888;
+                background: #f9f9f9;
+                border-top: 1px solid #eee;
+              }
+              .footer a {
+                color: #5D7A5F;
+                text-decoration: none;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>Iboga Wellness Institute</h1>
+              </div>
+              <div class="content">
+                <h2>Client Ibogaine Consent Form Completed</h2>
+                
+                <div class="info-box">
+                  <p><strong>✅ Ibogaine Consent Form Completed</strong></p>
+                  <p><strong>Client Name:</strong> ${clientName}</p>
+                  <p><strong>Client Email:</strong> ${parsedInput.email}</p>
+                  <p><strong>Form Status:</strong> Ready for Onboarding</p>
+                </div>
+                
+                <p>The client has successfully completed and signed their Ibogaine Therapy Consent Form. The client is now ready to proceed with the onboarding steps.</p>
+                
+                <p>Please review the completed form and proceed with the next steps in the onboarding process.</p>
+                
+                <p>You can view the completed Ibogaine Consent Form in the patient profile section of the portal.</p>
+                
+                <p>Best regards,<br><strong>Iboga Wellness Institute System</strong></p>
+              </div>
+              <div class="footer">
+                <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+                <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `
+        
+        sendEmailDirect({
+          to: 'james@theibogainstitute.org',
+          subject: `Client Ibogaine Consent Form Completed - ${clientName} | Ready for Onboarding`,
+          body: adminNotificationBody,
+        }).catch((error) => {
+          console.error('Failed to send admin notification email for ibogaine consent:', error)
         })
       }
       

@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { User } from '@/types'
 import { User as SupabaseUser } from '@supabase/supabase-js'
@@ -38,6 +39,16 @@ export function DashboardShell({ children, user, profile, userRole }: DashboardS
   // Automatically track online status globally
   useOnlineStatus(user)
 
+  // Prevent body scroll when dashboard is mounted
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+    }
+  }, [])
+
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       {/* Navbar - Full width at top */}
@@ -49,8 +60,8 @@ export function DashboardShell({ children, user, profile, userRole }: DashboardS
       </div>
       
       {/* Content - Below navbar, offset by collapsed sidebar width (72px) on desktop (lg) */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden pt-[52px] md:pt-[68px] lg:pl-[72px]">
-        <div className="min-h-full w-full max-w-[1920px] mx-auto bg-[#F5F4F0] px-4 pb-4 md:px-6 md:pb-6">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden pt-[52px] md:pt-[68px] lg:pl-[72px] bg-[#F5F4F0]">
+        <div className="w-full max-w-[1920px] mx-auto px-4 pb-4 md:px-6 md:pb-6">
           {children}
         </div>
       </main>

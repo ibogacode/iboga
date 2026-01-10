@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { uploadDocument } from '@/lib/supabase/document-storage'
+import { sendEmailDirect } from './email.action'
 import {
   releaseFormSchema,
   outingConsentFormSchema,
@@ -578,6 +579,94 @@ export const moveToPatientManagement = authActionClient
   })
 
 // =============================================================================
+// HELPER: Check if all onboarding forms are completed and send admin notification
+// =============================================================================
+
+async function checkAndNotifyOnboardingCompletion(onboardingId: string) {
+  try {
+    const adminClient = createAdminClient()
+    
+    // Check onboarding status after form completion
+    const { data: onboarding, error: fetchError } = await adminClient
+      .from('patient_onboarding')
+      .select('*')
+      .eq('id', onboardingId)
+      .maybeSingle()
+
+    if (fetchError || !onboarding) {
+      console.error('[checkAndNotifyOnboardingCompletion] Error fetching onboarding:', fetchError)
+      return
+    }
+
+    // Check if all 3 required forms are completed
+    // Note: social_media_release and informed_dissent forms were removed from onboarding process
+    const allFormsCompleted = 
+      onboarding.release_form_completed &&
+      onboarding.outing_consent_completed &&
+      onboarding.internal_regulations_completed
+
+    // Check if completion is recent (within last 5 minutes) to prevent duplicate emails
+    // This handles cases where status might not be updated yet by the trigger
+    const completedAt = onboarding.completed_at ? new Date(onboarding.completed_at).getTime() : null
+    const now = Date.now()
+    const isRecentCompletion = completedAt && (now - completedAt) < 5 * 60 * 1000 // 5 minutes
+
+    // Send email if all forms are completed AND either:
+    // 1. Status is 'completed', OR
+    // 2. completed_at was set recently (within last 5 minutes) - handles trigger timing
+    // This prevents duplicate emails while handling race conditions
+    // Note: If all forms are completed but status isn't 'completed' yet, the trigger will set it soon
+    if (allFormsCompleted && (onboarding.status === 'completed' || isRecentCompletion)) {
+      const clientName = `${onboarding.first_name || ''} ${onboarding.last_name || ''}`.trim() || onboarding.email || 'Client'
+      
+      const adminNotificationBody = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Client Onboarding Complete</title>
+          </head>
+          <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+            <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 40px 20px;">
+              <div class="header" style="text-align: center; margin-bottom: 40px;">
+                <h1 style="color: #1a1a1a; font-size: 28px; margin: 0 0 10px 0;">Onboarding Forms Completed</h1>
+              </div>
+              <div class="content" style="color: #4a4a4a; font-size: 16px; line-height: 1.6;">
+                <p>Hello,</p>
+                <p>A client has completed all onboarding forms and is ready for the next steps.</p>
+                <div style="background-color: #f9f9f9; padding: 20px; border-radius: 8px; margin: 30px 0;">
+                  <h2 style="color: #1a1a1a; font-size: 20px; margin: 0 0 15px 0;">Client Information</h2>
+                  <p style="margin: 8px 0;"><strong>Name:</strong> ${clientName}</p>
+                  <p style="margin: 8px 0;"><strong>Email:</strong> ${onboarding.email || 'N/A'}</p>
+                  <p style="margin: 8px 0;"><strong>Phone:</strong> ${onboarding.phone_number || 'N/A'}</p>
+                  ${onboarding.program_type ? `<p style="margin: 8px 0;"><strong>Program Type:</strong> ${onboarding.program_type}</p>` : ''}
+                </div>
+                <p style="margin-top: 30px;">Please review the completed onboarding forms and proceed with the next steps in the client's journey.</p>
+              </div>
+              <div class="footer" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0; text-align: center; color: #888888; font-size: 14px;">
+                <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+                <p><a href="https://theibogainstitute.org" style="color: #0066cc; text-decoration: none;">theibogainstitute.org</a></p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `
+
+      await sendEmailDirect({
+        to: 'james@theibogainstitute.org',
+        subject: `Client Onboarding Complete - ${clientName} | Iboga Wellness Institute`,
+        body: adminNotificationBody,
+      })
+
+      console.log('[checkAndNotifyOnboardingCompletion] Admin notification sent for onboarding:', onboardingId)
+    }
+  } catch (error) {
+    console.error('[checkAndNotifyOnboardingCompletion] Error checking/sending notification:', error)
+  }
+}
+
+// =============================================================================
 // PATIENT FORM SUBMISSIONS (Strict validation - always sets is_completed=true)
 // =============================================================================
 
@@ -619,6 +708,11 @@ export const submitReleaseForm = authActionClient
       return { success: false, error: handleSupabaseError(error, 'Failed to submit release form') }
     }
 
+    // Check if all onboarding forms are now completed and notify admin
+    checkAndNotifyOnboardingCompletion(parsedInput.onboarding_id).catch((err) => {
+      console.error('[submitReleaseForm] Error checking onboarding completion:', err)
+    })
+
     revalidatePath('/onboarding')
     revalidatePath(`/onboarding-forms/${parsedInput.onboarding_id}`)
     return { success: true, data }
@@ -657,6 +751,11 @@ export const submitOutingConsentForm = authActionClient
       console.error('[submitOutingConsentForm] Error:', error)
       return { success: false, error: handleSupabaseError(error, 'Failed to submit outing consent form') }
     }
+
+    // Check if all onboarding forms are now completed and notify admin
+    checkAndNotifyOnboardingCompletion(parsedInput.onboarding_id).catch((err) => {
+      console.error('[submitOutingConsentForm] Error checking onboarding completion:', err)
+    })
 
     revalidatePath('/onboarding')
     revalidatePath(`/onboarding-forms/${parsedInput.onboarding_id}`)
@@ -700,6 +799,8 @@ export const submitSocialMediaForm = authActionClient
       return { success: false, error: handleSupabaseError(error, 'Failed to submit social media form') }
     }
 
+    // Note: Social Media form is no longer part of onboarding completion check (only 3 forms required now)
+
     revalidatePath('/onboarding')
     revalidatePath(`/onboarding-forms/${parsedInput.onboarding_id}`)
     return { success: true, data }
@@ -736,6 +837,11 @@ export const submitInternalRegulationsForm = authActionClient
       console.error('[submitInternalRegulationsForm] Error:', error)
       return { success: false, error: handleSupabaseError(error, 'Failed to submit internal regulations form') }
     }
+
+    // Check if all onboarding forms are now completed and notify admin
+    checkAndNotifyOnboardingCompletion(parsedInput.onboarding_id).catch((err) => {
+      console.error('[submitInternalRegulationsForm] Error checking onboarding completion:', err)
+    })
 
     revalidatePath('/onboarding')
     revalidatePath(`/onboarding-forms/${parsedInput.onboarding_id}`)
@@ -774,6 +880,8 @@ export const submitInformedDissentForm = authActionClient
       console.error('[submitInformedDissentForm] Error:', error)
       return { success: false, error: handleSupabaseError(error, 'Failed to submit informed dissent form') }
     }
+
+    // Note: Informed Dissent form is no longer part of onboarding completion check (only 3 forms required now)
 
     revalidatePath('/onboarding')
     revalidatePath(`/onboarding-forms/${parsedInput.onboarding_id}`)

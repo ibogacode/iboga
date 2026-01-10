@@ -316,6 +316,9 @@ export interface PatientManagementDailyMedicalUpdate extends BaseDailyForm {
   
   // Checked Vitals
   checked_vitals: boolean
+  checked_blood_pressure: boolean
+  checked_heart_rate: boolean
+  checked_oxygen_saturation: boolean
   did_they_feel_hungry: string | null
   using_bathroom_normally: string | null
   hydrating: string | null
@@ -326,29 +329,61 @@ export interface PatientManagementDailyMedicalUpdate extends BaseDailyForm {
   how_guest_says_they_feel: string | null
   
   // Patient Observations (Morning, Afternoon, Night)
-  morning_vital_signs: string | null
+  // Client Presence
+  morning_client_present: boolean
+  afternoon_client_present: boolean
+  night_client_present: boolean
+  
+  // Detailed Vital Signs
+  morning_blood_pressure: string | null
+  morning_heart_rate: number | null
+  morning_oxygen_saturation: number | null
+  morning_vital_signs: string | null // Keep for backward compatibility
   morning_symptoms: string | null
   morning_evolution: string | null
-  afternoon_vital_signs: string | null
+  
+  afternoon_blood_pressure: string | null
+  afternoon_heart_rate: number | null
+  afternoon_oxygen_saturation: number | null
+  afternoon_vital_signs: string | null // Keep for backward compatibility
   afternoon_symptoms: string | null
   afternoon_evolution: string | null
-  night_vital_signs: string | null
+  
+  night_blood_pressure: string | null
+  night_heart_rate: number | null
+  night_oxygen_saturation: number | null
+  night_vital_signs: string | null // Keep for backward compatibility
   night_symptoms: string | null
   night_evolution: string | null
   
   // Medication & Treatment
-  ibogaine_dose_time: string | null
+  ibogaine_doses: Array<{ dose: number; time: string }> | null
+  ibogaine_frequency: 'once' | 'twice' | null // Keep for backward compatibility
+  ibogaine_dose: number | null // Keep for backward compatibility
+  ibogaine_time: string | null // Keep for backward compatibility
+  ibogaine_dose_time: string | null // Keep for backward compatibility
   medication_schedule: string | null
   solutions_iv_saline_nadh: string | null
   medical_indications: string | null
   additional_observations_notes: string | null
   
-  // File upload
-  photo_of_vitals_medical_notes_url: string | null
+  // File upload - Multiple files support
+  vitals_photos: Array<{
+    url: string
+    fileName: string
+    fileType: string
+  }> | null
+  photo_of_vitals_medical_notes_url: string | null // Keep for backward compatibility
   
   // Signature
   signature_data: string | null
   signature_date: string | null
+  
+  // Submission tracking
+  submitted_by_name: string | null
+  morning_inspected_by: string | null
+  afternoon_inspected_by: string | null
+  night_inspected_by: string | null
 }
 
 // =============================================================================
