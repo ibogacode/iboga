@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import { 
   startDailyPsychologicalUpdate, 
   submitDailyPsychologicalUpdate 
@@ -19,6 +20,7 @@ import {
 import { toast } from 'sonner'
 import { Loader2, CheckCircle, Calendar, Clock } from 'lucide-react'
 import { format } from 'date-fns'
+import { useUser } from '@/hooks/use-user.hook'
 
 interface DailyPsychologicalUpdateFormProps {
   managementId: string
@@ -26,7 +28,10 @@ interface DailyPsychologicalUpdateFormProps {
   patientLastName: string
   formDate: string // YYYY-MM-DD
   programType: 'neurological' | 'mental_health' | 'addiction'
-  initialData?: Partial<DailyPsychologicalUpdateInput> & { id?: string }
+  initialData?: Partial<DailyPsychologicalUpdateInput> & { 
+    id?: string
+    filled_by_profile?: { first_name?: string; last_name?: string } | null
+  }
   isCompleted?: boolean
   isStarted?: boolean
   onSuccess?: () => void
@@ -45,13 +50,26 @@ export function DailyPsychologicalUpdateForm({
 }: DailyPsychologicalUpdateFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+  const { profile } = useUser()
 
-  // Get current time in HH:MM format
+  // Get logged-in user's full name for display
+  const currentUserName = profile?.first_name && profile?.last_name 
+    ? `${profile.first_name} ${profile.last_name}` 
+    : profile?.first_name || profile?.last_name || ''
+
+  // Get filler's name from joined profile (for completed forms)
+  const fillerName = initialData?.filled_by_profile?.first_name && initialData?.filled_by_profile?.last_name
+    ? `${initialData.filled_by_profile.first_name} ${initialData.filled_by_profile.last_name}`
+    : initialData?.filled_by_profile?.first_name || initialData?.filled_by_profile?.last_name || ''
+
+  // Get current time in HH:MM format (EST timezone)
   const getCurrentTime = () => {
-    const now = new Date()
-    const hours = now.getHours().toString().padStart(2, '0')
-    const minutes = now.getMinutes().toString().padStart(2, '0')
-    return `${hours}:${minutes}`
+    return new Date().toLocaleTimeString('en-US', {
+      timeZone: 'America/New_York',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
   }
 
   const form = useForm<DailyPsychologicalUpdateInput>({
@@ -75,6 +93,7 @@ export function DailyPsychologicalUpdateForm({
       how_guest_looks_physically: typeof initialData?.how_guest_looks_physically === 'number' ? initialData.how_guest_looks_physically : (initialData?.how_guest_looks_physically ? parseInt(String(initialData.how_guest_looks_physically), 10) || 5 : 5),
       how_guest_describes_feeling: typeof initialData?.how_guest_describes_feeling === 'number' ? initialData.how_guest_describes_feeling : (initialData?.how_guest_describes_feeling ? parseInt(String(initialData.how_guest_describes_feeling), 10) || 5 : 5),
       additional_notes_observations: initialData?.additional_notes_observations || '',
+      inspected_by: initialData?.inspected_by || '',
     },
   })
 
@@ -101,9 +120,10 @@ export function DailyPsychologicalUpdateForm({
         how_guest_looks_physically: typeof initialData.how_guest_looks_physically === 'number' ? initialData.how_guest_looks_physically : (initialData.how_guest_looks_physically ? parseInt(String(initialData.how_guest_looks_physically), 10) || 5 : 5),
         how_guest_describes_feeling: typeof initialData.how_guest_describes_feeling === 'number' ? initialData.how_guest_describes_feeling : (initialData.how_guest_describes_feeling ? parseInt(String(initialData.how_guest_describes_feeling), 10) || 5 : 5),
         additional_notes_observations: initialData.additional_notes_observations || '',
+        inspected_by: initialData.inspected_by || '',
       })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks-exhaustive-deps
   }, [initialData?.id, isStarted])
 
   // Inject slider styles for all three sliders
@@ -404,8 +424,8 @@ export function DailyPsychologicalUpdateForm({
         form_date: formDate 
       })
       if (result?.data?.success) {
-        toast.success('Daily report started')
-        onSuccess?.()
+        // Refresh the page to load the started form
+        window.location.reload()
       } else {
         toast.error(result?.data?.error || 'Failed to start report')
       }
@@ -416,6 +436,14 @@ export function DailyPsychologicalUpdateForm({
       setIsStarting(false)
     }
   }
+
+  // Auto-start the form if not already started
+  useEffect(() => {
+    if (!isStarted && !isStarting) {
+      handleStartReport()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStarted])
 
   async function onSubmit(data: DailyPsychologicalUpdateInput) {
     setIsSubmitting(true)
@@ -435,33 +463,13 @@ export function DailyPsychologicalUpdateForm({
     }
   }
 
+  // Show loading while auto-starting
   if (!isStarted) {
     return (
       <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Daily Psychological Update</h3>
-            <p className="text-sm text-gray-600 mt-1">
-              {format(new Date(formDate), 'MMMM dd, yyyy')}
-            </p>
-          </div>
-          <Button
-            onClick={handleStartReport}
-            disabled={isStarting}
-            className="bg-emerald-600 hover:bg-emerald-700"
-          >
-            {isStarting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Starting...
-              </>
-            ) : (
-              <>
-                <Calendar className="h-4 w-4 mr-2" />
-                Start Report
-              </>
-            )}
-          </Button>
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-3" />
+          <span className="text-gray-600">Preparing form...</span>
         </div>
       </div>
     )
@@ -672,23 +680,91 @@ export function DailyPsychologicalUpdateForm({
           <h3 className="text-lg font-semibold text-gray-900">2. Parkinson's Patients Only (Motor Function)</h3>
           
           <div>
-            <Label htmlFor="experiencing_tremors_muscle_stiffness">Are they experiencing tremors, muscle stiffness, or changes in motor function?</Label>
-            <Textarea
-              id="experiencing_tremors_muscle_stiffness"
-              {...form.register('experiencing_tremors_muscle_stiffness')}
-              rows={2}
-              disabled={isCompleted}
-              className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
-            />
+            <Label className="mb-3 block">Are they experiencing tremors, muscle stiffness, or changes in motor function? *</Label>
+            {(() => {
+              const currentValue = form.watch('experiencing_tremors_muscle_stiffness') || ''
+              const selectedOptions = currentValue ? currentValue.split(',').map((s: string) => s.trim()) : []
+              
+              const toggleOption = (option: string) => {
+                if (isCompleted) return
+                
+                let newSelected: string[]
+                
+                if (option === 'No change') {
+                  // If selecting "No change", clear all others
+                  newSelected = selectedOptions.includes('No change') ? [] : ['No change']
+                } else {
+                  // If selecting any other option, remove "No change" if present
+                  const withoutNoChange = selectedOptions.filter((s: string) => s !== 'No change')
+                  if (withoutNoChange.includes(option)) {
+                    newSelected = withoutNoChange.filter((s: string) => s !== option)
+                  } else {
+                    newSelected = [...withoutNoChange, option]
+                  }
+                }
+                
+                form.setValue('experiencing_tremors_muscle_stiffness', newSelected.join(', '))
+              }
+              
+              return (
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="tremors"
+                      checked={selectedOptions.includes('Tremors')}
+                      onCheckedChange={() => toggleOption('Tremors')}
+                      disabled={isCompleted}
+                    />
+                    <Label htmlFor="tremors" className="text-sm font-normal cursor-pointer">
+                      Tremors
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="muscle_stiffness"
+                      checked={selectedOptions.includes('Muscle stiffness')}
+                      onCheckedChange={() => toggleOption('Muscle stiffness')}
+                      disabled={isCompleted}
+                    />
+                    <Label htmlFor="muscle_stiffness" className="text-sm font-normal cursor-pointer">
+                      Muscle stiffness
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="improved_motor_function"
+                      checked={selectedOptions.includes('Improved motor function')}
+                      onCheckedChange={() => toggleOption('Improved motor function')}
+                      disabled={isCompleted}
+                    />
+                    <Label htmlFor="improved_motor_function" className="text-sm font-normal cursor-pointer">
+                      Improved motor function
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="no_change"
+                      checked={selectedOptions.includes('No change')}
+                      onCheckedChange={() => toggleOption('No change')}
+                      disabled={isCompleted}
+                    />
+                    <Label htmlFor="no_change" className="text-sm font-normal cursor-pointer">
+                      No change
+                    </Label>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
 
           <div>
-            <Label htmlFor="motor_function_details">Details</Label>
+            <Label htmlFor="motor_function_details">Details (optional)</Label>
             <Textarea
               id="motor_function_details"
               {...form.register('motor_function_details')}
               rows={3}
               disabled={isCompleted}
+              placeholder="Provide additional details about motor function observations..."
               className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
             />
           </div>
@@ -818,18 +894,42 @@ export function DailyPsychologicalUpdateForm({
         </div>
 
         <div>
-          <Label htmlFor="additional_notes_observations">Additional Notes / Observations / Relevant Context *</Label>
+          <Label htmlFor="additional_notes_observations">Additional Notes / Observations / Relevant Context</Label>
           <Textarea
             id="additional_notes_observations"
             {...form.register('additional_notes_observations')}
             rows={4}
             disabled={isCompleted}
+            placeholder="Any additional observations or context..."
             className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
-            aria-invalid={!!form.formState.errors.additional_notes_observations}
           />
-          {form.formState.errors.additional_notes_observations && (
-            <p className="text-sm text-red-500 mt-1">{form.formState.errors.additional_notes_observations.message}</p>
-          )}
+        </div>
+
+        {/* Inspected By */}
+        <div>
+          <Label htmlFor="inspected_by">Inspected By</Label>
+          <Input
+            id="inspected_by"
+            {...form.register('inspected_by')}
+            placeholder="Staff member name"
+            disabled={isCompleted}
+            className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+          />
+        </div>
+
+        {/* Filled By Name (Display Only) */}
+        <div>
+          <Label htmlFor="filled_by_display">Filled By</Label>
+          <Input
+            id="filled_by_display"
+            value={isCompleted && fillerName ? fillerName : currentUserName}
+            disabled
+            className="mt-1 bg-gray-50"
+            readOnly
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            {isCompleted ? 'Staff member who submitted this form' : 'Your name will be recorded when you submit'}
+          </p>
         </div>
       </div>
 

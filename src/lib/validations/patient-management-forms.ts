@@ -78,6 +78,70 @@ export const intakeReportAdminSchema = intakeReportSchema.partial().extend({
 })
 
 // =============================================================================
+// Medical Intake Report Schema (All Programs)
+// =============================================================================
+
+export const medicalIntakeReportSchema = z.object({
+  management_id: z.string().uuid('Invalid management ID'),
+  name: z.string().min(1, 'Name is required'),
+  date_of_birth: z.string().min(1, 'Date of birth is required'),
+  arrival_date: z.string().min(1, 'Arrival date is required'),
+
+  // Changes Since Medical Clearance
+  changes_since_medical_clearance: z.boolean().default(false),
+  changes_medications: z.boolean().default(false).optional(),
+  changes_substance_use: z.boolean().default(false).optional(),
+  changes_hospitalization: z.boolean().default(false).optional(),
+  changes_new_symptoms: z.boolean().default(false).optional(),
+  changes_explanation: stringOptional,
+
+  // Last Use & Medication Confirmation
+  last_substance_use_datetime: stringOptional,
+  medications_last_72_hours: stringOptional,
+
+  // Current Physical Status (Staff)
+  blood_pressure: stringOptional,
+  heart_rate: z.number().min(30).max(200).optional().nullable(),
+  oxygen_saturation: z.number().min(0).max(100).optional().nullable(),
+  temperature: z.number().optional().nullable(),
+  symptoms_nausea: z.boolean().default(false).optional(),
+  symptoms_dizziness: z.boolean().default(false).optional(),
+  symptoms_palpitations: z.boolean().default(false).optional(),
+  symptoms_anxiety: z.boolean().default(false).optional(),
+  symptoms_pain: z.boolean().default(false).optional(),
+
+  // Hydration & Nutrition
+  last_food_intake: stringOptional,
+  last_fluids: stringOptional,
+  well_hydrated: z.boolean().default(false).optional(),
+  possibly_dehydrated: z.boolean().default(false).optional(),
+
+  // Mental & Emotional Check-In
+  current_state_calm: z.boolean().default(false).optional(),
+  current_state_nervous: z.boolean().default(false).optional(),
+  current_state_overwhelmed: z.boolean().default(false).optional(),
+  current_state_stable: z.boolean().default(false).optional(),
+  thoughts_of_self_harm: z.boolean().default(false),
+
+  // Client Acknowledgement
+  client_signature_data: stringOptional,
+  client_signature_date: isoDateOptional,
+
+  // Staff Medical Sign-Off
+  reviewed_by: z.string().min(1, 'Reviewed by is required'),
+  reviewed_date: z.string().min(1, 'Reviewed date is required'),
+
+  // Tracking
+  submitted_by_name: stringOptional,
+})
+
+// Admin schema (relaxed for partial updates)
+export const medicalIntakeReportAdminSchema = medicalIntakeReportSchema.partial().extend({
+  management_id: z.string().uuid(),
+  is_completed: z.boolean().optional(),
+})
+
+// =============================================================================
 // Parkinson's Intake Psychological Report Schema (Neurological Only)
 // =============================================================================
 
@@ -209,7 +273,7 @@ export const parkinsonsMortalityScalesSchema = z.object({
   mds_updrs_notes: stringOptional,
 
   // Hoehn & Yahr Staging
-  hoehn_yahr_stage: stringOptional,
+  hoehn_yahr_stage: z.enum(['Stage 1', 'Stage 1.5', 'Stage 2', 'Stage 2.5', 'Stage 3', 'Stage 4', 'Stage 5']).optional().nullable(),
 
   // Schwab & England Activities of Daily Living
   dressing_score: numberOptional,
@@ -222,10 +286,10 @@ export const parkinsonsMortalityScalesSchema = z.object({
   // Parkinson's Disease Composite Mortality Index (PDCMI)
   age_years: numberOptional,
   disease_duration_years: numberOptional,
-  dementia: stringOptional,
-  falls_past_6_12_months: stringOptional,
+  dementia: z.enum(['No', 'Possible', 'Confirmed']).optional().nullable(),
+  falls_past_6_12_months: z.enum(['None', '1–2', '≥3 / recurrent']).optional().nullable(),
   mds_updrs_part_iii_motor_score: numberOptional,
-  risk_classification: stringOptional,
+  risk_classification: z.enum(['Low', 'Moderate', 'High']).optional().nullable(),
 
   // MDS-PD Clinical Frailty Rating Scale
   weight_loss: numberOptional,
@@ -235,8 +299,13 @@ export const parkinsonsMortalityScalesSchema = z.object({
   comorbidities_assistance: numberOptional,
   mds_pd_frailty_total_score: z.number().default(0),
 
-  // File upload
-  scanned_mds_updrs_form_url: stringOptional,
+  // File upload - Multiple files support
+  scanned_mds_updrs_forms: z.array(z.object({
+    url: z.string().url(),
+    fileName: z.string(),
+    fileType: z.string(),
+  })).optional().nullable(),
+  scanned_mds_updrs_form_url: stringOptional, // Keep for backward compatibility
 })
 
 export const parkinsonsMortalityScalesAdminSchema = parkinsonsMortalityScalesSchema.partial().extend({
@@ -272,7 +341,8 @@ export const dailyPsychologicalUpdateSchema = z.object({
   // 3. Staff Observations
   how_guest_looks_physically: z.number().min(1, 'Rating must be at least 1').max(10, 'Rating must be between 1 and 10'),
   how_guest_describes_feeling: z.number().min(1, 'Rating must be at least 1').max(10, 'Rating must be between 1 and 10'),
-  additional_notes_observations: z.string().min(1, 'This field is required'),
+  additional_notes_observations: stringOptional,
+  inspected_by: stringOptional,
 })
 
 export const dailyPsychologicalUpdateAdminSchema = dailyPsychologicalUpdateSchema.partial().extend({
@@ -307,7 +377,7 @@ export const dailyMedicalUpdateSchema = z.object({
   hydrating: stringOptional,
   experiencing_tremors_motor_function: stringOptional, // Optional for non-neurological
   withdrawal_symptoms: stringOptional,
-  how_guest_looks: stringOptional,
+  how_guest_looks: z.number().min(1).max(10).optional().nullable(),
   energy_level: z.number().min(1).max(10).optional().nullable(),
   how_guest_says_they_feel: stringOptional,
 
@@ -385,6 +455,101 @@ export const startDailyMedicalUpdateSchema = z.object({
 })
 
 // =============================================================================
+// Daily SOWS Schema (Addiction Program Only)
+// =============================================================================
+
+export const dailySOWSSchema = z.object({
+  management_id: z.string().uuid('Invalid management ID'),
+  patient_first_name: z.string().min(1, 'First name is required'),
+  patient_last_name: z.string().min(1, 'Last name is required'),
+  patient_date_of_birth: isoDateOptional,
+  form_date: z.string().min(1, 'Date is required'),
+  time: z.string().min(1, 'Time is required'),
+
+  // SOWS Symptoms (0-4 scale, all optional/nullable for draft saving)
+  symptom_1_anxious: z.number().min(0).max(4).optional().nullable(),
+  symptom_2_yawning: z.number().min(0).max(4).optional().nullable(),
+  symptom_3_perspiring: z.number().min(0).max(4).optional().nullable(),
+  symptom_4_eyes_tearing: z.number().min(0).max(4).optional().nullable(),
+  symptom_5_nose_running: z.number().min(0).max(4).optional().nullable(),
+  symptom_6_goosebumps: z.number().min(0).max(4).optional().nullable(),
+  symptom_7_shaking: z.number().min(0).max(4).optional().nullable(),
+  symptom_8_hot_flushes: z.number().min(0).max(4).optional().nullable(),
+  symptom_9_cold_flushes: z.number().min(0).max(4).optional().nullable(),
+  symptom_10_bones_muscles_ache: z.number().min(0).max(4).optional().nullable(),
+  symptom_11_restless: z.number().min(0).max(4).optional().nullable(),
+  symptom_12_nauseous: z.number().min(0).max(4).optional().nullable(),
+  symptom_13_vomiting: z.number().min(0).max(4).optional().nullable(),
+  symptom_14_muscles_twitch: z.number().min(0).max(4).optional().nullable(),
+  symptom_15_stomach_cramps: z.number().min(0).max(4).optional().nullable(),
+  symptom_16_feel_like_using_now: z.number().min(0).max(4).optional().nullable(),
+
+  // Calculated total (will be computed on backend)
+  total_score: z.number().min(0).max(64).optional().nullable(),
+
+  // Staff tracking
+  reviewed_by: stringOptional,
+  submitted_by_name: stringOptional,
+})
+
+export const dailySOWSAdminSchema = dailySOWSSchema.partial().extend({
+  management_id: z.string().uuid(),
+  form_date: z.string().min(1),
+  is_completed: z.boolean().optional(),
+})
+
+export const startDailySOWSSchema = z.object({
+  management_id: z.string().uuid('Invalid management ID'),
+  form_date: z.string().min(1, 'Date is required'),
+})
+
+// =============================================================================
+// Daily OOWS Schema (Addiction Program Only)
+// =============================================================================
+
+export const dailyOOWSSchema = z.object({
+  management_id: z.string().uuid('Invalid management ID'),
+  patient_first_name: z.string().min(1, 'First name is required'),
+  patient_last_name: z.string().min(1, 'Last name is required'),
+  patient_date_of_birth: isoDateOptional,
+  form_date: z.string().min(1, 'Date is required'),
+  time: z.string().min(1, 'Time is required'),
+
+  // OOWS Symptoms (0-1 scale, all optional/nullable for draft saving)
+  symptom_1_yawning: z.number().min(0).max(1).optional().nullable(),
+  symptom_2_rhinorrhoea: z.number().min(0).max(1).optional().nullable(),
+  symptom_3_piloerection: z.number().min(0).max(1).optional().nullable(),
+  symptom_4_perspiration: z.number().min(0).max(1).optional().nullable(),
+  symptom_5_lacrimation: z.number().min(0).max(1).optional().nullable(),
+  symptom_6_tremor: z.number().min(0).max(1).optional().nullable(),
+  symptom_7_mydriasis: z.number().min(0).max(1).optional().nullable(),
+  symptom_8_hot_cold_flushes: z.number().min(0).max(1).optional().nullable(),
+  symptom_9_restlessness: z.number().min(0).max(1).optional().nullable(),
+  symptom_10_vomiting: z.number().min(0).max(1).optional().nullable(),
+  symptom_11_muscle_twitches: z.number().min(0).max(1).optional().nullable(),
+  symptom_12_abdominal_cramps: z.number().min(0).max(1).optional().nullable(),
+  symptom_13_anxiety: z.number().min(0).max(1).optional().nullable(),
+
+  // Calculated total (will be computed on backend)
+  total_score: z.number().min(0).max(13).optional().nullable(),
+
+  // Staff tracking
+  reviewed_by: stringOptional,
+  submitted_by_name: stringOptional,
+})
+
+export const dailyOOWSAdminSchema = dailyOOWSSchema.partial().extend({
+  management_id: z.string().uuid(),
+  form_date: z.string().min(1),
+  is_completed: z.boolean().optional(),
+})
+
+export const startDailyOOWSSchema = z.object({
+  management_id: z.string().uuid('Invalid management ID'),
+  form_date: z.string().min(1, 'Date is required'),
+})
+
+// =============================================================================
 // Action Schemas
 // =============================================================================
 
@@ -412,7 +577,10 @@ export const getDailyFormsByManagementIdSchema = z.object({
 // Type Exports
 // =============================================================================
 export type IntakeReportInput = z.infer<typeof intakeReportSchema>
+export type MedicalIntakeReportInput = z.infer<typeof medicalIntakeReportSchema>
 export type ParkinsonsPsychologicalReportInput = z.infer<typeof parkinsonsPsychologicalReportSchema>
 export type ParkinsonsMortalityScalesInput = z.infer<typeof parkinsonsMortalityScalesSchema>
 export type DailyPsychologicalUpdateInput = z.infer<typeof dailyPsychologicalUpdateSchema>
 export type DailyMedicalUpdateInput = z.infer<typeof dailyMedicalUpdateSchema>
+export type DailySOWSInput = z.infer<typeof dailySOWSSchema>
+export type DailyOOWSInput = z.infer<typeof dailyOOWSSchema>

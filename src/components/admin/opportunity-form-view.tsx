@@ -39,7 +39,7 @@ export function OpportunityFormView({ opportunity }: OpportunityFormViewProps) {
   function formatDate(dateString: string | null) {
     if (!dateString) return 'N/A'
     try {
-      return format(new Date(dateString), 'MMMM dd, yyyy')
+      return format(new Date(dateString), 'MM-dd-yyyy')
     } catch {
       return dateString
     }

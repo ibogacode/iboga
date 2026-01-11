@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
@@ -49,6 +50,7 @@ export function DailyMedicalUpdateForm({
   isStarted,
   onSuccess 
 }: DailyMedicalUpdateFormProps) {
+  const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSavingDraft, setIsSavingDraft] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
@@ -69,7 +71,7 @@ export function DailyMedicalUpdateForm({
       hydrating: initialData?.hydrating || '',
       experiencing_tremors_motor_function: initialData?.experiencing_tremors_motor_function || '',
       withdrawal_symptoms: initialData?.withdrawal_symptoms || '',
-      how_guest_looks: initialData?.how_guest_looks || '',
+      how_guest_looks: initialData?.how_guest_looks || null,
       energy_level: initialData?.energy_level || null,
       how_guest_says_they_feel: initialData?.how_guest_says_they_feel || '',
       morning_client_present: initialData?.morning_client_present ?? true,
@@ -282,7 +284,7 @@ export function DailyMedicalUpdateForm({
         hydrating: initialData.hydrating || '',
         experiencing_tremors_motor_function: initialData.experiencing_tremors_motor_function || '',
         withdrawal_symptoms: initialData.withdrawal_symptoms || '',
-        how_guest_looks: initialData.how_guest_looks || '',
+        how_guest_looks: initialData.how_guest_looks || null,
         energy_level: initialData.energy_level || null,
         how_guest_says_they_feel: initialData.how_guest_says_they_feel || '',
         morning_client_present: initialData.morning_client_present ?? true,
@@ -411,8 +413,8 @@ export function DailyMedicalUpdateForm({
         form_date: formDate 
       })
       if (result?.data?.success) {
-        toast.success('Daily medical report started')
-        onSuccess?.()
+        // Refresh the page to load the started form
+        window.location.reload()
       } else {
         toast.error(result?.data?.error || 'Failed to start report')
       }
@@ -423,6 +425,56 @@ export function DailyMedicalUpdateForm({
       setIsStarting(false)
     }
   }
+
+  // Auto-start the form if not already started
+  useEffect(() => {
+    if (!isStarted && !isStarting) {
+      handleStartReport()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStarted])
+
+  // Check if vitals are complete for submission
+  // For each time period: either client is not present OR vitals are recorded
+  const watchValues = form.watch()
+  
+  const isMorningComplete = () => {
+    const isClientPresent = watchValues.morning_client_present
+    if (!isClientPresent) return true // Client not present - valid
+    // Client present - check if any vitals are recorded
+    const hasVitals = (
+      (watchValues.morning_blood_pressure && watchValues.morning_blood_pressure.trim() !== '') ||
+      (watchValues.morning_heart_rate !== null && watchValues.morning_heart_rate !== undefined) ||
+      (watchValues.morning_oxygen_saturation !== null && watchValues.morning_oxygen_saturation !== undefined)
+    )
+    return hasVitals
+  }
+
+  const isAfternoonComplete = () => {
+    const isClientPresent = watchValues.afternoon_client_present
+    if (!isClientPresent) return true // Client not present - valid
+    // Client present - check if any vitals are recorded
+    const hasVitals = (
+      (watchValues.afternoon_blood_pressure && watchValues.afternoon_blood_pressure.trim() !== '') ||
+      (watchValues.afternoon_heart_rate !== null && watchValues.afternoon_heart_rate !== undefined) ||
+      (watchValues.afternoon_oxygen_saturation !== null && watchValues.afternoon_oxygen_saturation !== undefined)
+    )
+    return hasVitals
+  }
+
+  const isNightComplete = () => {
+    const isClientPresent = watchValues.night_client_present
+    if (!isClientPresent) return true // Client not present - valid
+    // Client present - check if any vitals are recorded
+    const hasVitals = (
+      (watchValues.night_blood_pressure && watchValues.night_blood_pressure.trim() !== '') ||
+      (watchValues.night_heart_rate !== null && watchValues.night_heart_rate !== undefined) ||
+      (watchValues.night_oxygen_saturation !== null && watchValues.night_oxygen_saturation !== undefined)
+    )
+    return hasVitals
+  }
+
+  const canSubmit = isMorningComplete() && isAfternoonComplete() && isNightComplete()
 
   async function onSaveDraft(data: DailyMedicalUpdateInput) {
     setIsSavingDraft(true)
@@ -441,25 +493,47 @@ export function DailyMedicalUpdateForm({
         }
       }
 
-      const result = await updateDailyMedicalUpdate({
+      // Clean up ibogaine_doses: remove entries with empty time or dose 0 and empty time
+      // This allows saving draft even if dosage isn't filled in yet
+      const cleanedData = {
         ...data,
+        ibogaine_doses: data.ibogaine_doses?.filter((dose) => {
+          // Keep entries that have either a valid dose (> 0) or a time
+          return (dose.dose && dose.dose > 0) || (dose.time && dose.time.trim() !== '')
+        }) || null,
+      }
+
+      // If all doses were filtered out, set to null/empty array
+      if (cleanedData.ibogaine_doses && cleanedData.ibogaine_doses.length === 0) {
+        cleanedData.ibogaine_doses = null
+      }
+
+      const result = await updateDailyMedicalUpdate({
+        ...cleanedData,
         management_id: managementId,
         form_date: formDate,
         is_completed: false, // Keep as draft - don't mark as completed
       } as any)
       
       if (result?.data?.success) {
-        toast.success('Draft saved successfully. You can continue updating afternoon and night data later.')
-        // Trigger a refresh to show updated data
-        setTimeout(() => {
-          window.location.reload()
-        }, 1000)
+        toast.success('Draft saved successfully.')
+        // Redirect to daily forms page
+        router.push(`/patient-management/${managementId}/daily-forms`)
       } else {
-        toast.error(result?.data?.error || 'Failed to save draft')
+        const errorMessage = result?.data?.error || 'Failed to save draft'
+        // Show detailed error message to help user understand what went wrong
+        toast.error(`Unable to save draft: ${errorMessage}`, {
+          duration: 5000,
+        })
+        console.error('Save draft error:', errorMessage, result?.data)
       }
     } catch (error) {
       console.error('Error saving draft:', error)
-      toast.error('An error occurred while saving draft')
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred while saving draft'
+      // Show detailed error message
+      toast.error(`Unable to save draft: ${errorMessage}`, {
+        duration: 5000,
+      })
     } finally {
       setIsSavingDraft(false)
     }
@@ -492,33 +566,13 @@ export function DailyMedicalUpdateForm({
     }
   }
 
+  // Show loading while auto-starting
   if (!isStarted) {
     return (
       <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Daily Medical Update</h3>
-            <p className="text-sm text-gray-600 mt-1">
-              {format(new Date(formDate), 'MMMM dd, yyyy')}
-            </p>
-          </div>
-          <Button
-            onClick={handleStartReport}
-            disabled={isStarting}
-            className="bg-emerald-600 hover:bg-emerald-700"
-          >
-            {isStarting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Starting...
-              </>
-            ) : (
-              <>
-                <Calendar className="h-4 w-4 mr-2" />
-                Start Report
-              </>
-            )}
-          </Button>
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400 mr-3" />
+          <span className="text-gray-600">Preparing form...</span>
         </div>
       </div>
     )
@@ -526,23 +580,15 @@ export function DailyMedicalUpdateForm({
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 bg-white rounded-lg border border-gray-200 p-6">
-      {/* Header */}
-      <div className="border-b pb-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Daily Medical Update</h2>
-            <p className="text-gray-600 mt-1 text-sm">
-              {format(new Date(formDate), 'EEEE, MMMM dd, yyyy')}
-            </p>
+      {/* Status Badge */}
+      {isCompleted && (
+        <div className="flex items-center justify-end">
+          <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
+            <CheckCircle className="h-4 w-4" />
+            <span className="text-sm font-medium">Completed</span>
           </div>
-          {isCompleted && (
-            <div className="flex items-center gap-2 text-emerald-600">
-              <CheckCircle className="h-5 w-5" />
-              <span className="text-sm font-medium">Completed</span>
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
       {/* Patient Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -564,96 +610,8 @@ export function DailyMedicalUpdateForm({
         </div>
       </div>
 
-      {/* Checked Vitals */}
+      {/* General Observations */}
       <div className="border-t pt-4">
-        <div className="mb-4">
-          <Label className="font-semibold text-lg mb-3 block">
-            Check Vitals? *
-          </Label>
-          <div className="flex items-center space-x-6">
-            <div className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="checked_vitals_yes"
-                name="checked_vitals"
-                checked={form.watch('checked_vitals') === true}
-                onChange={() => {
-                  form.setValue('checked_vitals', true)
-                }}
-                disabled={isCompleted}
-                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
-              />
-              <Label htmlFor="checked_vitals_yes" className="text-base font-normal cursor-pointer">
-                Yes
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="radio"
-                id="checked_vitals_no"
-                name="checked_vitals"
-                checked={form.watch('checked_vitals') === false}
-                onChange={() => {
-                  form.setValue('checked_vitals', false)
-                  // Clear all vital checkboxes when No is selected
-                  form.setValue('checked_blood_pressure', false)
-                  form.setValue('checked_heart_rate', false)
-                  form.setValue('checked_oxygen_saturation', false)
-                }}
-                disabled={isCompleted}
-                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
-              />
-              <Label htmlFor="checked_vitals_no" className="text-base font-normal cursor-pointer">
-                No
-              </Label>
-            </div>
-          </div>
-        </div>
-
-        {/* Show vital sign checkboxes only if "Yes" is selected */}
-        {form.watch('checked_vitals') && (
-          <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-            <Label className="font-semibold text-base mb-3 block text-emerald-900">
-              Which vitals were checked? (Select all that apply)
-            </Label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="checked_blood_pressure"
-                  checked={form.watch('checked_blood_pressure')}
-                  onCheckedChange={(checked) => form.setValue('checked_blood_pressure', checked as boolean)}
-                  disabled={isCompleted}
-                />
-                <Label htmlFor="checked_blood_pressure" className="text-sm font-normal cursor-pointer">
-                  Blood Pressure
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="checked_heart_rate"
-                  checked={form.watch('checked_heart_rate')}
-                  onCheckedChange={(checked) => form.setValue('checked_heart_rate', checked as boolean)}
-                  disabled={isCompleted}
-                />
-                <Label htmlFor="checked_heart_rate" className="text-sm font-normal cursor-pointer">
-                  Heart Rate
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="checked_oxygen_saturation"
-                  checked={form.watch('checked_oxygen_saturation')}
-                  onCheckedChange={(checked) => form.setValue('checked_oxygen_saturation', checked as boolean)}
-                  disabled={isCompleted}
-                />
-                <Label htmlFor="checked_oxygen_saturation" className="text-sm font-normal cursor-pointer">
-                  Oxygen Saturation
-                </Label>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="did_they_feel_hungry">Did they feel hungry?</Label>
@@ -715,14 +673,59 @@ export function DailyMedicalUpdateForm({
           </div>
 
           <div>
-            <Label htmlFor="how_guest_looks">How guest looks</Label>
-            <Textarea
-              id="how_guest_looks"
-              {...form.register('how_guest_looks')}
-              rows={2}
-              disabled={isCompleted}
-              className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
-            />
+            <Label htmlFor="how_guest_looks">How Guest Looks (1–10)</Label>
+            {(() => {
+              const looksValue = form.watch('how_guest_looks') ?? null
+              const getColorForValue = (value: number | null): { color: string; rgb: string } => {
+                if (!value) return { color: 'gray', rgb: 'rgb(156, 163, 175)' }
+                if (value >= 1 && value <= 3) return { color: 'red', rgb: 'rgb(239, 68, 68)' }
+                if (value >= 4 && value <= 6) return { color: 'orange', rgb: 'rgb(249, 115, 22)' }
+                if (value >= 7 && value <= 10) return { color: 'green', rgb: 'rgb(16, 185, 129)' }
+                return { color: 'gray', rgb: 'rgb(156, 163, 175)' }
+              }
+              const colorInfo = getColorForValue(looksValue)
+              const progressPercent = looksValue ? ((looksValue - 1) * (100 / 9)) : 0
+              const displayColor = looksValue ? colorInfo.color : 'gray'
+              const displayColorClass = displayColor === 'red' ? 'text-red-600' : 
+                                       displayColor === 'orange' ? 'text-orange-600' : 
+                                       displayColor === 'green' ? 'text-emerald-600' : 'text-gray-600'
+              
+              return (
+                <div className="mt-2 space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-sm text-gray-500 font-medium">1</span>
+                    <div className="flex items-baseline gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                      <span className={`text-2xl font-bold ${displayColorClass} min-w-[2.5rem] text-center`}>
+                        {looksValue || '--'}
+                      </span>
+                      <span className="text-sm text-gray-500">/ 10</span>
+                    </div>
+                    <span className="text-sm text-gray-500 font-medium">10</span>
+                  </div>
+                  <div className="relative px-1">
+                    <input
+                      id="how_guest_looks"
+                      type="range"
+                      min={1}
+                      max={10}
+                      step={1}
+                      {...form.register('how_guest_looks', { 
+                        valueAsNumber: true
+                      })}
+                      disabled={isCompleted}
+                      className={`energy-level-slider energy-level-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      style={{
+                        background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400 px-1">
+                    <span>Poor</span>
+                    <span>Excellent</span>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
 
           <div>
@@ -810,6 +813,7 @@ export function DailyMedicalUpdateForm({
           {/* Morning Card */}
           {(() => {
             const isClientPresent = form.watch('morning_client_present')
+            const isClientNotPresent = !isClientPresent
             return (
               <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
@@ -825,11 +829,11 @@ export function DailyMedicalUpdateForm({
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
                       <Checkbox
-                        id="morning_client_present"
-                        checked={isClientPresent}
+                        id="morning_client_not_present"
+                        checked={isClientNotPresent}
                         onCheckedChange={(checked) => {
-                          form.setValue('morning_client_present', checked as boolean)
-                          if (!checked) {
+                          form.setValue('morning_client_present', !(checked as boolean))
+                          if (checked) {
                             form.setValue('morning_blood_pressure', '')
                             form.setValue('morning_heart_rate', null)
                             form.setValue('morning_oxygen_saturation', null)
@@ -837,8 +841,8 @@ export function DailyMedicalUpdateForm({
                         }}
                         disabled={isCompleted}
                       />
-                      <Label htmlFor="morning_client_present" className="text-sm font-medium cursor-pointer">
-                        Client present
+                      <Label htmlFor="morning_client_not_present" className="text-sm font-medium cursor-pointer text-amber-700">
+                        Client not present
                       </Label>
                     </div>
                   </div>
@@ -862,8 +866,8 @@ export function DailyMedicalUpdateForm({
                           id="morning_blood_pressure"
                           {...form.register('morning_blood_pressure')}
                           placeholder="131/80"
-                          disabled={isCompleted || !isClientPresent}
-                          className={`h-10 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          disabled={isCompleted || isClientNotPresent}
+                          className={`h-10 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                         />
                       </div>
                       <div className="space-y-1">
@@ -878,8 +882,8 @@ export function DailyMedicalUpdateForm({
                           max={200}
                           {...form.register('morning_heart_rate', { valueAsNumber: true })}
                           placeholder="66"
-                          disabled={isCompleted || !isClientPresent}
-                          className={`h-10 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          disabled={isCompleted || isClientNotPresent}
+                          className={`h-10 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                         />
                         <p className="text-xs text-gray-500">bpm</p>
                       </div>
@@ -896,8 +900,8 @@ export function DailyMedicalUpdateForm({
                             max={100}
                             {...form.register('morning_oxygen_saturation', { valueAsNumber: true })}
                             placeholder="95"
-                            disabled={isCompleted || !isClientPresent}
-                            className={`h-10 pr-8 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                            disabled={isCompleted || isClientNotPresent}
+                            className={`h-10 pr-8 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-medium">%</span>
                         </div>
@@ -963,6 +967,7 @@ export function DailyMedicalUpdateForm({
           {/* Afternoon Card */}
           {(() => {
             const isClientPresent = form.watch('afternoon_client_present') ?? true
+            const isClientNotPresent = !isClientPresent
             return (
               <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-xl p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
@@ -978,21 +983,20 @@ export function DailyMedicalUpdateForm({
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
                       <Checkbox
-                        id="afternoon_client_present"
-                        checked={isClientPresent}
+                        id="afternoon_client_not_present"
+                        checked={isClientNotPresent}
                         onCheckedChange={(checked) => {
-                          form.setValue('afternoon_client_present', checked as boolean)
-                          if (!checked) {
+                          form.setValue('afternoon_client_present', !(checked as boolean))
+                          if (checked) {
                             form.setValue('afternoon_blood_pressure', '')
                             form.setValue('afternoon_heart_rate', null)
                             form.setValue('afternoon_oxygen_saturation', null)
                           }
                         }}
                         disabled={isCompleted}
-                        defaultChecked={true}
                       />
-                      <Label htmlFor="afternoon_client_present" className="text-sm font-medium cursor-pointer">
-                        Client present
+                      <Label htmlFor="afternoon_client_not_present" className="text-sm font-medium cursor-pointer text-blue-700">
+                        Client not present
                       </Label>
                     </div>
                   </div>
@@ -1016,8 +1020,8 @@ export function DailyMedicalUpdateForm({
                           id="afternoon_blood_pressure"
                           {...form.register('afternoon_blood_pressure')}
                           placeholder="131/80"
-                          disabled={isCompleted || !isClientPresent}
-                          className={`h-10 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          disabled={isCompleted || isClientNotPresent}
+                          className={`h-10 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                         />
                       </div>
                       <div className="space-y-1">
@@ -1032,8 +1036,8 @@ export function DailyMedicalUpdateForm({
                           max={200}
                           {...form.register('afternoon_heart_rate', { valueAsNumber: true })}
                           placeholder="66"
-                          disabled={isCompleted || !isClientPresent}
-                          className={`h-10 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          disabled={isCompleted || isClientNotPresent}
+                          className={`h-10 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                         />
                         <p className="text-xs text-gray-500">bpm</p>
                       </div>
@@ -1050,8 +1054,8 @@ export function DailyMedicalUpdateForm({
                             max={100}
                             {...form.register('afternoon_oxygen_saturation', { valueAsNumber: true })}
                             placeholder="95"
-                            disabled={isCompleted || !isClientPresent}
-                            className={`h-10 pr-8 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                            disabled={isCompleted || isClientNotPresent}
+                            className={`h-10 pr-8 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-medium">%</span>
                         </div>
@@ -1117,6 +1121,7 @@ export function DailyMedicalUpdateForm({
           {/* Night Card */}
           {(() => {
             const isClientPresent = form.watch('night_client_present')
+            const isClientNotPresent = !isClientPresent
             return (
               <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
@@ -1132,11 +1137,11 @@ export function DailyMedicalUpdateForm({
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
                       <Checkbox
-                        id="night_client_present"
-                        checked={isClientPresent}
+                        id="night_client_not_present"
+                        checked={isClientNotPresent}
                         onCheckedChange={(checked) => {
-                          form.setValue('night_client_present', checked as boolean)
-                          if (!checked) {
+                          form.setValue('night_client_present', !(checked as boolean))
+                          if (checked) {
                             form.setValue('night_blood_pressure', '')
                             form.setValue('night_heart_rate', null)
                             form.setValue('night_oxygen_saturation', null)
@@ -1144,8 +1149,8 @@ export function DailyMedicalUpdateForm({
                         }}
                         disabled={isCompleted}
                       />
-                      <Label htmlFor="night_client_present" className="text-sm font-medium cursor-pointer">
-                        Client present
+                      <Label htmlFor="night_client_not_present" className="text-sm font-medium cursor-pointer text-indigo-700">
+                        Client not present
                       </Label>
                     </div>
                   </div>
@@ -1169,8 +1174,8 @@ export function DailyMedicalUpdateForm({
                           id="night_blood_pressure"
                           {...form.register('night_blood_pressure')}
                           placeholder="117/76"
-                          disabled={isCompleted || !isClientPresent}
-                          className={`h-10 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          disabled={isCompleted || isClientNotPresent}
+                          className={`h-10 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                         />
                       </div>
                       <div className="space-y-1">
@@ -1185,8 +1190,8 @@ export function DailyMedicalUpdateForm({
                           max={200}
                           {...form.register('night_heart_rate', { valueAsNumber: true })}
                           placeholder="63"
-                          disabled={isCompleted || !isClientPresent}
-                          className={`h-10 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          disabled={isCompleted || isClientNotPresent}
+                          className={`h-10 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                         />
                         <p className="text-xs text-gray-500">bpm</p>
                       </div>
@@ -1203,8 +1208,8 @@ export function DailyMedicalUpdateForm({
                             max={100}
                             {...form.register('night_oxygen_saturation', { valueAsNumber: true })}
                             placeholder="97"
-                            disabled={isCompleted || !isClientPresent}
-                            className={`h-10 pr-8 ${isCompleted || !isClientPresent ? 'bg-gray-100' : 'bg-white'}`}
+                            disabled={isCompleted || isClientNotPresent}
+                            className={`h-10 pr-8 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-medium">%</span>
                         </div>
@@ -1431,16 +1436,16 @@ export function DailyMedicalUpdateForm({
 
       {/* Submitted By */}
       <div className="border-t pt-4">
-        <Label htmlFor="submitted_by_name">Submitted By *</Label>
+        <Label htmlFor="submitted_by_name">Submitted By</Label>
         <Input
           id="submitted_by_name"
-          {...form.register('submitted_by_name')}
-          placeholder="Staff member name"
-          disabled={isCompleted}
-          className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+          value={form.watch('submitted_by_name') || ''}
+          placeholder="Auto-filled with your name"
+          disabled
+          className="mt-1 bg-gray-50"
         />
         <p className="text-xs text-gray-500 mt-1">
-          Name of the staff member who submitted this form
+          Your name will be automatically recorded when you submit
         </p>
       </div>
 
@@ -1484,42 +1489,60 @@ export function DailyMedicalUpdateForm({
 
       {/* Save Draft and Submit Buttons */}
       {!isCompleted && (
-        <div className="flex justify-between items-center gap-3 border-t pt-4">
-          <div className="text-sm text-gray-600">
-            <p className="font-medium mb-1">💡 Tip:</p>
-            <p>You can save your progress and return later to update afternoon and night data.</p>
-          </div>
-          <div className="flex gap-3">
-            <Button
-              type="button"
-              onClick={form.handleSubmit(onSaveDraft)}
-              disabled={isSavingDraft || isSubmitting}
-              variant="outline"
-              className="border-gray-300"
-            >
-              {isSavingDraft ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Draft'
-              )}
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting || isSavingDraft}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                'Submit Report'
-              )}
-            </Button>
+        <div className="flex flex-col gap-4 border-t pt-4">
+          {!canSubmit && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+              <p className="font-medium mb-1">⚠️ Cannot submit yet:</p>
+              <p>For each time period (Morning, Afternoon, Night), either record vitals or check "Client not present" if the patient was not available.</p>
+            </div>
+          )}
+          <div className="flex justify-between items-center gap-3">
+            <div className="text-sm text-gray-600">
+              <p className="font-medium mb-1">💡 Tip:</p>
+              <p>You can save your progress and return later to update afternoon and night data.</p>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                onClick={async () => {
+                  // For save draft, we want to skip validation and allow saving even with incomplete data
+                  const formData = form.getValues()
+                  try {
+                    await onSaveDraft(formData)
+                  } catch (error) {
+                    // Error handling is done in onSaveDraft
+                    console.error('Save draft failed:', error)
+                  }
+                }}
+                disabled={isSavingDraft || isSubmitting}
+                variant="outline"
+                className="border-gray-300"
+              >
+                {isSavingDraft ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Draft'
+                )}
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting || isSavingDraft || !canSubmit}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                title={!canSubmit ? 'Record vitals for all time periods or check "Client not present"' : ''}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  'Submit Report'
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -13,9 +13,12 @@ import {
   CheckCircle2, 
   Clock,
   Brain,
-  Activity
+  Activity,
+  Stethoscope
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { MedicalHistoryFormView } from '@/components/admin/medical-history-form-view'
+import { X } from 'lucide-react'
 
 interface PatientManagementData {
   id: string
@@ -36,6 +39,7 @@ export default function OneTimeFormsPage() {
   const [management, setManagement] = useState<PatientManagementData | null>(null)
   const [forms, setForms] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [showMedicalHistory, setShowMedicalHistory] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -61,11 +65,17 @@ export default function OneTimeFormsPage() {
   }
 
 
-  function getFormStatus(formType: 'intake' | 'parkinsons_psychological' | 'parkinsons_mortality') {
+  function getFormStatus(formType: 'intake' | 'medical_intake' | 'parkinsons_psychological' | 'parkinsons_mortality') {
     if (formType === 'intake') {
       return {
         completed: management?.intake_report_completed || false,
         data: forms?.intakeReport || null,
+      }
+    }
+    if (formType === 'medical_intake') {
+      return {
+        completed: forms?.medicalIntakeReport?.is_completed || false,
+        data: forms?.medicalIntakeReport || null,
       }
     }
     if (formType === 'parkinsons_psychological') {
@@ -106,6 +116,7 @@ export default function OneTimeFormsPage() {
   }
 
   const intakeStatus = getFormStatus('intake')
+  const medicalIntakeStatus = getFormStatus('medical_intake')
   const parkinsonsPsychologicalStatus = getFormStatus('parkinsons_psychological')
   const parkinsonsMortalityStatus = getFormStatus('parkinsons_mortality')
 
@@ -135,13 +146,48 @@ export default function OneTimeFormsPage() {
 
       {/* Forms List */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Intake Report - Non-Neurological Programs Only */}
+        {/* Medical Intake Report - All Programs */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Stethoscope className="h-6 w-6 text-red-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Medical Intake Report</h3>
+            </div>
+            {(medicalIntakeStatus.completed || medicalIntakeStatus.data) ? (
+              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            ) : (
+              <Clock className="h-5 w-5 text-amber-500" />
+            )}
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Medical assessment and physical status upon arrival
+          </p>
+          <Button
+            onClick={() => router.push(`/patient-management/${managementId}/one-time-forms/medical-intake-report`)}
+            variant={(medicalIntakeStatus.completed || medicalIntakeStatus.data) ? 'outline' : 'default'}
+            className="w-full"
+          >
+            {(medicalIntakeStatus.completed || medicalIntakeStatus.data) ? (
+              <>
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                View Form
+              </>
+            ) : (
+              <>
+                <Stethoscope className="h-4 w-4 mr-2" />
+                Fill Form
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Psychological Intake Report - Non-Neurological Programs Only */}
         {management.program_type !== 'neurological' && (
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <FileText className="h-6 w-6 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Intake Report</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Psychological Intake Report</h3>
               </div>
               {(intakeStatus.completed || intakeStatus.data) ? (
                 <CheckCircle2 className="h-5 w-5 text-emerald-500" />
@@ -150,25 +196,25 @@ export default function OneTimeFormsPage() {
               )}
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              Initial assessment upon patient arrival
+              Initial psychological assessment upon patient arrival
             </p>
-          <Button
-            onClick={() => router.push(`/patient-management/${managementId}/one-time-forms/intake-report`)}
-            variant={(intakeStatus.completed || intakeStatus.data) ? 'outline' : 'default'}
-            className="w-full"
-          >
-            {(intakeStatus.completed || intakeStatus.data) ? (
-              <>
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                View Form
-              </>
-            ) : (
-              <>
-                <FileText className="h-4 w-4 mr-2" />
-                Fill Form
-              </>
-            )}
-          </Button>
+            <Button
+              onClick={() => router.push(`/patient-management/${managementId}/one-time-forms/intake-report`)}
+              variant={(intakeStatus.completed || intakeStatus.data) ? 'outline' : 'default'}
+              className="w-full"
+            >
+              {(intakeStatus.completed || intakeStatus.data) ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  View Form
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Fill Form
+                </>
+              )}
+            </Button>
           </div>
         )}
 
@@ -246,6 +292,44 @@ export default function OneTimeFormsPage() {
           </>
         )}
       </div>
+
+      {/* Medical Health History Document */}
+      {forms?.medicalHistory && (
+        <div className="mt-8 bg-white rounded-xl border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <FileText className="h-6 w-6 text-emerald-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Medical Health History Document</h2>
+            </div>
+            <Button
+              onClick={() => setShowMedicalHistory(!showMedicalHistory)}
+              variant="outline"
+              size="sm"
+            >
+              {showMedicalHistory ? (
+                <>
+                  <X className="h-4 w-4 mr-2" />
+                  Hide Document
+                </>
+              ) : (
+                <>
+                  <FileText className="h-4 w-4 mr-2" />
+                  View Document
+                </>
+              )}
+            </Button>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Patient's complete medical health history form
+          </p>
+          
+          {showMedicalHistory && (
+            <div className="mt-6 border-t pt-6">
+              <MedicalHistoryFormView form={forms.medicalHistory} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

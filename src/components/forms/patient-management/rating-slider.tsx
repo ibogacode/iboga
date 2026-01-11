@@ -9,9 +9,10 @@ interface RatingSliderProps {
   onChange: (value: number) => void
   required?: boolean
   error?: string
+  disabled?: boolean
 }
 
-export function RatingSlider({ id, label, value, onChange, required, error }: RatingSliderProps) {
+export function RatingSlider({ id, label, value, onChange, required, error, disabled = false }: RatingSliderProps) {
   const sliderValue = value ?? 5 // Default to middle value if not set
 
   return (
@@ -28,7 +29,8 @@ export function RatingSlider({ id, label, value, onChange, required, error }: Ra
           step={1}
           value={sliderValue}
           onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb"
+          disabled={disabled}
+          className={`w-full h-2 bg-gray-200 rounded-lg appearance-none slider-thumb ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
           style={{
             background: `linear-gradient(to right, #ef4444 0%, #ef4444 ${((sliderValue - 1) / 9) * 100}%, #e5e7eb ${((sliderValue - 1) / 9) * 100}%, #e5e7eb 100%)`
           }}

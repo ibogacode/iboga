@@ -6,17 +6,25 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import {
   intakeReportSchema,
+  medicalIntakeReportSchema,
   parkinsonsPsychologicalReportSchema,
   parkinsonsMortalityScalesSchema,
   dailyPsychologicalUpdateSchema,
   dailyMedicalUpdateSchema,
   intakeReportAdminSchema,
+  medicalIntakeReportAdminSchema,
   parkinsonsPsychologicalReportAdminSchema,
   parkinsonsMortalityScalesAdminSchema,
   dailyPsychologicalUpdateAdminSchema,
   dailyMedicalUpdateAdminSchema,
   startDailyPsychologicalUpdateSchema,
   startDailyMedicalUpdateSchema,
+  dailySOWSSchema,
+  dailyOOWSSchema,
+  dailySOWSAdminSchema,
+  dailyOOWSAdminSchema,
+  startDailySOWSSchema,
+  startDailyOOWSSchema,
   getPatientManagementSchema,
   getPatientManagementByPatientIdSchema,
   getPatientManagementListSchema,
@@ -54,6 +62,8 @@ import type {
   PatientManagementFormType,
   PatientManagementDailyPsychologicalUpdate,
   PatientManagementDailyMedicalUpdate,
+  PatientManagementDailySOWS,
+  PatientManagementDailyOOWS,
   StaffRole,
 } from '@/types'
 import { isStaffRole } from '@/lib/utils'
@@ -184,16 +194,28 @@ export const getDailyFormsByManagementId = authActionClient
 
     const supabase = await createClient()
 
-    // Build queries
+    // Build queries - join with profiles to get filler name
     let psychologicalQuery = supabase
       .from('patient_management_daily_psychological_updates')
-      .select('*')
+      .select('*, filled_by_profile:profiles!patient_management_daily_psychological_updates_filled_by_fkey(first_name, last_name)')
       .eq('management_id', parsedInput.management_id)
       .order('form_date', { ascending: false })
 
     let medicalQuery = supabase
       .from('patient_management_daily_medical_updates')
-      .select('*')
+      .select('*, filled_by_profile:profiles!patient_management_daily_medical_updates_filled_by_fkey(first_name, last_name)')
+      .eq('management_id', parsedInput.management_id)
+      .order('form_date', { ascending: false })
+
+    let sowsQuery = supabase
+      .from('patient_management_daily_sows')
+      .select('*, filled_by_profile:profiles!patient_management_daily_sows_filled_by_fkey(first_name, last_name)')
+      .eq('management_id', parsedInput.management_id)
+      .order('form_date', { ascending: false })
+
+    let oowsQuery = supabase
+      .from('patient_management_daily_oows')
+      .select('*, filled_by_profile:profiles!patient_management_daily_oows_filled_by_fkey(first_name, last_name)')
       .eq('management_id', parsedInput.management_id)
       .order('form_date', { ascending: false })
 
@@ -201,11 +223,15 @@ export const getDailyFormsByManagementId = authActionClient
     if (parsedInput.form_date) {
       psychologicalQuery = psychologicalQuery.eq('form_date', parsedInput.form_date)
       medicalQuery = medicalQuery.eq('form_date', parsedInput.form_date)
+      sowsQuery = sowsQuery.eq('form_date', parsedInput.form_date)
+      oowsQuery = oowsQuery.eq('form_date', parsedInput.form_date)
     }
 
-    const [psychologicalResult, medicalResult] = await Promise.all([
+    const [psychologicalResult, medicalResult, sowsResult, oowsResult] = await Promise.all([
       psychologicalQuery,
       medicalQuery,
+      sowsQuery,
+      oowsQuery,
     ])
 
     if (psychologicalResult.error) {
@@ -216,11 +242,21 @@ export const getDailyFormsByManagementId = authActionClient
       return { success: false, error: handleSupabaseError(medicalResult.error, 'Failed to fetch daily medical updates') }
     }
 
+    if (sowsResult.error) {
+      return { success: false, error: handleSupabaseError(sowsResult.error, 'Failed to fetch daily SOWS') }
+    }
+
+    if (oowsResult.error) {
+      return { success: false, error: handleSupabaseError(oowsResult.error, 'Failed to fetch daily OOWS') }
+    }
+
     return {
       success: true,
       data: {
         psychological: psychologicalResult.data as PatientManagementDailyPsychologicalUpdate[],
         medical: medicalResult.data as PatientManagementDailyMedicalUpdate[],
+        sows: sowsResult.data as PatientManagementDailySOWS[],
+        oows: oowsResult.data as PatientManagementDailyOOWS[],
       },
     }
   })
@@ -249,11 +285,65 @@ export const getPatientManagementWithForms = authActionClient
       return { success: false, error: handleSupabaseError(managementError || { message: 'Unknown error' }, 'Failed to fetch patient management') }
     }
 
+    // Fetch medical history form by email or patient_id
+    let medicalHistoryPromise: any
+    
+    if (management.patient_id) {
+      // Try to find by patient_id first (via intake form)
+      const { data: intakeForm } = await supabase
+        .from('patient_intake_forms')
+        .select('id')
+        .eq('patient_id', management.patient_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (intakeForm?.id) {
+        medicalHistoryPromise = supabase
+          .from('medical_history_forms')
+          .select('*')
+          .eq('intake_form_id', intakeForm.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      } else if (management.email) {
+        // Fallback to email
+        medicalHistoryPromise = supabase
+          .from('medical_history_forms')
+          .select('*')
+          .ilike('email', management.email)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      } else {
+        medicalHistoryPromise = Promise.resolve({ data: null, error: null })
+      }
+    } else if (management.email) {
+      medicalHistoryPromise = supabase
+        .from('medical_history_forms')
+        .select('*')
+        .ilike('email', management.email)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    } else {
+      medicalHistoryPromise = Promise.resolve({ data: null, error: null })
+    }
+
     // Fetch all forms
-    const [intakeReport, parkinsonsPsychological, parkinsonsMortality, dailyPsychological, dailyMedical] = await Promise.all([
-      // Intake Report (all programs)
+    const [intakeReport, medicalIntakeReport, parkinsonsPsychological, parkinsonsMortality, dailyPsychological, dailyMedical, medicalHistory] = await Promise.all([
+      // Intake Report (non-neurological only)
+      management.program_type !== 'neurological'
+        ? supabase
+            .from('patient_management_intake_reports')
+            .select('*')
+            .eq('management_id', parsedInput.management_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+
+      // Medical Intake Report (all programs)
       supabase
-        .from('patient_management_intake_reports')
+        .from('patient_management_medical_intake_reports')
         .select('*')
         .eq('management_id', parsedInput.management_id)
         .maybeSingle(),
@@ -289,7 +379,16 @@ export const getPatientManagementWithForms = authActionClient
         .select('*')
         .eq('management_id', parsedInput.management_id)
         .order('form_date', { ascending: false }),
+
+      // Medical History Form
+      medicalHistoryPromise,
     ])
+
+    // Handle medical history result
+    let medicalHistoryData = null
+    if (medicalHistory && !medicalHistory.error && medicalHistory.data) {
+      medicalHistoryData = medicalHistory.data
+    }
 
     return {
       success: true,
@@ -297,10 +396,12 @@ export const getPatientManagementWithForms = authActionClient
         management: management as PatientManagement,
         forms: {
           intakeReport: intakeReport.data || null,
+          medicalIntakeReport: medicalIntakeReport.data || null,
           parkinsonsPsychologicalReport: parkinsonsPsychological.data || null,
           parkinsonsMortalityScales: parkinsonsMortality.data || null,
           dailyPsychologicalUpdates: dailyPsychological.data || [],
           dailyMedicalUpdates: dailyMedical.data || [],
+          medicalHistory: medicalHistoryData,
         },
       } as PatientManagementWithForms,
     }
@@ -400,6 +501,114 @@ export const updateIntakeReport = authActionClient
 
     revalidatePath('/patient-management')
     return { success: true, data, message: 'Intake report updated successfully' }
+  })
+
+// =============================================================================
+// ONE-TIME FORM: MEDICAL INTAKE REPORT (All Programs)
+// =============================================================================
+
+export const submitMedicalIntakeReport = authActionClient
+  .schema(medicalIntakeReportSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    if (!isStaffRole(ctx.user.role)) {
+      return { success: false, error: 'Unauthorized: staff access required' }
+    }
+
+    const supabase = await createClient()
+
+    // Get management record
+    const { data: management } = await supabase
+      .from('patient_management')
+      .select('patient_id')
+      .eq('id', parsedInput.management_id)
+      .single()
+
+    if (!management) {
+      return { success: false, error: 'Patient management record not found' }
+    }
+
+    // Check if form already exists
+    const { data: existing } = await supabase
+      .from('patient_management_medical_intake_reports')
+      .select('id')
+      .eq('management_id', parsedInput.management_id)
+      .maybeSingle()
+
+    if (existing) {
+      return { success: false, error: 'Medical intake report already exists for this patient' }
+    }
+
+    // Get current staff member name
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('name, first_name, last_name')
+      .eq('id', ctx.user.id)
+      .single()
+
+    const staffName = profile?.name ||
+      (profile?.first_name && profile?.last_name
+        ? `${profile.first_name} ${profile.last_name}`
+        : profile?.first_name || profile?.last_name || '')
+
+    const { data, error } = await supabase
+      .from('patient_management_medical_intake_reports')
+      .insert({
+        ...parsedInput,
+        patient_id: management?.patient_id || null,
+        filled_by: ctx.user.id,
+        filled_at: new Date().toISOString(),
+        submitted_by_name: staffName,
+        submitted_at: new Date().toISOString(),
+        is_completed: true,
+        completed_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    if (error) {
+      return { success: false, error: handleSupabaseError(error, 'Failed to submit medical intake report') }
+    }
+
+    revalidatePath('/patient-management')
+    return { success: true, data, message: 'Medical intake report submitted successfully' }
+  })
+
+export const updateMedicalIntakeReport = authActionClient
+  .schema(medicalIntakeReportAdminSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    if (!isStaffRole(ctx.user.role)) {
+      return { success: false, error: 'Unauthorized: staff access required' }
+    }
+
+    const supabase = await createClient()
+
+    const updatePayload = buildUpdatePayload(parsedInput)
+    if (parsedInput.is_completed) {
+      updatePayload.completed_at = new Date().toISOString()
+      if (!updatePayload.filled_at) {
+        updatePayload.filled_at = new Date().toISOString()
+      }
+      if (!updatePayload.filled_by) {
+        updatePayload.filled_by = ctx.user.id
+      }
+      if (!updatePayload.submitted_at) {
+        updatePayload.submitted_at = new Date().toISOString()
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('patient_management_medical_intake_reports')
+      .update(updatePayload)
+      .eq('management_id', parsedInput.management_id)
+      .select()
+      .single()
+
+    if (error) {
+      return { success: false, error: handleSupabaseError(error, 'Failed to update medical intake report') }
+    }
+
+    revalidatePath('/patient-management')
+    return { success: true, data, message: 'Medical intake report updated successfully' }
   })
 
 // =============================================================================
@@ -968,4 +1177,490 @@ export const updateDailyMedicalUpdate = authActionClient
 
     revalidatePath('/patient-management')
     return { success: true, data, message: 'Daily medical update updated successfully' }
+  })
+
+// =============================================================================
+// DAILY FORM: SOWS (Subjective Opiate Withdrawal Scale) - Addiction Only
+// =============================================================================
+
+export const startDailySOWS = authActionClient
+  .schema(startDailySOWSSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    if (!isStaffRole(ctx.user.role)) {
+      return { success: false, error: 'Unauthorized: staff access required' }
+    }
+
+    const supabase = await createClient()
+
+    // Verify patient is addiction program and get patient name
+    const { data: management } = await supabase
+      .from('patient_management')
+      .select('patient_id, program_type, first_name, last_name')
+      .eq('id', parsedInput.management_id)
+      .single()
+
+    if (!management || management.program_type !== 'addiction') {
+      return { success: false, error: 'SOWS form is only available for addiction program patients' }
+    }
+
+    // Check if form already exists
+    const { data: existing } = await supabase
+      .from('patient_management_daily_sows')
+      .select('id')
+      .eq('management_id', parsedInput.management_id)
+      .eq('form_date', parsedInput.form_date)
+      .maybeSingle()
+
+    if (existing) {
+      return { success: true, data: existing, message: 'Form already started' }
+    }
+
+    const { data, error } = await supabase
+      .from('patient_management_daily_sows')
+      .insert({
+        management_id: parsedInput.management_id,
+        patient_id: management.patient_id,
+        patient_first_name: management.first_name || '',
+        patient_last_name: management.last_name || '',
+        form_date: parsedInput.form_date,
+        time: new Date().toLocaleTimeString('en-US', {
+          timeZone: 'America/New_York',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }),
+        started_by: ctx.user.id,
+        started_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    if (error) {
+      return { success: false, error: handleSupabaseError(error, 'Failed to start SOWS form') }
+    }
+
+    revalidatePath('/patient-management')
+    return { success: true, data, message: 'SOWS form started successfully' }
+  })
+
+export const submitDailySOWS = authActionClient
+  .schema(dailySOWSSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    if (!isStaffRole(ctx.user.role)) {
+      return { success: false, error: 'Unauthorized: staff access required' }
+    }
+
+    const supabase = await createClient()
+
+    // Verify patient is addiction program
+    const { data: management } = await supabase
+      .from('patient_management')
+      .select('patient_id, program_type')
+      .eq('id', parsedInput.management_id)
+      .single()
+
+    if (!management || management.program_type !== 'addiction') {
+      return { success: false, error: 'SOWS form is only available for addiction program patients' }
+    }
+
+    // Calculate total score
+    const symptoms = [
+      parsedInput.symptom_1_anxious,
+      parsedInput.symptom_2_yawning,
+      parsedInput.symptom_3_perspiring,
+      parsedInput.symptom_4_eyes_tearing,
+      parsedInput.symptom_5_nose_running,
+      parsedInput.symptom_6_goosebumps,
+      parsedInput.symptom_7_shaking,
+      parsedInput.symptom_8_hot_flushes,
+      parsedInput.symptom_9_cold_flushes,
+      parsedInput.symptom_10_bones_muscles_ache,
+      parsedInput.symptom_11_restless,
+      parsedInput.symptom_12_nauseous,
+      parsedInput.symptom_13_vomiting,
+      parsedInput.symptom_14_muscles_twitch,
+      parsedInput.symptom_15_stomach_cramps,
+      parsedInput.symptom_16_feel_like_using_now,
+    ]
+    const totalScore = symptoms.reduce((sum: number, score: number | null | undefined) => sum + (score ?? 0), 0)
+
+    // Get current user's name for submitted_by_name
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('name, first_name, last_name')
+      .eq('id', ctx.user.id)
+      .single()
+
+    const submittedByName = userProfile?.name ||
+      (userProfile?.first_name && userProfile?.last_name
+        ? `${userProfile.first_name} ${userProfile.last_name}`
+        : userProfile?.first_name || userProfile?.last_name || '')
+
+    // Check if form exists
+    const { data: existing } = await supabase
+      .from('patient_management_daily_sows')
+      .select('id')
+      .eq('management_id', parsedInput.management_id)
+      .eq('form_date', parsedInput.form_date)
+      .maybeSingle()
+
+    if (existing) {
+      // Update existing form
+      const { data, error } = await supabase
+        .from('patient_management_daily_sows')
+        .update({
+          ...parsedInput,
+          total_score: totalScore,
+          patient_id: management.patient_id,
+          filled_by: ctx.user.id,
+          submitted_by_name: submittedByName,
+          submitted_at: new Date().toISOString(),
+          is_completed: true,
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id)
+        .select()
+        .single()
+
+      if (error) {
+        return { success: false, error: handleSupabaseError(error, 'Failed to submit SOWS form') }
+      }
+
+      revalidatePath('/patient-management')
+      return { success: true, data, message: 'SOWS form submitted successfully' }
+    } else {
+      // Get current user's name for submitted_by_name
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('name, first_name, last_name')
+        .eq('id', ctx.user.id)
+        .single()
+
+      const submittedByName = userProfile?.name ||
+        (userProfile?.first_name && userProfile?.last_name
+          ? `${userProfile.first_name} ${userProfile.last_name}`
+          : userProfile?.first_name || userProfile?.last_name || '')
+
+      // Create new form
+      const { data, error } = await supabase
+        .from('patient_management_daily_sows')
+        .insert({
+          ...parsedInput,
+          total_score: totalScore,
+          patient_id: management.patient_id,
+          started_by: ctx.user.id,
+          started_at: new Date().toISOString(),
+          filled_by: ctx.user.id,
+          submitted_by_name: submittedByName,
+          submitted_at: new Date().toISOString(),
+          is_completed: true,
+          completed_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (error) {
+        return { success: false, error: handleSupabaseError(error, 'Failed to submit SOWS form') }
+      }
+
+      revalidatePath('/patient-management')
+      return { success: true, data, message: 'SOWS form submitted successfully' }
+    }
+  })
+
+export const updateDailySOWS = authActionClient
+  .schema(dailySOWSAdminSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    if (!isStaffRole(ctx.user.role)) {
+      return { success: false, error: 'Unauthorized: staff access required' }
+    }
+
+    const supabase = await createClient()
+
+    // Calculate total score if symptoms are provided
+    let totalScore = parsedInput.total_score
+    if (totalScore === undefined || totalScore === null) {
+      const symptoms = [
+        parsedInput.symptom_1_anxious,
+        parsedInput.symptom_2_yawning,
+        parsedInput.symptom_3_perspiring,
+        parsedInput.symptom_4_eyes_tearing,
+        parsedInput.symptom_5_nose_running,
+        parsedInput.symptom_6_goosebumps,
+        parsedInput.symptom_7_shaking,
+        parsedInput.symptom_8_hot_flushes,
+        parsedInput.symptom_9_cold_flushes,
+        parsedInput.symptom_10_bones_muscles_ache,
+        parsedInput.symptom_11_restless,
+        parsedInput.symptom_12_nauseous,
+        parsedInput.symptom_13_vomiting,
+        parsedInput.symptom_14_muscles_twitch,
+        parsedInput.symptom_15_stomach_cramps,
+        parsedInput.symptom_16_feel_like_using_now,
+      ]
+      totalScore = symptoms.reduce((sum: number, score: number | null | undefined) => sum + (score ?? 0), 0)
+    }
+
+    const updatePayload = buildUpdatePayload(parsedInput)
+    updatePayload.total_score = totalScore
+
+    if (parsedInput.is_completed) {
+      updatePayload.completed_at = new Date().toISOString()
+      updatePayload.submitted_at = new Date().toISOString()
+      if (!updatePayload.filled_by) {
+        updatePayload.filled_by = ctx.user.id
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('patient_management_daily_sows')
+      .update(updatePayload)
+      .eq('management_id', parsedInput.management_id)
+      .eq('form_date', parsedInput.form_date)
+      .select()
+      .single()
+
+    if (error) {
+      return { success: false, error: handleSupabaseError(error, 'Failed to update SOWS form') }
+    }
+
+    revalidatePath('/patient-management')
+    return { success: true, data, message: 'SOWS form updated successfully' }
+  })
+
+// =============================================================================
+// DAILY FORM: OOWS (Objective Opioid Withdrawal Scale) - Addiction Only
+// =============================================================================
+
+export const startDailyOOWS = authActionClient
+  .schema(startDailyOOWSSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    if (!isStaffRole(ctx.user.role)) {
+      return { success: false, error: 'Unauthorized: staff access required' }
+    }
+
+    const supabase = await createClient()
+
+    // Verify patient is addiction program and get patient name
+    const { data: management } = await supabase
+      .from('patient_management')
+      .select('patient_id, program_type, first_name, last_name')
+      .eq('id', parsedInput.management_id)
+      .single()
+
+    if (!management || management.program_type !== 'addiction') {
+      return { success: false, error: 'OOWS form is only available for addiction program patients' }
+    }
+
+    // Check if form already exists
+    const { data: existing } = await supabase
+      .from('patient_management_daily_oows')
+      .select('id')
+      .eq('management_id', parsedInput.management_id)
+      .eq('form_date', parsedInput.form_date)
+      .maybeSingle()
+
+    if (existing) {
+      return { success: true, data: existing, message: 'Form already started' }
+    }
+
+    const { data, error } = await supabase
+      .from('patient_management_daily_oows')
+      .insert({
+        management_id: parsedInput.management_id,
+        patient_id: management.patient_id,
+        patient_first_name: management.first_name || '',
+        patient_last_name: management.last_name || '',
+        form_date: parsedInput.form_date,
+        time: new Date().toLocaleTimeString('en-US', {
+          timeZone: 'America/New_York',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }),
+        started_by: ctx.user.id,
+        started_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    if (error) {
+      return { success: false, error: handleSupabaseError(error, 'Failed to start OOWS form') }
+    }
+
+    revalidatePath('/patient-management')
+    return { success: true, data, message: 'OOWS form started successfully' }
+  })
+
+export const submitDailyOOWS = authActionClient
+  .schema(dailyOOWSSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    if (!isStaffRole(ctx.user.role)) {
+      return { success: false, error: 'Unauthorized: staff access required' }
+    }
+
+    const supabase = await createClient()
+
+    // Verify patient is addiction program
+    const { data: management } = await supabase
+      .from('patient_management')
+      .select('patient_id, program_type')
+      .eq('id', parsedInput.management_id)
+      .single()
+
+    if (!management || management.program_type !== 'addiction') {
+      return { success: false, error: 'OOWS form is only available for addiction program patients' }
+    }
+
+    // Calculate total score
+    const symptoms = [
+      parsedInput.symptom_1_yawning,
+      parsedInput.symptom_2_rhinorrhoea,
+      parsedInput.symptom_3_piloerection,
+      parsedInput.symptom_4_perspiration,
+      parsedInput.symptom_5_lacrimation,
+      parsedInput.symptom_6_tremor,
+      parsedInput.symptom_7_mydriasis,
+      parsedInput.symptom_8_hot_cold_flushes,
+      parsedInput.symptom_9_restlessness,
+      parsedInput.symptom_10_vomiting,
+      parsedInput.symptom_11_muscle_twitches,
+      parsedInput.symptom_12_abdominal_cramps,
+      parsedInput.symptom_13_anxiety,
+    ]
+    const totalScore = symptoms.reduce((sum: number, score: number | null | undefined) => sum + (score ?? 0), 0)
+
+    // Get current user's name for submitted_by_name
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('name, first_name, last_name')
+      .eq('id', ctx.user.id)
+      .single()
+
+    const submittedByName = userProfile?.name ||
+      (userProfile?.first_name && userProfile?.last_name
+        ? `${userProfile.first_name} ${userProfile.last_name}`
+        : userProfile?.first_name || userProfile?.last_name || '')
+
+    // Check if form exists
+    const { data: existing } = await supabase
+      .from('patient_management_daily_oows')
+      .select('id')
+      .eq('management_id', parsedInput.management_id)
+      .eq('form_date', parsedInput.form_date)
+      .maybeSingle()
+
+    if (existing) {
+      // Update existing form
+      const { data, error } = await supabase
+        .from('patient_management_daily_oows')
+        .update({
+          ...parsedInput,
+          total_score: totalScore,
+          patient_id: management.patient_id,
+          filled_by: ctx.user.id,
+          submitted_by_name: submittedByName,
+          submitted_at: new Date().toISOString(),
+          is_completed: true,
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id)
+        .select()
+        .single()
+
+      if (error) {
+        return { success: false, error: handleSupabaseError(error, 'Failed to submit OOWS form') }
+      }
+
+      revalidatePath('/patient-management')
+      return { success: true, data, message: 'OOWS form submitted successfully' }
+    } else {
+      // Use already fetched userProfile
+      const submittedByName = userProfile?.name ||
+        (userProfile?.first_name && userProfile?.last_name
+          ? `${userProfile.first_name} ${userProfile.last_name}`
+          : userProfile?.first_name || userProfile?.last_name || '')
+
+      // Create new form
+      const { data, error } = await supabase
+        .from('patient_management_daily_oows')
+        .insert({
+          ...parsedInput,
+          total_score: totalScore,
+          patient_id: management.patient_id,
+          started_by: ctx.user.id,
+          started_at: new Date().toISOString(),
+          filled_by: ctx.user.id,
+          submitted_by_name: submittedByName,
+          submitted_at: new Date().toISOString(),
+          is_completed: true,
+          completed_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (error) {
+        return { success: false, error: handleSupabaseError(error, 'Failed to submit OOWS form') }
+      }
+
+      revalidatePath('/patient-management')
+      return { success: true, data, message: 'OOWS form submitted successfully' }
+    }
+  })
+
+export const updateDailyOOWS = authActionClient
+  .schema(dailyOOWSAdminSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    if (!isStaffRole(ctx.user.role)) {
+      return { success: false, error: 'Unauthorized: staff access required' }
+    }
+
+    const supabase = await createClient()
+
+    // Calculate total score if symptoms are provided
+    let totalScore = parsedInput.total_score
+    if (totalScore === undefined || totalScore === null) {
+      const symptoms = [
+        parsedInput.symptom_1_yawning,
+        parsedInput.symptom_2_rhinorrhoea,
+        parsedInput.symptom_3_piloerection,
+        parsedInput.symptom_4_perspiration,
+        parsedInput.symptom_5_lacrimation,
+        parsedInput.symptom_6_tremor,
+        parsedInput.symptom_7_mydriasis,
+        parsedInput.symptom_8_hot_cold_flushes,
+        parsedInput.symptom_9_restlessness,
+        parsedInput.symptom_10_vomiting,
+        parsedInput.symptom_11_muscle_twitches,
+        parsedInput.symptom_12_abdominal_cramps,
+        parsedInput.symptom_13_anxiety,
+      ]
+      totalScore = symptoms.reduce((sum: number, score: number | null | undefined) => sum + (score ?? 0), 0)
+    }
+
+    const updatePayload = buildUpdatePayload(parsedInput)
+    updatePayload.total_score = totalScore
+
+    if (parsedInput.is_completed) {
+      updatePayload.completed_at = new Date().toISOString()
+      updatePayload.submitted_at = new Date().toISOString()
+      if (!updatePayload.filled_by) {
+        updatePayload.filled_by = ctx.user.id
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('patient_management_daily_oows')
+      .update(updatePayload)
+      .eq('management_id', parsedInput.management_id)
+      .eq('form_date', parsedInput.form_date)
+      .select()
+      .single()
+
+    if (error) {
+      return { success: false, error: handleSupabaseError(error, 'Failed to update OOWS form') }
+    }
+
+    revalidatePath('/patient-management')
+    return { success: true, data, message: 'OOWS form updated successfully' }
   })

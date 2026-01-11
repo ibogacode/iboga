@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { getPatientManagementWithForms } from '@/actions/patient-management.action'
-import { IntakeReportFormWrapper } from '@/components/forms/patient-management/intake-report-form-wrapper'
+import { MedicalIntakeReportForm } from '@/components/forms/patient-management/medical-intake-report-form'
 import { Button } from '@/components/ui/button'
 import { Loader2, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 
-export function IntakeReportFormPageContent() {
+export function MedicalIntakeReportFormPageContent() {
   const params = useParams()
   const router = useRouter()
   const managementId = params.managementId as string
@@ -28,7 +28,7 @@ export function IntakeReportFormPageContent() {
 
       if (result?.data?.success && result.data.data) {
         setManagement(result.data.data.management)
-        setFormData(result.data.data.forms.intakeReport)
+        setFormData(result.data.data.forms.medicalIntakeReport)
       } else {
         toast.error('Failed to load patient management data')
         router.push('/patient-management')
@@ -71,23 +71,6 @@ export function IntakeReportFormPageContent() {
     )
   }
 
-  // Prevent neurological programs from accessing this form
-  if (management.program_type === 'neurological') {
-    return (
-      <div className="min-h-screen bg-[#EDE9E4] flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <p className="text-gray-500 mb-4">
-            Psychological Intake Report is not available for neurological programs. Please use the Parkinson's forms instead.
-          </p>
-          <Button onClick={() => router.push(`/patient-management/${managementId}/one-time-forms`)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to One-Time Forms
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-[#EDE9E4]">
       <div className="max-w-4xl mx-auto bg-white p-4 md:p-8">
@@ -101,18 +84,20 @@ export function IntakeReportFormPageContent() {
             Back to One-Time Forms
           </Button>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-            Psychological Intake Report
+            Medical Intake Report
           </h1>
           <p className="text-gray-600">
             {management.first_name} {management.last_name}
           </p>
         </div>
 
-        <IntakeReportFormWrapper
+        <MedicalIntakeReportForm
           managementId={managementId}
           patientFirstName={management.first_name}
           patientLastName={management.last_name}
-          isCompleted={management.intake_report_completed}
+          patientDateOfBirth={management.date_of_birth}
+          arrivalDate={management.arrival_date}
+          isCompleted={formData?.is_completed}
           initialData={formData}
           onSuccess={handleSuccess}
         />

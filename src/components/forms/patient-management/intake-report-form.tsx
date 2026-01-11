@@ -38,17 +38,32 @@ export function IntakeReportForm({
   onSuccess 
 }: IntakeReportFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Check both prop and initialData for completion status
+  const formIsCompleted = isCompleted || (initialData as any)?.is_completed === true
 
   // Get current date and time
+  // Get current date in YYYY-MM-DD format (EST timezone)
   const getCurrentDate = () => {
-    return format(new Date(), 'yyyy-MM-dd')
+    const estDate = new Date().toLocaleDateString('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+    // Convert from MM/DD/YYYY to YYYY-MM-DD
+    const [month, day, year] = estDate.split('/')
+    return `${year}-${month}-${day}`
   }
 
+  // Get current time in HH:MM format (EST timezone)
   const getCurrentTime = () => {
-    const now = new Date()
-    const hours = now.getHours().toString().padStart(2, '0')
-    const minutes = now.getMinutes().toString().padStart(2, '0')
-    return `${hours}:${minutes}`
+    return new Date().toLocaleTimeString('en-US', {
+      timeZone: 'America/New_York',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
   }
 
   const form = useForm<IntakeReportInput>({
@@ -261,7 +276,7 @@ export function IntakeReportForm({
     setIsSubmitting(true)
     try {
       // Check if form already exists (completed)
-      if (isCompleted) {
+      if (formIsCompleted) {
         // Update existing form
         const result = await updateIntakeReport({
           ...data,
@@ -292,8 +307,8 @@ export function IntakeReportForm({
     }
   }
 
-  if (isCompleted && !initialData) {
-    // Form is completed but we don't have data to show - just show success message
+  // Show completion message if form is completed and no initial data
+  if (formIsCompleted && !initialData) {
     return (
       <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6 text-center">
         <CheckCircle className="h-12 w-12 text-emerald-600 mx-auto mb-4" />
@@ -322,6 +337,7 @@ export function IntakeReportForm({
             type="date"
             {...form.register('date')}
             className="mt-2 h-12"
+            disabled={formIsCompleted}
             aria-invalid={!!form.formState.errors.date}
           />
           {form.formState.errors.date && (
@@ -335,6 +351,7 @@ export function IntakeReportForm({
             type="time"
             {...form.register('time_of_intake')}
             className="mt-2 h-12"
+            disabled={formIsCompleted}
             aria-invalid={!!form.formState.errors.time_of_intake}
           />
           {form.formState.errors.time_of_intake && (
@@ -350,6 +367,7 @@ export function IntakeReportForm({
             {...form.register('staff_member_completing_form')}
             placeholder="Enter staff member name"
             className="mt-2 h-12"
+            disabled={formIsCompleted}
           />
         </div>
       </div>
@@ -365,6 +383,7 @@ export function IntakeReportForm({
             {...form.register('emotional_state_today')}
             rows={3}
             className="mt-2 h-12 min-h-[80px]"
+            disabled={formIsCompleted}
             aria-invalid={!!form.formState.errors.emotional_state_today}
           />
           {form.formState.errors.emotional_state_today && (
@@ -379,6 +398,7 @@ export function IntakeReportForm({
             {...form.register('emotional_shifts_48h')}
             rows={2}
             className="mt-2 h-12 min-h-[80px]"
+            disabled={formIsCompleted}
           />
         </div>
 
@@ -389,6 +409,7 @@ export function IntakeReportForm({
             {...form.register('emotional_themes_memories')}
             rows={2}
             className="mt-2 h-12 min-h-[80px]"
+            disabled={formIsCompleted}
           />
         </div>
 
@@ -399,6 +420,7 @@ export function IntakeReportForm({
             {...form.register('emotionally_connected')}
             rows={2}
             className="mt-2 h-12 min-h-[80px]"
+            disabled={formIsCompleted}
             aria-invalid={!!form.formState.errors.emotionally_connected}
           />
           {form.formState.errors.emotionally_connected && (
@@ -413,6 +435,7 @@ export function IntakeReportForm({
             {...form.register('strong_emotions')}
             rows={2}
             className="mt-2 h-12 min-h-[80px]"
+            disabled={formIsCompleted}
           />
         </div>
       </div>
@@ -428,6 +451,7 @@ export function IntakeReportForm({
             {...form.register('mental_clarity')}
             rows={3}
             className="mt-2 h-12 min-h-[80px]"
+            disabled={formIsCompleted}
             aria-invalid={!!form.formState.errors.mental_clarity}
           />
           {form.formState.errors.mental_clarity && (
@@ -442,6 +466,7 @@ export function IntakeReportForm({
             {...form.register('focus_memory_concentration')}
             rows={2}
             className="mt-1"
+            disabled={formIsCompleted}
           />
         </div>
 
@@ -452,6 +477,7 @@ export function IntakeReportForm({
             {...form.register('recurring_thoughts_dreams')}
             rows={2}
             className="mt-1"
+            disabled={formIsCompleted}
           />
         </div>
 
@@ -462,6 +488,7 @@ export function IntakeReportForm({
             {...form.register('present_aware')}
             rows={2}
             className="mt-1"
+            disabled={formIsCompleted}
             aria-invalid={!!form.formState.errors.present_aware}
           />
           {form.formState.errors.present_aware && (
@@ -476,6 +503,7 @@ export function IntakeReportForm({
             {...form.register('intrusive_thoughts_dissociation')}
             rows={2}
             className="mt-1"
+            disabled={formIsCompleted}
           />
         </div>
       </div>
@@ -526,7 +554,8 @@ export function IntakeReportForm({
                     {...form.register('energy_level', { 
                       valueAsNumber: true
                     })}
-                    className={`energy-level-slider energy-level-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer`}
+                    disabled={formIsCompleted}
+                    className={`energy-level-slider energy-level-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none ${formIsCompleted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     style={{
                       background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
                     }}
@@ -548,6 +577,7 @@ export function IntakeReportForm({
             {...form.register('physical_discomfort')}
             rows={2}
             className="mt-1"
+            disabled={formIsCompleted}
           />
         </div>
 
@@ -558,6 +588,7 @@ export function IntakeReportForm({
             {...form.register('sleep_appetite_digestion')}
             rows={2}
             className="mt-1"
+            disabled={formIsCompleted}
           />
         </div>
 
@@ -568,6 +599,7 @@ export function IntakeReportForm({
             {...form.register('physical_sensations_emotions')}
             rows={2}
             className="mt-1"
+            disabled={formIsCompleted}
           />
         </div>
       </div>
@@ -583,6 +615,7 @@ export function IntakeReportForm({
             {...form.register('intentions_goals')}
             rows={3}
             className="mt-1"
+            disabled={formIsCompleted}
           />
         </div>
 
@@ -593,6 +626,7 @@ export function IntakeReportForm({
             {...form.register('emotionally_physically_safe')}
             rows={2}
             className="mt-1"
+            disabled={formIsCompleted}
             aria-invalid={!!form.formState.errors.emotionally_physically_safe}
           />
           {form.formState.errors.emotionally_physically_safe && (
@@ -607,6 +641,7 @@ export function IntakeReportForm({
             {...form.register('resolve_release_explore')}
             rows={2}
             className="mt-1"
+            disabled={formIsCompleted}
           />
         </div>
 
@@ -617,32 +652,45 @@ export function IntakeReportForm({
             {...form.register('team_awareness')}
             rows={3}
             className="mt-1"
+            disabled={formIsCompleted}
           />
         </div>
       </div>
 
-      {/* Submit Button */}
-      <div className="flex justify-end gap-3 pt-6 border-t">
-        <Button
-          type="submit"
-          disabled={isSubmitting || isCompleted}
-          className="bg-emerald-600 hover:bg-emerald-700 h-12 px-8"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              {isCompleted ? 'Updating...' : 'Submitting...'}
-            </>
-          ) : isCompleted ? (
-            <>
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Update Report
-            </>
-          ) : (
-            'Submit Report'
-          )}
-        </Button>
-      </div>
+      {/* Submit Button - Only show if form is not completed */}
+      {!formIsCompleted && (
+        <div className="flex justify-end gap-3 pt-6 border-t">
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="bg-emerald-600 hover:bg-emerald-700 h-12 px-8"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              'Submit Report'
+            )}
+          </Button>
+        </div>
+      )}
+
+      {/* Completion Message - Show if form is completed */}
+      {formIsCompleted && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6 mt-6">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="h-6 w-6 text-emerald-600 flex-shrink-0" />
+            <div>
+              <h3 className="text-lg font-semibold text-emerald-900">Form Completed</h3>
+              <p className="text-sm text-emerald-700 mt-1">
+                This psychological intake report has been submitted and completed.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   )
 }

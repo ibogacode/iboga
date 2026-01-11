@@ -8,9 +8,10 @@ interface SignaturePadProps {
   onChange: (signatureData: string) => void
   onClear?: () => void
   className?: string
+  disabled?: boolean
 }
 
-export function SignaturePad({ value, onChange, onClear, className }: SignaturePadProps) {
+export function SignaturePad({ value, onChange, onClear, className, disabled = false }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const isDrawingRef = useRef(false)
   const [hasSignature, setHasSignature] = useState(false)
@@ -79,6 +80,7 @@ export function SignaturePad({ value, onChange, onClear, className }: SignatureP
 
     const startDrawing = (e: MouseEvent | TouchEvent) => {
       e.preventDefault()
+      if (disabled) return
       isDrawingRef.current = true
       const { x, y } = getCoordinates(e)
       lastPointRef.current = { x, y }
@@ -88,7 +90,7 @@ export function SignaturePad({ value, onChange, onClear, className }: SignatureP
 
     const draw = (e: MouseEvent | TouchEvent) => {
       e.preventDefault()
-      if (!isDrawingRef.current) return
+      if (disabled || !isDrawingRef.current) return
       
       const { x, y } = getCoordinates(e)
       
@@ -141,7 +143,7 @@ export function SignaturePad({ value, onChange, onClear, className }: SignatureP
       canvas.removeEventListener('touchmove', draw)
       canvas.removeEventListener('touchend', stopDrawing)
     }
-  }, [onChange])
+  }, [onChange, disabled])
 
   function clearSignature() {
     const canvas = canvasRef.current
@@ -162,7 +164,7 @@ export function SignaturePad({ value, onChange, onClear, className }: SignatureP
     <div className={className}>
       <canvas
         ref={canvasRef}
-        className="w-full h-48 border border-gray-300 rounded-md cursor-crosshair bg-white touch-none"
+        className={`w-full h-48 border border-gray-300 rounded-md bg-white touch-none ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-crosshair'}`}
         style={{ touchAction: 'none' }}
       />
       <div className="flex justify-end mt-2">
@@ -172,7 +174,7 @@ export function SignaturePad({ value, onChange, onClear, className }: SignatureP
           size="sm"
           onClick={clearSignature}
           className="text-xs"
-          disabled={!hasSignature}
+          disabled={!hasSignature || disabled}
         >
           Clear
         </Button>

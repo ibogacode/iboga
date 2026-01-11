@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { getPatientManagement, getDailyFormsByManagementId } from '@/actions/patient-management.action'
-import { DailyPsychologicalUpdateFormWrapper } from '@/components/forms/patient-management/daily-psychological-update-form-wrapper'
+import { DailySOWSForm } from '@/components/forms/patient-management/daily-sows-form'
 import { Button } from '@/components/ui/button'
 import { Loader2, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { getTodayEST, formatDateFullEST } from '@/lib/utils'
 
-export default function DailyPsychologicalFormPage() {
+export default function DailySOWSPage() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -37,8 +37,8 @@ export default function DailyPsychologicalFormPage() {
       }
 
       if (formsResult?.data?.success && formsResult.data.data) {
-        const psychologicalForms = formsResult.data.data.psychological || []
-        const formForDate = psychologicalForms.find((f: any) => f.form_date === dateParam)
+        const sowsForms = formsResult.data.data.sows || []
+        const formForDate = sowsForms.find((f: any) => f.form_date === dateParam)
         // Convert null values to undefined for form handling
         if (formForDate) {
           const cleanedData: any = {}
@@ -89,6 +89,23 @@ export default function DailyPsychologicalFormPage() {
     )
   }
 
+  // Only allow addiction program
+  if (management.program_type !== 'addiction') {
+    return (
+      <div className="min-h-screen bg-[#EDE9E4] flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <p className="text-gray-500 mb-4">
+            SOWS form is only available for addiction program patients.
+          </p>
+          <Button onClick={() => router.push(`/patient-management/${managementId}/daily-forms`)}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Daily Forms
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   if (management.status !== 'active') {
     return (
       <div className="min-h-screen bg-[#EDE9E4] flex items-center justify-center">
@@ -118,19 +135,19 @@ export default function DailyPsychologicalFormPage() {
             Back to Daily Forms
           </Button>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-            Daily Psychological Update
+            Subjective Opiate Withdrawal Scale (SOWS)
           </h1>
           <p className="text-gray-600">
             {management.first_name} {management.last_name} - {formatDateFullEST(dateParam)}
           </p>
         </div>
 
-        <DailyPsychologicalUpdateFormWrapper
+        <DailySOWSForm
           managementId={managementId}
           patientFirstName={management.first_name}
           patientLastName={management.last_name}
+          patientDateOfBirth={management.date_of_birth}
           formDate={dateParam}
-          programType={management.program_type}
           isCompleted={formData?.is_completed}
           isStarted={!!formData}
           initialData={formData}
