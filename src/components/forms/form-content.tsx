@@ -166,7 +166,7 @@ export function getServiceAgreementText(params: {
     'Weekly Massage sessions.',
     'Weekly beach club excursion.',
     'Daily meals (breakfast, lunch, dinner and meals) provided by our personal Chef and staff.',
-    'Transportation to and from the Airport in private transportation and private transportation around the island.',
+    'Transportation to and from the Cozumel Airport in private transportation and private transportation around the island.',
     'Concierge services available to ensure a 5 star experience for each patient.',
     'Psychologist available to each patient if needed.',
   ]
