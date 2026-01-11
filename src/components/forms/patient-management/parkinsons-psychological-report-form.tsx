@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,9 @@ interface ParkinsonsPsychologicalReportFormProps {
   onSuccess?: () => void
 }
 
+// Default value for untouched scales (middle of 1-10 scale)
+const DEFAULT_RATING = 5
+
 export function ParkinsonsPsychologicalReportForm({ 
   managementId, 
   patientFirstName,
@@ -39,12 +42,16 @@ export function ParkinsonsPsychologicalReportForm({
   onSuccess 
 }: ParkinsonsPsychologicalReportFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Check both prop and initialData for completion status
+  const formIsCompleted = isCompleted || (initialData as any)?.is_completed === true
 
   // Helper to convert string from DB to number for form
-  const convertRating = (value: any): number | undefined => {
-    if (value === null || value === undefined || value === '') return undefined
+  // Returns DEFAULT_RATING if value is invalid/empty
+  const convertRating = (value: any): number => {
+    if (value === null || value === undefined || value === '') return DEFAULT_RATING
     const num = typeof value === 'string' ? Number(value) : value
-    return isNaN(num) ? undefined : num
+    return isNaN(num) ? DEFAULT_RATING : num
   }
 
   const form = useForm<ParkinsonsPsychologicalReportInput>({
@@ -75,12 +82,63 @@ export function ParkinsonsPsychologicalReportForm({
     },
   })
 
+  // Initialize all rating fields to default value (5) if they're undefined
+  useEffect(() => {
+    const ratingFields: (keyof ParkinsonsPsychologicalReportInput)[] = [
+      'overall_mental_health_rating',
+      'daily_stress_management',
+      'depression_sadness_severity',
+      'expressing_emotions_safety',
+      'ibogaine_therapy_preparation',
+      'support_system_strength',
+      'treatment_outcome_hope',
+      'anxiety_nervousness_severity',
+      'emotional_numbness_frequency',
+      'sleep_quality',
+      'parkinsons_motor_symptoms_severity',
+      'stiffness_difficulty_moving_frequency',
+      'medication_effectiveness',
+      'muscle_spasms_cramps_frequency',
+      'non_motor_symptoms_severity',
+      'iboga_wellness_team_support',
+    ]
+
+    ratingFields.forEach((field) => {
+      const currentValue = form.getValues(field)
+      if (currentValue === null || currentValue === undefined) {
+        form.setValue(field, DEFAULT_RATING, { shouldValidate: false, shouldDirty: false })
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run once on mount
+
   async function onSubmit(data: ParkinsonsPsychologicalReportInput) {
     setIsSubmitting(true)
     try {
-      if (isCompleted) {
+      // Fill in default value (5) for any untouched rating scales
+      const submitData: ParkinsonsPsychologicalReportInput = {
+        ...data,
+        overall_mental_health_rating: data.overall_mental_health_rating ?? DEFAULT_RATING,
+        daily_stress_management: data.daily_stress_management ?? DEFAULT_RATING,
+        depression_sadness_severity: data.depression_sadness_severity ?? DEFAULT_RATING,
+        expressing_emotions_safety: data.expressing_emotions_safety ?? DEFAULT_RATING,
+        ibogaine_therapy_preparation: data.ibogaine_therapy_preparation ?? DEFAULT_RATING,
+        support_system_strength: data.support_system_strength ?? DEFAULT_RATING,
+        treatment_outcome_hope: data.treatment_outcome_hope ?? DEFAULT_RATING,
+        anxiety_nervousness_severity: data.anxiety_nervousness_severity ?? DEFAULT_RATING,
+        emotional_numbness_frequency: data.emotional_numbness_frequency ?? DEFAULT_RATING,
+        sleep_quality: data.sleep_quality ?? DEFAULT_RATING,
+        parkinsons_motor_symptoms_severity: data.parkinsons_motor_symptoms_severity ?? DEFAULT_RATING,
+        stiffness_difficulty_moving_frequency: data.stiffness_difficulty_moving_frequency ?? DEFAULT_RATING,
+        medication_effectiveness: data.medication_effectiveness ?? DEFAULT_RATING,
+        muscle_spasms_cramps_frequency: data.muscle_spasms_cramps_frequency ?? DEFAULT_RATING,
+        non_motor_symptoms_severity: data.non_motor_symptoms_severity ?? DEFAULT_RATING,
+        iboga_wellness_team_support: data.iboga_wellness_team_support ?? DEFAULT_RATING,
+      }
+
+      if (formIsCompleted) {
         const result = await updateParkinsonsPsychologicalReport({
-          ...data,
+          ...submitData,
           is_completed: true,
         } as any)
         
@@ -91,7 +149,7 @@ export function ParkinsonsPsychologicalReportForm({
           toast.error(result?.data?.error || 'Failed to update form')
         }
       } else {
-        const result = await submitParkinsonsPsychologicalReport(data as any)
+        const result = await submitParkinsonsPsychologicalReport(submitData as any)
         if (result?.data?.success) {
           toast.success('Parkinson\'s psychological report submitted successfully')
           onSuccess?.()
@@ -107,7 +165,8 @@ export function ParkinsonsPsychologicalReportForm({
     }
   }
 
-  if (isCompleted && !initialData) {
+  // Show completion message if form is completed and no initial data
+  if (formIsCompleted && !initialData) {
     return (
       <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6 text-center">
         <CheckCircle className="h-12 w-12 text-emerald-600 mx-auto mb-4" />
@@ -136,6 +195,7 @@ export function ParkinsonsPsychologicalReportForm({
               {...form.register('reason_for_coming')}
               rows={3}
               className="mt-2 h-12 min-h-[80px]"
+              disabled={formIsCompleted}
               aria-invalid={!!form.formState.errors.reason_for_coming}
             />
             {form.formState.errors.reason_for_coming && (
@@ -156,6 +216,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('overall_mental_health_rating')}
             onChange={(value) => form.setValue('overall_mental_health_rating', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.overall_mental_health_rating as any)?.message}
           />
           <RatingSlider
@@ -164,6 +225,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('daily_stress_management')}
             onChange={(value) => form.setValue('daily_stress_management', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.daily_stress_management as any)?.message}
           />
           <RatingSlider
@@ -172,6 +234,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('depression_sadness_severity')}
             onChange={(value) => form.setValue('depression_sadness_severity', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.depression_sadness_severity as any)?.message}
           />
           <RatingSlider
@@ -180,6 +243,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('expressing_emotions_safety')}
             onChange={(value) => form.setValue('expressing_emotions_safety', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.expressing_emotions_safety as any)?.message}
           />
           <RatingSlider
@@ -188,6 +252,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('ibogaine_therapy_preparation')}
             onChange={(value) => form.setValue('ibogaine_therapy_preparation', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.ibogaine_therapy_preparation as any)?.message}
           />
           <RatingSlider
@@ -196,6 +261,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('support_system_strength')}
             onChange={(value) => form.setValue('support_system_strength', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.support_system_strength as any)?.message}
           />
           <RatingSlider
@@ -204,6 +270,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('treatment_outcome_hope')}
             onChange={(value) => form.setValue('treatment_outcome_hope', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.treatment_outcome_hope as any)?.message}
           />
           <RatingSlider
@@ -212,6 +279,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('anxiety_nervousness_severity')}
             onChange={(value) => form.setValue('anxiety_nervousness_severity', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.anxiety_nervousness_severity as any)?.message}
           />
           <RatingSlider
@@ -220,6 +288,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('emotional_numbness_frequency')}
             onChange={(value) => form.setValue('emotional_numbness_frequency', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.emotional_numbness_frequency as any)?.message}
           />
           <RatingSlider
@@ -228,6 +297,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('sleep_quality')}
             onChange={(value) => form.setValue('sleep_quality', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.sleep_quality as any)?.message}
           />
         </div>
@@ -244,6 +314,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('parkinsons_motor_symptoms_severity')}
             onChange={(value) => form.setValue('parkinsons_motor_symptoms_severity', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.parkinsons_motor_symptoms_severity as any)?.message}
           />
           <RatingSlider
@@ -252,6 +323,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('stiffness_difficulty_moving_frequency')}
             onChange={(value) => form.setValue('stiffness_difficulty_moving_frequency', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.stiffness_difficulty_moving_frequency as any)?.message}
           />
           <RatingSlider
@@ -260,6 +332,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('medication_effectiveness')}
             onChange={(value) => form.setValue('medication_effectiveness', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.medication_effectiveness as any)?.message}
           />
           <RatingSlider
@@ -268,6 +341,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('muscle_spasms_cramps_frequency')}
             onChange={(value) => form.setValue('muscle_spasms_cramps_frequency', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.muscle_spasms_cramps_frequency as any)?.message}
           />
           <RatingSlider
@@ -276,6 +350,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('non_motor_symptoms_severity')}
             onChange={(value) => form.setValue('non_motor_symptoms_severity', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.non_motor_symptoms_severity as any)?.message}
           />
           <RatingSlider
@@ -284,6 +359,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('iboga_wellness_team_support')}
             onChange={(value) => form.setValue('iboga_wellness_team_support', value)}
             required
+            disabled={formIsCompleted}
             error={(form.formState.errors.iboga_wellness_team_support as any)?.message}
           />
         </div>
@@ -303,6 +379,7 @@ export function ParkinsonsPsychologicalReportForm({
               form.setValue('signature_data', '')
               form.setValue('signature_date', '')
             }}
+            disabled={formIsCompleted}
           />
         </div>
         {form.formState.errors.signature_data && (
@@ -317,33 +394,46 @@ export function ParkinsonsPsychologicalReportForm({
               value={form.watch('signature_date') || format(new Date(), 'yyyy-MM-dd')}
               onChange={(e) => form.setValue('signature_date', e.target.value)}
               className="mt-2 h-12"
+              disabled={formIsCompleted}
             />
           </div>
         )}
       </div>
 
-      {/* Submit Button */}
-      <div className="flex justify-end gap-3 pt-6 border-t">
-        <Button
-          type="submit"
-          disabled={isSubmitting || isCompleted}
-          className="bg-emerald-600 hover:bg-emerald-700 h-12 px-8"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              {isCompleted ? 'Updating...' : 'Submitting...'}
-            </>
-          ) : isCompleted ? (
-            <>
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Update Report
-            </>
-          ) : (
-            'Submit Report'
-          )}
-        </Button>
-      </div>
+      {/* Submit Button - Only show if form is not completed */}
+      {!formIsCompleted && (
+        <div className="flex justify-end gap-3 pt-6 border-t">
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="bg-emerald-600 hover:bg-emerald-700 h-12 px-8"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              'Submit Report'
+            )}
+          </Button>
+        </div>
+      )}
+
+      {/* Completion Message - Show if form is completed */}
+      {formIsCompleted && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6 mt-6">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="h-6 w-6 text-emerald-600 flex-shrink-0" />
+            <div>
+              <h3 className="text-lg font-semibold text-emerald-900">Form Completed</h3>
+              <p className="text-sm text-emerald-700 mt-1">
+                This Parkinson's psychological report has been submitted and completed.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   )
 }

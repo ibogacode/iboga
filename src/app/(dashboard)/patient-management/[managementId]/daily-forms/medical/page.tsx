@@ -7,14 +7,14 @@ import { DailyMedicalUpdateFormWrapper } from '@/components/forms/patient-manage
 import { Button } from '@/components/ui/button'
 import { Loader2, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
-import { format } from 'date-fns'
+import { getTodayEST, formatDateFullEST } from '@/lib/utils'
 
 export default function DailyMedicalFormPage() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
   const managementId = params.managementId as string
-  const dateParam = searchParams.get('date') || format(new Date(), 'yyyy-MM-dd')
+  const dateParam = searchParams.get('date') || getTodayEST()
 
   const [management, setManagement] = useState<any>(null)
   const [formData, setFormData] = useState<any>(null)
@@ -138,7 +138,7 @@ export default function DailyMedicalFormPage() {
           Daily Medical Update
         </h1>
         <p className="text-gray-600">
-          {management.first_name} {management.last_name} - {format(new Date(dateParam), 'MMMM dd, yyyy')}
+          {management.first_name} {management.last_name} - {formatDateFullEST(dateParam)}
         </p>
       </div>
 

@@ -2076,7 +2076,7 @@ export default function PatientProfilePage() {
                     ) : (
                       <div className="bg-white border border-gray-300 rounded-md px-3 py-2 text-gray-900 font-medium">
                         {confirmationModalData.dateOfBirth ? (
-                          format(new Date(confirmationModalData.dateOfBirth), 'MMMM dd, yyyy')
+                          format(new Date(confirmationModalData.dateOfBirth), 'MM-dd-yyyy')
                         ) : (
                           <span className="text-red-600 italic">Not set</span>
                         )}
@@ -2232,7 +2232,7 @@ function OnboardingFormViewContent({
   function formatDate(dateString: string | null | undefined) {
     if (!dateString) return 'N/A'
     try {
-      return format(new Date(dateString), 'MMMM dd, yyyy')
+      return format(new Date(dateString), 'MM-dd-yyyy')
     } catch {
       return dateString
     }

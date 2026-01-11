@@ -5,6 +5,7 @@ import { actionClient, authActionClient } from '@/lib/safe-action'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { ibogaineConsentFormSchema } from '@/lib/validations/ibogaine-consent'
 import { headers } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 import { sendIbogaineConsentConfirmationEmail, sendEmailDirect } from './email.action'
 
 /**
@@ -195,25 +196,68 @@ export const submitIbogaineConsentForm = actionClient
                      'unknown'
     const userAgent = headersList.get('user-agent') || 'unknown'
     
-    // Parse dates
-    const dateOfBirth = new Date(parsedInput.date_of_birth)
-    const signatureDate = new Date(parsedInput.signature_date)
+    // Parse dates - format as YYYY-MM-DD for PostgreSQL DATE columns
+    const dateOfBirth = new Date(parsedInput.date_of_birth).toISOString().split('T')[0]
+    const signatureDate = new Date(parsedInput.signature_date).toISOString().split('T')[0]
     
     // Check if a draft form already exists for this patient
+    // Use multi-strategy approach similar to tasks lookup
     const patientEmail = parsedInput.email.trim().toLowerCase()
-    const { data: existingForm } = await supabase
-      .from('ibogaine_consent_forms')
-      .select('id, is_activated')
-      .or(`patient_id.eq.${parsedInput.patient_id || ''},email.ilike.${patientEmail}`)
-      .eq('intake_form_id', parsedInput.intake_form_id || null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    let existingForm: { id: string; is_activated: boolean } | null = null
+    
+    // Strategy 1: Find by patient_id (most reliable)
+    if (parsedInput.patient_id) {
+      const { data: formByPatientId } = await supabase
+        .from('ibogaine_consent_forms')
+        .select('id, is_activated')
+        .eq('patient_id', parsedInput.patient_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (formByPatientId) {
+        existingForm = formByPatientId
+      }
+    }
+    
+    // Strategy 2: Find by intake_form_id if available
+    if (!existingForm && parsedInput.intake_form_id) {
+      const { data: formByIntakeId } = await supabase
+        .from('ibogaine_consent_forms')
+        .select('id, is_activated')
+        .eq('intake_form_id', parsedInput.intake_form_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (formByIntakeId) {
+        existingForm = formByIntakeId
+      }
+    }
+    
+    // Strategy 3: Find by email (case-insensitive)
+    if (!existingForm && patientEmail) {
+      const { data: formByEmail } = await supabase
+        .from('ibogaine_consent_forms')
+        .select('id, is_activated')
+        .ilike('email', patientEmail)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (formByEmail) {
+        existingForm = formByEmail
+      }
+    }
     
     // If form exists and is activated, update it (patient completing their fields)
     // If form doesn't exist or is draft, insert new one
     if (existingForm && existingForm.is_activated) {
       // Update existing activated form with patient's consent and signature fields
+      console.log('[submitIbogaineConsentForm] Found existing activated form:', existingForm.id)
+      console.log('[submitIbogaineConsentForm] Updating with signature_data length:', parsedInput.signature_data?.length || 0)
+      console.log('[submitIbogaineConsentForm] Updating with signature_name:', parsedInput.signature_name)
+      
       const { data, error } = await supabase
         .from('ibogaine_consent_forms')
         .update({
@@ -233,9 +277,15 @@ export const submitIbogaineConsentForm = actionClient
         .select('id')
         .single()
       
+      console.log('[submitIbogaineConsentForm] Update result:', { data, error })
+      
       if (error || !data) {
         return { success: false, error: error?.message || 'Failed to update consent form' }
       }
+      
+      // Revalidate tasks page so it shows as completed
+      revalidatePath('/patient/tasks')
+      revalidatePath('/patient/ibogaine-consent')
       
       // Get intake form data to check for filler details
       let intakeFormData: any = null

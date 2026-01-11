@@ -641,11 +641,20 @@ export const getPatientTasks = authActionClient
       if (ibogaineConsentForm.is_activated) {
         // Check if patient signature fields are filled to determine if completed (portal flow)
         // Use admin client to also check is_completed flag
-        const { data: fullConsentForm } = await adminClient
+        const { data: fullConsentForm, error: fullConsentError } = await adminClient
           .from('ibogaine_consent_forms')
-          .select('signature_data, signature_date, signature_name, is_completed')
+          .select('signature_data, signature_date, signature_name')
           .eq('id', ibogaineConsentForm.id)
           .single()
+
+        console.log('[getPatientTasks] Ibogaine consent form check:', {
+          formId: ibogaineConsentForm.id,
+          hasSignatureData: !!fullConsentForm?.signature_data,
+          signatureDataLength: fullConsentForm?.signature_data?.length || 0,
+          hasSignatureDate: !!fullConsentForm?.signature_date,
+          signatureName: fullConsentForm?.signature_name,
+          error: fullConsentError?.message,
+        })
 
         const isPatientSignatureComplete = fullConsentForm &&
           fullConsentForm.signature_data &&
@@ -654,12 +663,11 @@ export const getPatientTasks = authActionClient
           fullConsentForm.signature_name &&
           fullConsentForm.signature_name.trim() !== ''
 
-        // Check if form is marked as completed (could be from admin upload, but form exists so prioritize patient view)
-        const isCompletedByAdmin = fullConsentForm?.is_completed === true
+        console.log('[getPatientTasks] Signature check result:', { isPatientSignatureComplete, isInOnboarding })
         
         // If patient is in onboarding, forms should be considered completed if they exist
         // (onboarding only happens after completing all 4 initial forms)
-        const shouldConsiderCompleted = isPatientSignatureComplete || isCompletedByAdmin || isInOnboarding
+        const shouldConsiderCompleted = isPatientSignatureComplete || isInOnboarding
 
         tasks.push({
           id: `ibogaine-consent-${ibogaineConsentForm.id}`,

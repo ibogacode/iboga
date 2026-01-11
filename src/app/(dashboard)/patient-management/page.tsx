@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getPatientManagementList } from '@/actions/patient-management.action'
 import { 
-  Loader2, Users, CheckCircle2, Clock, Eye, Calendar, FileCheck, 
+  Loader2, Users, CheckCircle2, Clock, Calendar, FileCheck, 
   Stethoscope, FileText, Activity, AlertCircle, UserCheck, ClipboardList
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -65,8 +65,18 @@ export default function PatientManagementPage() {
   function formatDate(dateString: string | null) {
     if (!dateString) return 'N/A'
     try {
-      return format(new Date(dateString), 'MMM dd, yyyy')
-    } catch {
+      // Parse the date string (assuming it's in YYYY-MM-DD format from database)
+      // Since arrival_date is a DATE type (not TIMESTAMPTZ), it's just a date without time
+      // We'll parse it and format it in EST timezone context
+      
+      // Parse the date string (YYYY-MM-DD format from PostgreSQL DATE type)
+      const date = new Date(dateString + 'T00:00:00') // Add time to avoid timezone issues
+      
+      // Format as MMDDYYYY (e.g., "01/01/2024")
+      // Using MM/dd/yyyy format for readability
+      return format(date, 'MM/dd/yyyy')
+    } catch (error) {
+      console.error('Error formatting date:', error, dateString)
       return dateString
     }
   }
@@ -100,13 +110,6 @@ export default function PatientManagementPage() {
     return patient.program_type === 'neurological' ? 2 : 1
   }
 
-  function handleViewPatient(patient: PatientManagementRecord) {
-    if (patient.patient_id) {
-      router.push(`/patient-pipeline/patient-profile/${patient.patient_id}`)
-    } else {
-      toast.error('Patient profile not linked')
-    }
-  }
 
   // Calculate stats
   const activePatients = patients.filter(p => p.status === 'active').length
@@ -329,15 +332,6 @@ export default function PatientManagementPage() {
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewPatient(patient)}
-                              className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                            >
-                              <Eye className="h-4 w-4 mr-1" />
-                              <span className="hidden sm:inline">View</span>
-                            </Button>
                             <Button
                               variant="outline"
                               size="sm"

@@ -79,6 +79,58 @@ interface BaseOneTimeForm {
   updated_at: string
 }
 
+// Medical Intake Report (All Programs)
+export interface PatientManagementMedicalIntakeReport extends BaseOneTimeForm {
+  name: string
+  date_of_birth: string
+  arrival_date: string
+  
+  // Changes Since Medical Clearance
+  changes_since_medical_clearance: boolean
+  changes_medications: boolean | null
+  changes_substance_use: boolean | null
+  changes_hospitalization: boolean | null
+  changes_new_symptoms: boolean | null
+  changes_explanation: string | null
+  
+  // Last Use & Medication Confirmation
+  last_substance_use_datetime: string | null
+  medications_last_72_hours: string | null
+  
+  // Current Physical Status (Staff)
+  blood_pressure: string | null
+  heart_rate: number | null
+  oxygen_saturation: number | null
+  temperature: number | null
+  symptoms_nausea: boolean | null
+  symptoms_dizziness: boolean | null
+  symptoms_palpitations: boolean | null
+  symptoms_anxiety: boolean | null
+  symptoms_pain: boolean | null
+  
+  // Hydration & Nutrition
+  last_food_intake: string | null
+  last_fluids: string | null
+  well_hydrated: boolean | null
+  possibly_dehydrated: boolean | null
+  
+  // Mental & Emotional Check-In
+  current_state_calm: boolean | null
+  current_state_nervous: boolean | null
+  current_state_overwhelmed: boolean | null
+  current_state_stable: boolean | null
+  thoughts_of_self_harm: boolean | null
+  
+  // Client Acknowledgement
+  client_signature_data: string | null
+  client_signature_date: string | null
+  
+  // Staff Medical Sign-Off
+  reviewed_by: string
+  reviewed_date: string
+  submitted_by_name: string | null
+}
+
 // Intake Report (All Programs)
 export interface PatientManagementIntakeReport extends BaseOneTimeForm {
   guest_first_name: string
@@ -260,7 +312,12 @@ export interface PatientManagementParkinsonsMortalityScales extends BaseOneTimeF
   mds_pd_frailty_total_score: number
   
   // File upload
-  scanned_mds_updrs_form_url: string | null
+  scanned_mds_updrs_forms: Array<{
+    url: string
+    fileName: string
+    fileType: string
+  }> | null
+  scanned_mds_updrs_form_url: string | null // Keep for backward compatibility
 }
 
 // =============================================================================
@@ -386,6 +443,67 @@ export interface PatientManagementDailyMedicalUpdate extends BaseDailyForm {
   night_inspected_by: string | null
 }
 
+// Daily SOWS (Subjective Opiate Withdrawal Scale) - Addiction Only
+export interface PatientManagementDailySOWS extends BaseDailyForm {
+  patient_first_name: string
+  patient_last_name: string
+  patient_date_of_birth: string | null
+  form_date: string
+  time: string
+
+  // SOWS Symptoms (0-4 scale)
+  symptom_1_anxious: number | null
+  symptom_2_yawning: number | null
+  symptom_3_perspiring: number | null
+  symptom_4_eyes_tearing: number | null
+  symptom_5_nose_running: number | null
+  symptom_6_goosebumps: number | null
+  symptom_7_shaking: number | null
+  symptom_8_hot_flushes: number | null
+  symptom_9_cold_flushes: number | null
+  symptom_10_bones_muscles_ache: number | null
+  symptom_11_restless: number | null
+  symptom_12_nauseous: number | null
+  symptom_13_vomiting: number | null
+  symptom_14_muscles_twitch: number | null
+  symptom_15_stomach_cramps: number | null
+  symptom_16_feel_like_using_now: number | null
+
+  total_score: number
+  reviewed_by: string | null
+  submitted_by_name: string | null
+  submitted_at: string | null
+}
+
+// Daily OOWS (Objective Opioid Withdrawal Scale) - Addiction Only
+export interface PatientManagementDailyOOWS extends BaseDailyForm {
+  patient_first_name: string
+  patient_last_name: string
+  patient_date_of_birth: string | null
+  form_date: string
+  time: string
+
+  // OOWS Symptoms (0-1 scale)
+  symptom_1_yawning: number | null
+  symptom_2_rhinorrhoea: number | null
+  symptom_3_piloerection: number | null
+  symptom_4_perspiration: number | null
+  symptom_5_lacrimation: number | null
+  symptom_6_tremor: number | null
+  symptom_7_mydriasis: number | null
+  symptom_8_hot_cold_flushes: number | null
+  symptom_9_restlessness: number | null
+  symptom_10_vomiting: number | null
+  symptom_11_muscle_twitches: number | null
+  symptom_12_abdominal_cramps: number | null
+  symptom_13_anxiety: number | null
+
+  total_score: number
+  reviewed_by: string | null
+  submitted_by_name: string | null
+  submitted_at: string | null
+}
+
 // =============================================================================
 // Combined Types
 // =============================================================================
@@ -393,10 +511,14 @@ export interface PatientManagementDailyMedicalUpdate extends BaseDailyForm {
 // All forms combined
 export interface PatientManagementForms {
   intakeReport: PatientManagementIntakeReport | null
+  medicalIntakeReport: PatientManagementMedicalIntakeReport | null
   parkinsonsPsychologicalReport: PatientManagementParkinsonsPsychologicalReport | null
   parkinsonsMortalityScales: PatientManagementParkinsonsMortalityScales | null
   dailyPsychologicalUpdates: PatientManagementDailyPsychologicalUpdate[]
   dailyMedicalUpdates: PatientManagementDailyMedicalUpdate[]
+  dailySOWS: PatientManagementDailySOWS[]
+  dailyOOWS: PatientManagementDailyOOWS[]
+  medicalHistory: any | null
 }
 
 // Full patient management data with forms
