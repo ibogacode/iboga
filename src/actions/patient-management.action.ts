@@ -330,6 +330,32 @@ export const getPatientManagementWithForms = authActionClient
       medicalHistoryPromise = Promise.resolve({ data: null, error: null })
     }
 
+    // Fetch uploaded medical history documents
+    let medicalHistoryDocument: any = null
+    if (management.email) {
+      // Find partial forms for this email and get their medical documents
+      const { data: partialFormsForEmail } = await supabase
+        .from('partial_intake_forms')
+        .select('id')
+        .eq('email', management.email)
+        .order('created_at', { ascending: false })
+      
+      if (partialFormsForEmail && partialFormsForEmail.length > 0) {
+        const partialFormIds = partialFormsForEmail.map(pf => pf.id)
+        const { data: medicalDocs } = await supabase
+          .from('existing_patient_documents')
+          .select('*')
+          .in('partial_intake_form_id', partialFormIds)
+          .eq('form_type', 'medical')
+          .order('uploaded_at', { ascending: false })
+          .limit(1)
+        
+        if (medicalDocs && medicalDocs.length > 0) {
+          medicalHistoryDocument = medicalDocs[0]
+        }
+      }
+    }
+
     // Fetch all forms
     const [intakeReport, medicalIntakeReport, parkinsonsPsychological, parkinsonsMortality, dailyPsychological, dailyMedical, medicalHistory] = await Promise.all([
       // Intake Report (non-neurological only)
@@ -402,6 +428,7 @@ export const getPatientManagementWithForms = authActionClient
           dailyPsychologicalUpdates: dailyPsychological.data || [],
           dailyMedicalUpdates: dailyMedical.data || [],
           medicalHistory: medicalHistoryData,
+          medicalHistoryDocument: medicalHistoryDocument, // Include uploaded document
         },
       } as PatientManagementWithForms,
     }
