@@ -14,7 +14,9 @@ import {
   Clock,
   Brain,
   Activity,
-  Stethoscope
+  Stethoscope,
+  ExternalLink,
+  Download
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { MedicalHistoryFormView } from '@/components/admin/medical-history-form-view'
@@ -293,8 +295,8 @@ export default function OneTimeFormsPage() {
         )}
       </div>
 
-      {/* Medical Health History Document */}
-      {forms?.medicalHistory && (
+      {/* Medical Health History Document - Show if form exists OR uploaded document exists */}
+      {(forms?.medicalHistory || forms?.medicalHistoryDocument) && (
         <div className="mt-8 bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -320,12 +322,67 @@ export default function OneTimeFormsPage() {
             </Button>
           </div>
           <p className="text-sm text-gray-600 mb-4">
-            Patient's complete medical health history form
+            {forms?.medicalHistoryDocument 
+              ? 'Patient\'s uploaded medical health history document'
+              : 'Patient\'s complete medical health history form'}
           </p>
           
           {showMedicalHistory && (
             <div className="mt-6 border-t pt-6">
-              <MedicalHistoryFormView form={forms.medicalHistory} />
+              {/* Show uploaded document if it exists, otherwise show filled form */}
+              {forms?.medicalHistoryDocument ? (
+                <div className="space-y-4">
+                  <div className="bg-gray-50 rounded-lg p-6 text-center">
+                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      {forms.medicalHistoryDocument.document_name || 'Medical History Document'}
+                    </h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      This is an uploaded document for an existing patient.
+                    </p>
+                    <div className="flex gap-3 justify-center">
+                      <Button
+                        onClick={() => window.open(forms.medicalHistoryDocument.document_url, '_blank')}
+                        className="gap-2"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Open Document
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          const link = document.createElement('a')
+                          link.href = forms.medicalHistoryDocument.document_url
+                          link.download = forms.medicalHistoryDocument.document_name || 'medical-history-document'
+                          link.click()
+                        }}
+                        className="gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                  {forms.medicalHistoryDocument.document_url && (
+                    <div className="mt-4">
+                      <iframe
+                        src={forms.medicalHistoryDocument.document_url}
+                        className="w-full h-[600px] border border-gray-200 rounded-lg"
+                        title={forms.medicalHistoryDocument.document_name || 'Medical History Document'}
+                      />
+                    </div>
+                  )}
+                  {/* Also show filled form if it exists */}
+                  {forms?.medicalHistory && (
+                    <div className="mt-8 border-t pt-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Filled Medical History Form</h3>
+                      <MedicalHistoryFormView form={forms.medicalHistory} />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <MedicalHistoryFormView form={forms.medicalHistory} />
+              )}
             </div>
           )}
         </div>

@@ -519,6 +519,13 @@ export interface PatientManagementForms {
   dailySOWS: PatientManagementDailySOWS[]
   dailyOOWS: PatientManagementDailyOOWS[]
   medicalHistory: any | null
+  medicalHistoryDocument: {
+    id: string
+    document_url: string
+    document_name?: string | null
+    form_type: string
+    uploaded_at: string
+  } | null
 }
 
 // Full patient management data with forms
