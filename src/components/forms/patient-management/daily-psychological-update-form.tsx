@@ -33,6 +33,9 @@ interface DailyPsychologicalUpdateFormProps {
   initialData?: Partial<DailyPsychologicalUpdateInput> & { 
     id?: string
     filled_by_profile?: { first_name?: string; last_name?: string } | null
+    edit_count?: number
+    edited_at?: string
+    edited_by?: string
   }
   isCompleted?: boolean
   isStarted?: boolean

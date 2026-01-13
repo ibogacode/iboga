@@ -26,7 +26,12 @@ interface IntakeReportFormProps {
   managementId: string
   patientFirstName: string
   patientLastName: string
-  initialData?: Partial<IntakeReportInput>
+  initialData?: Partial<IntakeReportInput> & {
+    id?: string
+    edit_count?: number
+    edited_at?: string
+    edited_by?: string
+  }
   isCompleted?: boolean
   onSuccess?: () => void
 }

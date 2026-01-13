@@ -30,7 +30,12 @@ interface MedicalIntakeReportFormProps {
   patientLastName: string
   patientDateOfBirth?: string
   arrivalDate?: string
-  initialData?: Partial<MedicalIntakeReportInput>
+  initialData?: Partial<MedicalIntakeReportInput> & {
+    id?: string
+    edit_count?: number
+    edited_at?: string
+    edited_by?: string
+  }
   isCompleted?: boolean
   onSuccess?: () => void
 }

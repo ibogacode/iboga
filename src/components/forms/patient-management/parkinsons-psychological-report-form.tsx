@@ -27,7 +27,12 @@ interface ParkinsonsPsychologicalReportFormProps {
   managementId: string
   patientFirstName: string
   patientLastName: string
-  initialData?: Partial<ParkinsonsPsychologicalReportInput>
+  initialData?: Partial<ParkinsonsPsychologicalReportInput> & {
+    id?: string
+    edit_count?: number
+    edited_at?: string
+    edited_by?: string
+  }
   isCompleted?: boolean
   onSuccess?: () => void
 }
