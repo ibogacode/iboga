@@ -10,7 +10,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { 
   startDailyPsychologicalUpdate, 
-  submitDailyPsychologicalUpdate 
+  submitDailyPsychologicalUpdate,
+  updateDailyPsychologicalUpdate
 } from '@/actions/patient-management.action'
 import { 
   dailyPsychologicalUpdateSchema, 
@@ -18,9 +19,10 @@ import {
   type DailyPsychologicalUpdateInput 
 } from '@/lib/validations/patient-management-forms'
 import { toast } from 'sonner'
-import { Loader2, CheckCircle, Calendar, Clock } from 'lucide-react'
+import { Loader2, CheckCircle, Calendar, Clock, Pencil, History, Save, X, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { useUser } from '@/hooks/use-user.hook'
+import { FormEditHistoryDialog } from '@/components/forms/form-edit-history-dialog'
 
 interface DailyPsychologicalUpdateFormProps {
   managementId: string
@@ -31,6 +33,9 @@ interface DailyPsychologicalUpdateFormProps {
   initialData?: Partial<DailyPsychologicalUpdateInput> & { 
     id?: string
     filled_by_profile?: { first_name?: string; last_name?: string } | null
+    edit_count?: number
+    edited_at?: string
+    edited_by?: string
   }
   isCompleted?: boolean
   isStarted?: boolean
@@ -50,7 +55,12 @@ export function DailyPsychologicalUpdateForm({
 }: DailyPsychologicalUpdateFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [showEditHistory, setShowEditHistory] = useState(false)
   const { profile } = useUser()
+
+  // Check if user can edit (Owner, Admin, Manager)
+  const canEdit = profile?.role && ['owner', 'admin', 'manager'].includes(profile.role)
 
   // Get logged-in user's full name for display
   const currentUserName = profile?.first_name && profile?.last_name 
@@ -448,9 +458,23 @@ export function DailyPsychologicalUpdateForm({
   async function onSubmit(data: DailyPsychologicalUpdateInput) {
     setIsSubmitting(true)
     try {
-      const result = await submitDailyPsychologicalUpdate(data as any)
+      let result
+      if (isEditMode && isCompleted) {
+        // Use update action for editing completed forms
+        result = await updateDailyPsychologicalUpdate({
+          ...data,
+          management_id: managementId,
+          form_date: formDate,
+          is_completed: true, // Keep form as completed
+        } as any)
+      } else {
+        // Use submit action for new submissions
+        result = await submitDailyPsychologicalUpdate(data as any)
+      }
+      
       if (result?.data?.success) {
-        toast.success('Daily psychological update submitted successfully')
+        toast.success(isEditMode ? 'Form updated successfully' : 'Daily psychological update submitted successfully')
+        setIsEditMode(false)
         onSuccess?.()
       } else {
         toast.error(result?.data?.error || 'Failed to submit form')
@@ -477,6 +501,23 @@ export function DailyPsychologicalUpdateForm({
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 bg-white rounded-lg border border-gray-200 p-6">
+      {/* Edit Notification Banner */}
+      {initialData?.edit_count && initialData.edit_count > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+          <div className="flex items-center gap-2 text-amber-800">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-sm font-medium">
+              This form has been edited {initialData.edit_count} time(s)
+            </span>
+            {initialData.edited_at && (
+              <span className="text-xs text-amber-600 ml-auto">
+                Last edited: {new Date(initialData.edited_at).toLocaleString()}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="border-b pb-4">
         <div className="flex items-center justify-between">
@@ -486,12 +527,46 @@ export function DailyPsychologicalUpdateForm({
               {format(new Date(formDate), 'EEEE, MMMM dd, yyyy')}
             </p>
           </div>
-          {isCompleted && (
-            <div className="flex items-center gap-2 text-emerald-600">
-              <CheckCircle className="h-5 w-5" />
-              <span className="text-sm font-medium">Completed</span>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {isCompleted && (
+              <div className="flex items-center gap-2 text-emerald-600">
+                <CheckCircle className="h-5 w-5" />
+                <span className="text-sm font-medium">Completed</span>
+              </div>
+            )}
+            {isCompleted && canEdit && !isEditMode && (
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsEditMode(true)}>
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Edit Form
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowEditHistory(true)}>
+                  <History className="w-4 h-4 mr-2" />
+                  View History
+                </Button>
+              </div>
+            )}
+            {isEditMode && (
+              <div className="flex gap-2">
+                <Button type="submit" size="sm" disabled={isSubmitting}>
+                  <Save className="w-4 h-4 mr-2" />
+                  {isSubmitting ? 'Saving...' : 'Save Changes'}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => { 
+                    setIsEditMode(false)
+                    form.reset()
+                  }}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -519,8 +594,8 @@ export function DailyPsychologicalUpdateForm({
             id="time"
             type="time"
             {...form.register('time')}
-            disabled={isCompleted}
-            className={isCompleted ? 'bg-gray-50' : ''}
+            disabled={isCompleted && !isEditMode}
+            className={isCompleted && !isEditMode ? 'bg-gray-50' : ''}
             aria-invalid={!!form.formState.errors.time}
           />
           {form.formState.errors.time && (
@@ -539,7 +614,7 @@ export function DailyPsychologicalUpdateForm({
             id="emotional_state_today"
             {...form.register('emotional_state_today')}
             rows={3}
-            disabled={isCompleted}
+            disabled={isCompleted && !isEditMode}
             className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
             aria-invalid={!!form.formState.errors.emotional_state_today}
           />
@@ -554,7 +629,7 @@ export function DailyPsychologicalUpdateForm({
             id="emotional_shifts_since_last_report"
             {...form.register('emotional_shifts_since_last_report')}
             rows={2}
-            disabled={isCompleted}
+            disabled={isCompleted && !isEditMode}
             className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
           />
         </div>
@@ -565,7 +640,7 @@ export function DailyPsychologicalUpdateForm({
             id="vivid_dreams_resurfacing_memories"
             {...form.register('vivid_dreams_resurfacing_memories')}
             rows={2}
-            disabled={isCompleted}
+            disabled={isCompleted && !isEditMode}
             className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
           />
         </div>
@@ -576,7 +651,7 @@ export function DailyPsychologicalUpdateForm({
             id="feeling_connected_to_emotions"
             {...form.register('feeling_connected_to_emotions')}
             rows={2}
-            disabled={isCompleted}
+            disabled={isCompleted && !isEditMode}
             className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
           />
         </div>
@@ -587,7 +662,7 @@ export function DailyPsychologicalUpdateForm({
             id="changes_memory_focus_concentration"
             {...form.register('changes_memory_focus_concentration')}
             rows={2}
-            disabled={isCompleted}
+            disabled={isCompleted && !isEditMode}
             className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
           />
         </div>
@@ -598,7 +673,7 @@ export function DailyPsychologicalUpdateForm({
             id="feeling_present_aware"
             {...form.register('feeling_present_aware')}
             rows={2}
-            disabled={isCompleted}
+            disabled={isCompleted && !isEditMode}
             className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
           />
         </div>
@@ -609,7 +684,7 @@ export function DailyPsychologicalUpdateForm({
             id="discomfort_side_effects"
             {...form.register('discomfort_side_effects')}
             rows={2}
-            disabled={isCompleted}
+            disabled={isCompleted && !isEditMode}
             className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
           />
         </div>
@@ -654,7 +729,7 @@ export function DailyPsychologicalUpdateForm({
                     {...form.register('energy_level', { 
                       valueAsNumber: true
                     })}
-                    disabled={isCompleted}
+                    disabled={isCompleted && !isEditMode}
                     className={`energy-level-slider energy-level-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
                     style={{
                       background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
@@ -713,7 +788,7 @@ export function DailyPsychologicalUpdateForm({
                       id="tremors"
                       checked={selectedOptions.includes('Tremors')}
                       onCheckedChange={() => toggleOption('Tremors')}
-                      disabled={isCompleted}
+                      disabled={isCompleted && !isEditMode}
                     />
                     <Label htmlFor="tremors" className="text-sm font-normal cursor-pointer">
                       Tremors
@@ -724,7 +799,7 @@ export function DailyPsychologicalUpdateForm({
                       id="muscle_stiffness"
                       checked={selectedOptions.includes('Muscle stiffness')}
                       onCheckedChange={() => toggleOption('Muscle stiffness')}
-                      disabled={isCompleted}
+                      disabled={isCompleted && !isEditMode}
                     />
                     <Label htmlFor="muscle_stiffness" className="text-sm font-normal cursor-pointer">
                       Muscle stiffness
@@ -735,7 +810,7 @@ export function DailyPsychologicalUpdateForm({
                       id="improved_motor_function"
                       checked={selectedOptions.includes('Improved motor function')}
                       onCheckedChange={() => toggleOption('Improved motor function')}
-                      disabled={isCompleted}
+                      disabled={isCompleted && !isEditMode}
                     />
                     <Label htmlFor="improved_motor_function" className="text-sm font-normal cursor-pointer">
                       Improved motor function
@@ -746,7 +821,7 @@ export function DailyPsychologicalUpdateForm({
                       id="no_change"
                       checked={selectedOptions.includes('No change')}
                       onCheckedChange={() => toggleOption('No change')}
-                      disabled={isCompleted}
+                      disabled={isCompleted && !isEditMode}
                     />
                     <Label htmlFor="no_change" className="text-sm font-normal cursor-pointer">
                       No change
@@ -763,7 +838,7 @@ export function DailyPsychologicalUpdateForm({
               id="motor_function_details"
               {...form.register('motor_function_details')}
               rows={3}
-              disabled={isCompleted}
+              disabled={isCompleted && !isEditMode}
               placeholder="Provide additional details about motor function observations..."
               className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
             />
@@ -815,7 +890,7 @@ export function DailyPsychologicalUpdateForm({
                     {...form.register('how_guest_looks_physically', { 
                       valueAsNumber: true
                     })}
-                    disabled={isCompleted}
+                    disabled={isCompleted && !isEditMode}
                     className={`guest-looks-slider guest-looks-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
                     style={{
                       background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
@@ -874,7 +949,7 @@ export function DailyPsychologicalUpdateForm({
                     {...form.register('how_guest_describes_feeling', { 
                       valueAsNumber: true
                     })}
-                    disabled={isCompleted}
+                    disabled={isCompleted && !isEditMode}
                     className={`guest-feeling-slider guest-feeling-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
                     style={{
                       background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
@@ -899,7 +974,7 @@ export function DailyPsychologicalUpdateForm({
             id="additional_notes_observations"
             {...form.register('additional_notes_observations')}
             rows={4}
-            disabled={isCompleted}
+            disabled={isCompleted && !isEditMode}
             placeholder="Any additional observations or context..."
             className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
           />
@@ -912,7 +987,7 @@ export function DailyPsychologicalUpdateForm({
             id="inspected_by"
             {...form.register('inspected_by')}
             placeholder="Staff member name"
-            disabled={isCompleted}
+            disabled={isCompleted && !isEditMode}
             className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
           />
         </div>
@@ -934,7 +1009,7 @@ export function DailyPsychologicalUpdateForm({
       </div>
 
       {/* Submit Button */}
-      {!isCompleted && (
+      {!isCompleted && !isEditMode && (
         <div className="flex justify-end gap-3 border-t pt-4">
           <Button
             type="submit"
@@ -951,6 +1026,17 @@ export function DailyPsychologicalUpdateForm({
             )}
           </Button>
         </div>
+      )}
+
+      {/* Edit History Dialog */}
+      {initialData?.id && (
+        <FormEditHistoryDialog
+          open={showEditHistory}
+          onOpenChange={setShowEditHistory}
+          formTable="patient_management_daily_psychological_updates"
+          formId={initialData.id}
+          formTitle="Daily Psychological Update"
+        />
       )}
     </form>
   )

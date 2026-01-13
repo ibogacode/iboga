@@ -56,6 +56,34 @@ export const getCurrentStaffMemberName = authActionClient
 
     return { success: true, data: { fullName } }
   })
+
+// Get form edit history
+export const getFormEditHistory = authActionClient
+  .schema(z.object({
+    formTable: z.string(),
+    formId: z.string().uuid(),
+  }))
+  .action(async ({ parsedInput: { formTable, formId }, ctx }) => {
+    if (!isStaffRole(ctx.user.role)) {
+      return { success: false, error: 'Unauthorized: staff access required' }
+    }
+
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .rpc('get_form_edit_history', {
+        p_form_table: formTable,
+        p_form_id: formId,
+      })
+
+    if (error) {
+      console.error('Error fetching form edit history:', error)
+      return { success: false, error: handleSupabaseError(error, 'Failed to fetch form edit history') }
+    }
+
+    return { success: true, data: data || [] }
+  })
+
 import type {
   PatientManagement,
   PatientManagementWithForms,

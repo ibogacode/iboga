@@ -17,14 +17,21 @@ import {
   type IntakeReportInput 
 } from '@/lib/validations/patient-management-forms'
 import { toast } from 'sonner'
-import { Loader2, CheckCircle, Clock } from 'lucide-react'
+import { Loader2, CheckCircle, Clock, Pencil, History, Save, X, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
+import { useUser } from '@/hooks/use-user.hook'
+import { FormEditHistoryDialog } from '@/components/forms/form-edit-history-dialog'
 
 interface IntakeReportFormProps {
   managementId: string
   patientFirstName: string
   patientLastName: string
-  initialData?: Partial<IntakeReportInput>
+  initialData?: Partial<IntakeReportInput> & {
+    id?: string
+    edit_count?: number
+    edited_at?: string
+    edited_by?: string
+  }
   isCompleted?: boolean
   onSuccess?: () => void
 }
@@ -38,6 +45,12 @@ export function IntakeReportForm({
   onSuccess 
 }: IntakeReportFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [showEditHistory, setShowEditHistory] = useState(false)
+  const { profile } = useUser()
+
+  // Check if user can edit (Owner, Admin, Manager)
+  const canEdit = profile?.role && ['owner', 'admin', 'manager'].includes(profile.role)
   
   // Check both prop and initialData for completion status
   const formIsCompleted = isCompleted || (initialData as any)?.is_completed === true
@@ -275,29 +288,31 @@ export function IntakeReportForm({
   async function onSubmit(data: IntakeReportInput) {
     setIsSubmitting(true)
     try {
-      // Check if form already exists (completed)
-      if (formIsCompleted) {
-        // Update existing form
-        const result = await updateIntakeReport({
+      let result
+      if (isEditMode && formIsCompleted) {
+        // Use update action for editing completed forms
+        result = await updateIntakeReport({
+          ...data,
+          management_id: managementId,
+          is_completed: true, // Keep form as completed
+        } as any)
+      } else if (formIsCompleted) {
+        // Legacy update path (shouldn't happen with new edit mode)
+        result = await updateIntakeReport({
           ...data,
           is_completed: true,
         } as any)
-        
-        if (result?.data?.success) {
-          toast.success('Intake report updated successfully')
-          onSuccess?.()
-        } else {
-          toast.error(result?.data?.error || 'Failed to update form')
-        }
       } else {
         // Submit new form
-        const result = await submitIntakeReport(data as any)
-        if (result?.data?.success) {
-          toast.success('Intake report submitted successfully')
-          onSuccess?.()
-        } else {
-          toast.error(result?.data?.error || 'Failed to submit form')
-        }
+        result = await submitIntakeReport(data as any)
+      }
+      
+      if (result?.data?.success) {
+        toast.success(isEditMode ? 'Form updated successfully' : (formIsCompleted ? 'Intake report updated successfully' : 'Intake report submitted successfully'))
+        setIsEditMode(false)
+        onSuccess?.()
+      } else {
+        toast.error(result?.data?.error || 'Failed to submit form')
       }
     } catch (error) {
       console.error('Error submitting form:', error)
@@ -320,6 +335,59 @@ export function IntakeReportForm({
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 md:space-y-8">
+      {/* Edit Notification Banner */}
+      {initialData?.edit_count && initialData.edit_count > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+          <div className="flex items-center gap-2 text-amber-800">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-sm font-medium">
+              This form has been edited {initialData.edit_count} time(s)
+            </span>
+            {initialData.edited_at && (
+              <span className="text-xs text-amber-600 ml-auto">
+                Last edited: {new Date(initialData.edited_at).toLocaleString()}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Header with Edit Buttons */}
+      <div className="flex items-center justify-between border-b pb-4">
+        <h2 className="text-xl font-bold text-gray-900">Intake Report</h2>
+        {formIsCompleted && canEdit && !isEditMode && (
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsEditMode(true)}>
+              <Pencil className="w-4 h-4 mr-2" />
+              Edit Form
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowEditHistory(true)}>
+              <History className="w-4 h-4 mr-2" />
+              View History
+            </Button>
+          </div>
+        )}
+        {isEditMode && (
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={isSubmitting}>
+              <Save className="w-4 h-4 mr-2" />
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
+            </Button>
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm"
+              onClick={() => { 
+                setIsEditMode(false)
+                form.reset()
+              }}
+            >
+              <X className="w-4 h-4 mr-2" />
+              Cancel
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* Patient Info */}
       <div className="space-y-4 md:space-y-6">
@@ -337,7 +405,7 @@ export function IntakeReportForm({
             type="date"
             {...form.register('date')}
             className="mt-2 h-12"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             aria-invalid={!!form.formState.errors.date}
           />
           {form.formState.errors.date && (
@@ -351,7 +419,7 @@ export function IntakeReportForm({
             type="time"
             {...form.register('time_of_intake')}
             className="mt-2 h-12"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             aria-invalid={!!form.formState.errors.time_of_intake}
           />
           {form.formState.errors.time_of_intake && (
@@ -367,7 +435,7 @@ export function IntakeReportForm({
             {...form.register('staff_member_completing_form')}
             placeholder="Enter staff member name"
             className="mt-2 h-12"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
       </div>
@@ -383,7 +451,7 @@ export function IntakeReportForm({
             {...form.register('emotional_state_today')}
             rows={3}
             className="mt-2 h-12 min-h-[80px]"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             aria-invalid={!!form.formState.errors.emotional_state_today}
           />
           {form.formState.errors.emotional_state_today && (
@@ -398,7 +466,7 @@ export function IntakeReportForm({
             {...form.register('emotional_shifts_48h')}
             rows={2}
             className="mt-2 h-12 min-h-[80px]"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
 
@@ -409,7 +477,7 @@ export function IntakeReportForm({
             {...form.register('emotional_themes_memories')}
             rows={2}
             className="mt-2 h-12 min-h-[80px]"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
 
@@ -420,7 +488,7 @@ export function IntakeReportForm({
             {...form.register('emotionally_connected')}
             rows={2}
             className="mt-2 h-12 min-h-[80px]"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             aria-invalid={!!form.formState.errors.emotionally_connected}
           />
           {form.formState.errors.emotionally_connected && (
@@ -435,7 +503,7 @@ export function IntakeReportForm({
             {...form.register('strong_emotions')}
             rows={2}
             className="mt-2 h-12 min-h-[80px]"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
       </div>
@@ -451,7 +519,7 @@ export function IntakeReportForm({
             {...form.register('mental_clarity')}
             rows={3}
             className="mt-2 h-12 min-h-[80px]"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             aria-invalid={!!form.formState.errors.mental_clarity}
           />
           {form.formState.errors.mental_clarity && (
@@ -466,7 +534,7 @@ export function IntakeReportForm({
             {...form.register('focus_memory_concentration')}
             rows={2}
             className="mt-1"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
 
@@ -477,7 +545,7 @@ export function IntakeReportForm({
             {...form.register('recurring_thoughts_dreams')}
             rows={2}
             className="mt-1"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
 
@@ -488,7 +556,7 @@ export function IntakeReportForm({
             {...form.register('present_aware')}
             rows={2}
             className="mt-1"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             aria-invalid={!!form.formState.errors.present_aware}
           />
           {form.formState.errors.present_aware && (
@@ -503,7 +571,7 @@ export function IntakeReportForm({
             {...form.register('intrusive_thoughts_dissociation')}
             rows={2}
             className="mt-1"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
       </div>
@@ -554,7 +622,7 @@ export function IntakeReportForm({
                     {...form.register('energy_level', { 
                       valueAsNumber: true
                     })}
-                    disabled={formIsCompleted}
+                    disabled={formIsCompleted && !isEditMode}
                     className={`energy-level-slider energy-level-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none ${formIsCompleted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                     style={{
                       background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
@@ -577,7 +645,7 @@ export function IntakeReportForm({
             {...form.register('physical_discomfort')}
             rows={2}
             className="mt-1"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
 
@@ -588,7 +656,7 @@ export function IntakeReportForm({
             {...form.register('sleep_appetite_digestion')}
             rows={2}
             className="mt-1"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
 
@@ -599,7 +667,7 @@ export function IntakeReportForm({
             {...form.register('physical_sensations_emotions')}
             rows={2}
             className="mt-1"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
       </div>
@@ -615,7 +683,7 @@ export function IntakeReportForm({
             {...form.register('intentions_goals')}
             rows={3}
             className="mt-1"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
 
@@ -626,7 +694,7 @@ export function IntakeReportForm({
             {...form.register('emotionally_physically_safe')}
             rows={2}
             className="mt-1"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             aria-invalid={!!form.formState.errors.emotionally_physically_safe}
           />
           {form.formState.errors.emotionally_physically_safe && (
@@ -641,7 +709,7 @@ export function IntakeReportForm({
             {...form.register('resolve_release_explore')}
             rows={2}
             className="mt-1"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
 
@@ -652,13 +720,13 @@ export function IntakeReportForm({
             {...form.register('team_awareness')}
             rows={3}
             className="mt-1"
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
       </div>
 
       {/* Submit Button - Only show if form is not completed */}
-      {!formIsCompleted && (
+      {!formIsCompleted && !isEditMode && (
         <div className="flex justify-end gap-3 pt-6 border-t">
           <Button
             type="submit"
@@ -690,6 +758,17 @@ export function IntakeReportForm({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit History Dialog */}
+      {initialData?.id && (
+        <FormEditHistoryDialog
+          open={showEditHistory}
+          onOpenChange={setShowEditHistory}
+          formTable="patient_management_intake_reports"
+          formId={initialData.id}
+          formTitle="Intake Report"
+        />
       )}
     </form>
   )

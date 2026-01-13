@@ -19,8 +19,10 @@ import {
   type DailySOWSInput 
 } from '@/lib/validations/patient-management-forms'
 import { toast } from 'sonner'
-import { Loader2, CheckCircle } from 'lucide-react'
+import { Loader2, CheckCircle, Pencil, History, Save, X, AlertCircle } from 'lucide-react'
 import { getTodayEST, formatDateEST } from '@/lib/utils'
+import { useUser } from '@/hooks/use-user.hook'
+import { FormEditHistoryDialog } from '@/components/forms/form-edit-history-dialog'
 
 interface DailySOWSFormProps {
   managementId: string
@@ -31,6 +33,9 @@ interface DailySOWSFormProps {
   initialData?: Partial<DailySOWSInput> & { 
     id?: string
     filled_by_profile?: { first_name?: string; last_name?: string } | null
+    edit_count?: number
+    edited_at?: string
+    edited_by?: string
   }
   isCompleted?: boolean
   isStarted?: boolean
@@ -80,6 +85,12 @@ export function DailySOWSForm({
 }: DailySOWSFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [showEditHistory, setShowEditHistory] = useState(false)
+  const { profile } = useUser()
+
+  // Check if user can edit (Owner, Admin, Manager)
+  const canEdit = profile?.role && ['owner', 'admin', 'manager'].includes(profile.role)
 
   const form = useForm<DailySOWSInput>({
     resolver: zodResolver(dailySOWSSchema) as any,
@@ -190,26 +201,32 @@ export function DailySOWSForm({
   async function onSubmit(data: DailySOWSInput) {
     setIsSubmitting(true)
     try {
-      if (isCompleted) {
-        const result = await updateDailySOWS({
+      let result
+      if (isEditMode && isCompleted) {
+        // Use update action for editing completed forms
+        result = await updateDailySOWS({
+          ...data,
+          management_id: managementId,
+          form_date: formDate,
+          is_completed: true, // Keep form as completed
+        } as any)
+      } else if (isCompleted) {
+        // Legacy update path (shouldn't happen with new edit mode)
+        result = await updateDailySOWS({
           ...data,
           is_completed: true,
         } as any)
-        
-        if (result?.data?.success) {
-          toast.success('SOWS form updated successfully')
-          onSuccess?.()
-        } else {
-          toast.error(result?.data?.error || 'Failed to update form')
-        }
       } else {
-        const result = await submitDailySOWS(data as any)
-        if (result?.data?.success) {
-          toast.success('SOWS form submitted successfully')
-          onSuccess?.()
-        } else {
-          toast.error(result?.data?.error || 'Failed to submit form')
-        }
+        // Use submit action for new submissions
+        result = await submitDailySOWS(data as any)
+      }
+      
+      if (result?.data?.success) {
+        toast.success(isEditMode ? 'Form updated successfully' : (isCompleted ? 'SOWS form updated successfully' : 'SOWS form submitted successfully'))
+        setIsEditMode(false)
+        onSuccess?.()
+      } else {
+        toast.error(result?.data?.error || 'Failed to submit form')
       }
     } catch (error) {
       console.error('Error submitting form:', error)
@@ -232,7 +249,7 @@ export function DailySOWSForm({
         <RadioGroup
           value={fieldValue}
           onValueChange={(value) => form.setValue(symptom.field, parseInt(value) as any)}
-          disabled={isCompleted}
+          disabled={isCompleted && !isEditMode}
           className="flex flex-row gap-4"
         >
           {[0, 1, 2, 3, 4].map((score) => (
@@ -261,15 +278,66 @@ export function DailySOWSForm({
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 md:space-y-8">
+      {/* Edit Notification Banner */}
+      {initialData?.edit_count && initialData.edit_count > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+          <div className="flex items-center gap-2 text-amber-800">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-sm font-medium">
+              This form has been edited {initialData.edit_count} time(s)
+            </span>
+            {initialData.edited_at && (
+              <span className="text-xs text-amber-600 ml-auto">
+                Last edited: {new Date(initialData.edited_at).toLocaleString()}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="space-y-4 md:space-y-6">
-        <div>
-          <p className="text-gray-600">
-            Instructions: We want to know how you're feeling. In the column below today's date and time, use the scale to write in a number from 0-4 about how you feel about each symptom right now.
-          </p>
-          <p className="text-sm text-gray-500 mt-2">
-            Scale: 0 = not at all, 1 = a little, 2 = moderately, 3 = quite a bit, 4 = extremely
-          </p>
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <p className="text-gray-600">
+              Instructions: We want to know how you're feeling. In the column below today's date and time, use the scale to write in a number from 0-4 about how you feel about each symptom right now.
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              Scale: 0 = not at all, 1 = a little, 2 = moderately, 3 = quite a bit, 4 = extremely
+            </p>
+          </div>
+          {isCompleted && canEdit && !isEditMode && (
+            <div className="flex gap-2 ml-4">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsEditMode(true)}>
+                <Pencil className="w-4 h-4 mr-2" />
+                Edit Form
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setShowEditHistory(true)}>
+                <History className="w-4 h-4 mr-2" />
+                View History
+              </Button>
+            </div>
+          )}
+          {isEditMode && (
+            <div className="flex gap-2 ml-4">
+              <Button type="submit" size="sm" disabled={isSubmitting}>
+                <Save className="w-4 h-4 mr-2" />
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm"
+                onClick={() => { 
+                  setIsEditMode(false)
+                  form.reset()
+                }}
+              >
+                <X className="w-4 h-4 mr-2" />
+                Cancel
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -305,7 +373,7 @@ export function DailySOWSForm({
             id="time"
             type="time"
             {...form.register('time')}
-            disabled={isCompleted}
+            disabled={isCompleted && !isEditMode}
             className="mt-2 h-12 max-w-xs"
           />
         </div>
@@ -350,7 +418,7 @@ export function DailySOWSForm({
             <Input
               id="reviewed_by"
               {...form.register('reviewed_by')}
-              disabled={isCompleted}
+              disabled={isCompleted && !isEditMode}
               className="mt-2 h-12"
             />
           </div>
@@ -359,7 +427,7 @@ export function DailySOWSForm({
             <Input
               id="submitted_by_name"
               {...form.register('submitted_by_name')}
-              disabled={isCompleted}
+              disabled={isCompleted && !isEditMode}
               className="mt-2 h-12"
             />
           </div>
@@ -367,7 +435,7 @@ export function DailySOWSForm({
       </div>
 
       {/* Submit Button */}
-      {!isCompleted && (
+      {!isCompleted && !isEditMode && (
         <div className="flex justify-end gap-3 pt-6 border-t">
           <Button
             type="submit"
@@ -399,6 +467,17 @@ export function DailySOWSForm({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit History Dialog */}
+      {initialData?.id && (
+        <FormEditHistoryDialog
+          open={showEditHistory}
+          onOpenChange={setShowEditHistory}
+          formTable="patient_management_daily_sows"
+          formId={initialData.id}
+          formTitle="Daily SOWS"
+        />
       )}
     </form>
   )
