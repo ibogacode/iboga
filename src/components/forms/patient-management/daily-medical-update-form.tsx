@@ -23,10 +23,12 @@ import {
   type DailyMedicalUpdateInput 
 } from '@/lib/validations/patient-management-forms'
 import { toast } from 'sonner'
-import { Loader2, CheckCircle, Calendar, Plus, X, Sunrise, Sun, Moon, Activity, Heart, Droplets, FileText, TrendingUp } from 'lucide-react'
+import { Loader2, CheckCircle, Calendar, Plus, X, Sunrise, Sun, Moon, Activity, Heart, Droplets, FileText, TrendingUp, Pencil, History, Save, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { MultiFileUpload } from '@/components/forms/multi-file-upload'
 import { uploadDocumentClient } from '@/lib/supabase/client-storage'
+import { useUser } from '@/hooks/use-user.hook'
+import { FormEditHistoryDialog } from '@/components/forms/form-edit-history-dialog'
 
 interface DailyMedicalUpdateFormProps {
   managementId: string
@@ -34,7 +36,12 @@ interface DailyMedicalUpdateFormProps {
   patientLastName: string
   formDate: string // YYYY-MM-DD
   programType: 'neurological' | 'mental_health' | 'addiction'
-  initialData?: Partial<DailyMedicalUpdateInput> & { id?: string }
+  initialData?: Partial<DailyMedicalUpdateInput> & { 
+    id?: string
+    edit_count?: number
+    edited_at?: string
+    edited_by?: string
+  }
   isCompleted?: boolean
   isStarted?: boolean
   onSuccess?: () => void
@@ -55,6 +62,12 @@ export function DailyMedicalUpdateForm({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSavingDraft, setIsSavingDraft] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [showEditHistory, setShowEditHistory] = useState(false)
+  const { profile } = useUser()
+
+  // Check if user can edit (Owner, Admin, Manager)
+  const canEdit = profile?.role && ['owner', 'admin', 'manager'].includes(profile.role)
 
   const form = useForm<DailyMedicalUpdateInput>({
     resolver: zodResolver(dailyMedicalUpdateSchema) as any,
@@ -571,12 +584,26 @@ export function DailyMedicalUpdateForm({
         cleanedData.ibogaine_doses = null
       }
 
-      const result = await submitDailyMedicalUpdate({
-        ...cleanedData,
-        submitted_by_name: submittedByName,
-      } as any)
+      let result
+      if (isEditMode && isCompleted) {
+        // Use update action for editing completed forms
+        result = await updateDailyMedicalUpdate({
+          ...cleanedData,
+          management_id: managementId,
+          form_date: formDate,
+          is_completed: true, // Keep form as completed
+          submitted_by_name: submittedByName,
+        } as any)
+      } else {
+        // Use submit action for new submissions
+        result = await submitDailyMedicalUpdate({
+          ...cleanedData,
+          submitted_by_name: submittedByName,
+        } as any)
+      }
       if (result?.data?.success) {
-        toast.success('Daily medical update submitted successfully')
+        toast.success(isEditMode ? 'Form updated successfully' : 'Daily medical update submitted successfully')
+        setIsEditMode(false)
         onSuccess?.()
       } else {
         toast.error(result?.data?.error || 'Failed to submit form')
@@ -603,15 +630,64 @@ export function DailyMedicalUpdateForm({
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 bg-white rounded-lg border border-gray-200 p-6">
-      {/* Status Badge */}
-      {isCompleted && (
-        <div className="flex items-center justify-end">
+      {/* Edit Notification Banner */}
+      {initialData?.edit_count && initialData.edit_count > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+          <div className="flex items-center gap-2 text-amber-800">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-sm font-medium">
+              This form has been edited {initialData.edit_count} time(s)
+            </span>
+            {initialData.edited_at && (
+              <span className="text-xs text-amber-600 ml-auto">
+                Last edited: {new Date(initialData.edited_at).toLocaleString()}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Status Badge and Edit Buttons */}
+      <div className="flex items-center justify-between">
+        {isCompleted && (
           <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
             <CheckCircle className="h-4 w-4" />
             <span className="text-sm font-medium">Completed</span>
           </div>
-        </div>
-      )}
+        )}
+        {isCompleted && canEdit && !isEditMode && (
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsEditMode(true)}>
+              <Pencil className="w-4 h-4 mr-2" />
+              Edit Form
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowEditHistory(true)}>
+              <History className="w-4 h-4 mr-2" />
+              View History
+            </Button>
+          </div>
+        )}
+        {isEditMode && (
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={isSubmitting}>
+              <Save className="w-4 h-4 mr-2" />
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
+            </Button>
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm"
+              onClick={() => { 
+                setIsEditMode(false)
+                form.reset()
+              }}
+            >
+              <X className="w-4 h-4 mr-2" />
+              Cancel
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* Patient Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -642,8 +718,8 @@ export function DailyMedicalUpdateForm({
               id="did_they_feel_hungry"
               {...form.register('did_they_feel_hungry')}
               rows={2}
-              disabled={isCompleted}
-              className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+              disabled={isCompleted && !isEditMode}
+              className={`mt-1 ${isCompleted && !isEditMode ? 'bg-gray-50' : ''}`}
             />
           </div>
 
@@ -653,8 +729,8 @@ export function DailyMedicalUpdateForm({
               id="using_bathroom_normally"
               {...form.register('using_bathroom_normally')}
               rows={2}
-              disabled={isCompleted}
-              className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+              disabled={isCompleted && !isEditMode}
+              className={`mt-1 ${isCompleted && !isEditMode ? 'bg-gray-50' : ''}`}
             />
           </div>
 
@@ -664,8 +740,8 @@ export function DailyMedicalUpdateForm({
               id="hydrating"
               {...form.register('hydrating')}
               rows={2}
-              disabled={isCompleted}
-              className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+              disabled={isCompleted && !isEditMode}
+              className={`mt-1 ${isCompleted && !isEditMode ? 'bg-gray-50' : ''}`}
             />
           </div>
 
@@ -678,8 +754,8 @@ export function DailyMedicalUpdateForm({
                 id="experiencing_tremors_motor_function"
                 {...form.register('experiencing_tremors_motor_function')}
                 rows={2}
-                disabled={isCompleted}
-                className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+                disabled={isCompleted && !isEditMode}
+                className={`mt-1 ${isCompleted && !isEditMode ? 'bg-gray-50' : ''}`}
               />
             </div>
           )}
@@ -690,8 +766,8 @@ export function DailyMedicalUpdateForm({
               id="withdrawal_symptoms"
               {...form.register('withdrawal_symptoms')}
               rows={2}
-              disabled={isCompleted}
-              className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+              disabled={isCompleted && !isEditMode}
+              className={`mt-1 ${isCompleted && !isEditMode ? 'bg-gray-50' : ''}`}
             />
           </div>
 
@@ -735,8 +811,8 @@ export function DailyMedicalUpdateForm({
                       {...form.register('how_guest_looks', { 
                         valueAsNumber: true
                       })}
-                      disabled={isCompleted}
-                      className={`energy-level-slider energy-level-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      disabled={isCompleted && !isEditMode}
+                      className={`energy-level-slider energy-level-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer ${isCompleted && !isEditMode ? 'opacity-50 cursor-not-allowed' : ''}`}
                       style={{
                         background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
                       }}
@@ -791,8 +867,8 @@ export function DailyMedicalUpdateForm({
                       {...form.register('energy_level', { 
                         valueAsNumber: true
                       })}
-                      disabled={isCompleted}
-                      className={`energy-level-slider energy-level-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      disabled={isCompleted && !isEditMode}
+                      className={`energy-level-slider energy-level-slider-${colorInfo.color} w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer ${isCompleted && !isEditMode ? 'opacity-50 cursor-not-allowed' : ''}`}
                       style={{
                         background: `linear-gradient(to right, ${colorInfo.rgb} 0%, ${colorInfo.rgb} ${progressPercent}%, rgb(229, 231, 235) ${progressPercent}%, rgb(229, 231, 235) 100%)`
                       }}
@@ -813,8 +889,8 @@ export function DailyMedicalUpdateForm({
               id="how_guest_says_they_feel"
               {...form.register('how_guest_says_they_feel')}
               rows={2}
-              disabled={isCompleted}
-              className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+              disabled={isCompleted && !isEditMode}
+              className={`mt-1 ${isCompleted && !isEditMode ? 'bg-gray-50' : ''}`}
             />
           </div>
         </div>
@@ -862,7 +938,7 @@ export function DailyMedicalUpdateForm({
                             form.setValue('morning_oxygen_saturation', null)
                           }
                         }}
-                        disabled={isCompleted}
+                        disabled={isCompleted && !isEditMode}
                       />
                       <Label htmlFor="morning_client_not_present" className="text-sm font-medium cursor-pointer text-amber-700">
                         Client not present
@@ -888,9 +964,9 @@ export function DailyMedicalUpdateForm({
                         <Input
                           id="morning_blood_pressure"
                           {...form.register('morning_blood_pressure')}
-                          placeholder="131/80"
-                          disabled={isCompleted || isClientNotPresent}
-                          className={`h-10 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          placeholder="-/-"
+                          disabled={(isCompleted && !isEditMode) || isClientNotPresent}
+                          className={`h-10 ${(isCompleted && !isEditMode) || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                         />
                       </div>
                       <div className="space-y-1">
@@ -904,9 +980,9 @@ export function DailyMedicalUpdateForm({
                           min={30}
                           max={200}
                           {...form.register('morning_heart_rate', { valueAsNumber: true })}
-                          placeholder="66"
-                          disabled={isCompleted || isClientNotPresent}
-                          className={`h-10 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          placeholder="-"
+                          disabled={(isCompleted && !isEditMode) || isClientNotPresent}
+                          className={`h-10 ${(isCompleted && !isEditMode) || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                         />
                         <p className="text-xs text-gray-500">bpm</p>
                       </div>
@@ -922,9 +998,9 @@ export function DailyMedicalUpdateForm({
                             min={0}
                             max={100}
                             {...form.register('morning_oxygen_saturation', { valueAsNumber: true })}
-                            placeholder="95"
-                            disabled={isCompleted || isClientNotPresent}
-                            className={`h-10 pr-8 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
+                            placeholder="-"
+                            disabled={(isCompleted && !isEditMode) || isClientNotPresent}
+                            className={`h-10 pr-8 ${(isCompleted && !isEditMode) || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-medium">%</span>
                         </div>
@@ -939,8 +1015,8 @@ export function DailyMedicalUpdateForm({
                         id="morning_inspected_by"
                         {...form.register('morning_inspected_by')}
                         placeholder="Staff member name"
-                        disabled={isCompleted}
-                        className={`h-9 mt-1 ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
+                        disabled={isCompleted && !isEditMode}
+                        className={`h-9 mt-1 ${isCompleted && !isEditMode ? 'bg-gray-100' : 'bg-white'}`}
                       />
                     </div>
                   </div>
@@ -961,7 +1037,7 @@ export function DailyMedicalUpdateForm({
                           id="morning_symptoms"
                           {...form.register('morning_symptoms')}
                           rows={4}
-                          disabled={isCompleted}
+                          disabled={isCompleted && !isEditMode}
                           placeholder="e.g., Apathetic, tired, good mood..."
                           className={`text-sm resize-y ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
                         />
@@ -975,7 +1051,7 @@ export function DailyMedicalUpdateForm({
                           id="morning_evolution"
                           {...form.register('morning_evolution')}
                           rows={4}
-                          disabled={isCompleted}
+                          disabled={isCompleted && !isEditMode}
                           placeholder="Progress notes, changes, improvements..."
                           className={`text-sm resize-y ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
                         />
@@ -1016,7 +1092,7 @@ export function DailyMedicalUpdateForm({
                             form.setValue('afternoon_oxygen_saturation', null)
                           }
                         }}
-                        disabled={isCompleted}
+                        disabled={isCompleted && !isEditMode}
                       />
                       <Label htmlFor="afternoon_client_not_present" className="text-sm font-medium cursor-pointer text-blue-700">
                         Client not present
@@ -1042,9 +1118,9 @@ export function DailyMedicalUpdateForm({
                         <Input
                           id="afternoon_blood_pressure"
                           {...form.register('afternoon_blood_pressure')}
-                          placeholder="131/80"
-                          disabled={isCompleted || isClientNotPresent}
-                          className={`h-10 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          placeholder="-/-"
+                          disabled={(isCompleted && !isEditMode) || isClientNotPresent}
+                          className={`h-10 ${(isCompleted && !isEditMode) || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                         />
                       </div>
                       <div className="space-y-1">
@@ -1058,9 +1134,9 @@ export function DailyMedicalUpdateForm({
                           min={30}
                           max={200}
                           {...form.register('afternoon_heart_rate', { valueAsNumber: true })}
-                          placeholder="66"
-                          disabled={isCompleted || isClientNotPresent}
-                          className={`h-10 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          placeholder="-"
+                          disabled={(isCompleted && !isEditMode) || isClientNotPresent}
+                          className={`h-10 ${(isCompleted && !isEditMode) || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                         />
                         <p className="text-xs text-gray-500">bpm</p>
                       </div>
@@ -1076,9 +1152,9 @@ export function DailyMedicalUpdateForm({
                             min={0}
                             max={100}
                             {...form.register('afternoon_oxygen_saturation', { valueAsNumber: true })}
-                            placeholder="95"
-                            disabled={isCompleted || isClientNotPresent}
-                            className={`h-10 pr-8 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
+                            placeholder="-"
+                            disabled={(isCompleted && !isEditMode) || isClientNotPresent}
+                            className={`h-10 pr-8 ${(isCompleted && !isEditMode) || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-medium">%</span>
                         </div>
@@ -1093,8 +1169,8 @@ export function DailyMedicalUpdateForm({
                         id="afternoon_inspected_by"
                         {...form.register('afternoon_inspected_by')}
                         placeholder="Staff member name"
-                        disabled={isCompleted}
-                        className={`h-9 mt-1 ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
+                        disabled={isCompleted && !isEditMode}
+                        className={`h-9 mt-1 ${isCompleted && !isEditMode ? 'bg-gray-100' : 'bg-white'}`}
                       />
                     </div>
                   </div>
@@ -1115,7 +1191,7 @@ export function DailyMedicalUpdateForm({
                           id="afternoon_symptoms"
                           {...form.register('afternoon_symptoms')}
                           rows={4}
-                          disabled={isCompleted}
+                          disabled={isCompleted && !isEditMode}
                           placeholder="e.g., Good attitude, alert, responsive..."
                           className={`text-sm resize-y ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
                         />
@@ -1129,7 +1205,7 @@ export function DailyMedicalUpdateForm({
                           id="afternoon_evolution"
                           {...form.register('afternoon_evolution')}
                           rows={4}
-                          disabled={isCompleted}
+                          disabled={isCompleted && !isEditMode}
                           placeholder="Progress notes, changes, improvements..."
                           className={`text-sm resize-y ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
                         />
@@ -1170,7 +1246,7 @@ export function DailyMedicalUpdateForm({
                             form.setValue('night_oxygen_saturation', null)
                           }
                         }}
-                        disabled={isCompleted}
+                        disabled={isCompleted && !isEditMode}
                       />
                       <Label htmlFor="night_client_not_present" className="text-sm font-medium cursor-pointer text-indigo-700">
                         Client not present
@@ -1197,8 +1273,8 @@ export function DailyMedicalUpdateForm({
                           id="night_blood_pressure"
                           {...form.register('night_blood_pressure')}
                           placeholder="117/76"
-                          disabled={isCompleted || isClientNotPresent}
-                          className={`h-10 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          disabled={(isCompleted && !isEditMode) || isClientNotPresent}
+                          className={`h-10 ${(isCompleted && !isEditMode) || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                         />
                       </div>
                       <div className="space-y-1">
@@ -1213,8 +1289,8 @@ export function DailyMedicalUpdateForm({
                           max={200}
                           {...form.register('night_heart_rate', { valueAsNumber: true })}
                           placeholder="63"
-                          disabled={isCompleted || isClientNotPresent}
-                          className={`h-10 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
+                          disabled={(isCompleted && !isEditMode) || isClientNotPresent}
+                          className={`h-10 ${(isCompleted && !isEditMode) || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                         />
                         <p className="text-xs text-gray-500">bpm</p>
                       </div>
@@ -1231,8 +1307,8 @@ export function DailyMedicalUpdateForm({
                             max={100}
                             {...form.register('night_oxygen_saturation', { valueAsNumber: true })}
                             placeholder="97"
-                            disabled={isCompleted || isClientNotPresent}
-                            className={`h-10 pr-8 ${isCompleted || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
+                            disabled={(isCompleted && !isEditMode) || isClientNotPresent}
+                            className={`h-10 pr-8 ${(isCompleted && !isEditMode) || isClientNotPresent ? 'bg-gray-100' : 'bg-white'}`}
                           />
                           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-medium">%</span>
                         </div>
@@ -1247,8 +1323,8 @@ export function DailyMedicalUpdateForm({
                         id="night_inspected_by"
                         {...form.register('night_inspected_by')}
                         placeholder="Staff member name"
-                        disabled={isCompleted}
-                        className={`h-9 mt-1 ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
+                        disabled={isCompleted && !isEditMode}
+                        className={`h-9 mt-1 ${isCompleted && !isEditMode ? 'bg-gray-100' : 'bg-white'}`}
                       />
                     </div>
                   </div>
@@ -1269,7 +1345,7 @@ export function DailyMedicalUpdateForm({
                           id="night_symptoms"
                           {...form.register('night_symptoms')}
                           rows={4}
-                          disabled={isCompleted}
+                          disabled={isCompleted && !isEditMode}
                           placeholder="e.g., Resting well, calm, peaceful..."
                           className={`text-sm resize-y ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
                         />
@@ -1283,7 +1359,7 @@ export function DailyMedicalUpdateForm({
                           id="night_evolution"
                           {...form.register('night_evolution')}
                           rows={4}
-                          disabled={isCompleted}
+                          disabled={isCompleted && !isEditMode}
                           placeholder="Progress notes, changes, improvements..."
                           className={`text-sm resize-y ${isCompleted ? 'bg-gray-100' : 'bg-white'}`}
                         />
@@ -1319,17 +1395,17 @@ export function DailyMedicalUpdateForm({
                 }
               }
             }}
-            disabled={isCompleted}
+            disabled={isCompleted && !isEditMode}
             className="flex items-center gap-6 mb-4"
           >
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="yes" id="ibogaine_given_yes" disabled={isCompleted} />
+              <RadioGroupItem value="yes" id="ibogaine_given_yes" disabled={isCompleted && !isEditMode} />
               <Label htmlFor="ibogaine_given_yes" className="text-sm font-normal cursor-pointer">
                 Yes
               </Label>
             </div>
             <div className="flex items-center space-x-2">
-              <RadioGroupItem value="no" id="ibogaine_given_no" disabled={isCompleted} />
+              <RadioGroupItem value="no" id="ibogaine_given_no" disabled={isCompleted && !isEditMode} />
               <Label htmlFor="ibogaine_given_no" className="text-sm font-normal cursor-pointer">
                 No
               </Label>
@@ -1381,7 +1457,7 @@ export function DailyMedicalUpdateForm({
                               form.setValue('ibogaine_doses', updatedDoses)
                             }}
                             placeholder="500"
-                            disabled={isCompleted}
+                            disabled={isCompleted && !isEditMode}
                             className={`pr-10 ${isCompleted ? 'bg-gray-50' : ''}`}
                           />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">mg</span>
@@ -1401,7 +1477,7 @@ export function DailyMedicalUpdateForm({
                             updatedDoses[index] = { ...updatedDoses[index], time: e.target.value }
                             form.setValue('ibogaine_doses', updatedDoses)
                           }}
-                          disabled={isCompleted}
+                          disabled={isCompleted && !isEditMode}
                           className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
                         />
                       </div>
@@ -1439,8 +1515,8 @@ export function DailyMedicalUpdateForm({
             id="medication_schedule"
             {...form.register('medication_schedule')}
             rows={3}
-            disabled={isCompleted}
-            className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+            disabled={isCompleted && !isEditMode}
+            className={`mt-1 ${isCompleted && !isEditMode ? 'bg-gray-50' : ''}`}
             placeholder="List all medications with times"
           />
         </div>
@@ -1451,8 +1527,8 @@ export function DailyMedicalUpdateForm({
             id="solutions_iv_saline_nadh"
             {...form.register('solutions_iv_saline_nadh')}
             rows={2}
-            disabled={isCompleted}
-            className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+            disabled={isCompleted && !isEditMode}
+            className={`mt-1 ${isCompleted && !isEditMode ? 'bg-gray-50' : ''}`}
           />
         </div>
 
@@ -1462,8 +1538,8 @@ export function DailyMedicalUpdateForm({
             id="medical_indications"
             {...form.register('medical_indications')}
             rows={3}
-            disabled={isCompleted}
-            className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+            disabled={isCompleted && !isEditMode}
+            className={`mt-1 ${isCompleted && !isEditMode ? 'bg-gray-50' : ''}`}
           />
         </div>
 
@@ -1473,8 +1549,8 @@ export function DailyMedicalUpdateForm({
             id="additional_observations_notes"
             {...form.register('additional_observations_notes')}
             rows={4}
-            disabled={isCompleted}
-            className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+            disabled={isCompleted && !isEditMode}
+            className={`mt-1 ${isCompleted && !isEditMode ? 'bg-gray-50' : ''}`}
           />
         </div>
       </div>
@@ -1492,7 +1568,7 @@ export function DailyMedicalUpdateForm({
           accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
           maxSizeMB={10}
           maxFiles={20}
-          disabled={isCompleted}
+          disabled={isCompleted && !isEditMode}
         />
       </div>
 
@@ -1550,7 +1626,7 @@ export function DailyMedicalUpdateForm({
       </div>
 
       {/* Save Draft and Submit Buttons */}
-      {!isCompleted && (
+      {!isCompleted && !isEditMode && (
         <div className="flex flex-col gap-4 border-t pt-4">
           {!canSubmit && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
@@ -1607,6 +1683,17 @@ export function DailyMedicalUpdateForm({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit History Dialog */}
+      {initialData?.id && (
+        <FormEditHistoryDialog
+          open={showEditHistory}
+          onOpenChange={setShowEditHistory}
+          formTable="patient_management_daily_medical_updates"
+          formId={initialData.id}
+          formTitle="Daily Medical Update"
+        />
       )}
     </form>
   )

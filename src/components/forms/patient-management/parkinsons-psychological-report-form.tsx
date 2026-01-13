@@ -18,8 +18,10 @@ import {
   type ParkinsonsPsychologicalReportInput 
 } from '@/lib/validations/patient-management-forms'
 import { toast } from 'sonner'
-import { Loader2, CheckCircle } from 'lucide-react'
+import { Loader2, CheckCircle, Pencil, History, Save, X, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
+import { useUser } from '@/hooks/use-user.hook'
+import { FormEditHistoryDialog } from '@/components/forms/form-edit-history-dialog'
 
 interface ParkinsonsPsychologicalReportFormProps {
   managementId: string
@@ -42,6 +44,12 @@ export function ParkinsonsPsychologicalReportForm({
   onSuccess 
 }: ParkinsonsPsychologicalReportFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [showEditHistory, setShowEditHistory] = useState(false)
+  const { profile } = useUser()
+
+  // Check if user can edit (Owner, Admin, Manager)
+  const canEdit = profile?.role && ['owner', 'admin', 'manager'].includes(profile.role)
   
   // Check both prop and initialData for completion status
   const formIsCompleted = isCompleted || (initialData as any)?.is_completed === true
@@ -136,26 +144,31 @@ export function ParkinsonsPsychologicalReportForm({
         iboga_wellness_team_support: data.iboga_wellness_team_support ?? DEFAULT_RATING,
       }
 
-      if (formIsCompleted) {
-        const result = await updateParkinsonsPsychologicalReport({
+      let result
+      if (isEditMode && formIsCompleted) {
+        // Use update action for editing completed forms
+        result = await updateParkinsonsPsychologicalReport({
+          ...submitData,
+          management_id: managementId,
+          is_completed: true, // Keep form as completed
+        } as any)
+      } else if (formIsCompleted) {
+        // Legacy update path (shouldn't happen with new edit mode)
+        result = await updateParkinsonsPsychologicalReport({
           ...submitData,
           is_completed: true,
         } as any)
-        
-        if (result?.data?.success) {
-          toast.success('Parkinson\'s psychological report updated successfully')
-          onSuccess?.()
-        } else {
-          toast.error(result?.data?.error || 'Failed to update form')
-        }
       } else {
-        const result = await submitParkinsonsPsychologicalReport(submitData as any)
-        if (result?.data?.success) {
-          toast.success('Parkinson\'s psychological report submitted successfully')
-          onSuccess?.()
-        } else {
-          toast.error(result?.data?.error || 'Failed to submit form')
-        }
+        // Submit new form
+        result = await submitParkinsonsPsychologicalReport(submitData as any)
+      }
+      
+      if (result?.data?.success) {
+        toast.success(isEditMode ? 'Form updated successfully' : (formIsCompleted ? 'Parkinson\'s psychological report updated successfully' : 'Parkinson\'s psychological report submitted successfully'))
+        setIsEditMode(false)
+        onSuccess?.()
+      } else {
+        toast.error(result?.data?.error || 'Failed to submit form')
       }
     } catch (error) {
       console.error('Error submitting form:', error)
@@ -178,6 +191,59 @@ export function ParkinsonsPsychologicalReportForm({
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 md:space-y-8">
+      {/* Edit Notification Banner */}
+      {initialData?.edit_count && initialData.edit_count > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+          <div className="flex items-center gap-2 text-amber-800">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-sm font-medium">
+              This form has been edited {initialData.edit_count} time(s)
+            </span>
+            {initialData.edited_at && (
+              <span className="text-xs text-amber-600 ml-auto">
+                Last edited: {new Date(initialData.edited_at).toLocaleString()}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Header with Edit Buttons */}
+      <div className="flex items-center justify-between border-b pb-4">
+        <h2 className="text-xl font-bold text-gray-900">Parkinson's Intake Psychological Report</h2>
+        {formIsCompleted && canEdit && !isEditMode && (
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsEditMode(true)}>
+              <Pencil className="w-4 h-4 mr-2" />
+              Edit Form
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowEditHistory(true)}>
+              <History className="w-4 h-4 mr-2" />
+              View History
+            </Button>
+          </div>
+        )}
+        {isEditMode && (
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={isSubmitting}>
+              <Save className="w-4 h-4 mr-2" />
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
+            </Button>
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm"
+              onClick={() => { 
+                setIsEditMode(false)
+                form.reset()
+              }}
+            >
+              <X className="w-4 h-4 mr-2" />
+              Cancel
+            </Button>
+          </div>
+        )}
+      </div>
 
       {/* Patient Info */}
       <div className="space-y-4 md:space-y-6">
@@ -195,7 +261,7 @@ export function ParkinsonsPsychologicalReportForm({
               {...form.register('reason_for_coming')}
               rows={3}
               className="mt-2 h-12 min-h-[80px]"
-              disabled={formIsCompleted}
+              disabled={formIsCompleted && !isEditMode}
               aria-invalid={!!form.formState.errors.reason_for_coming}
             />
             {form.formState.errors.reason_for_coming && (
@@ -216,7 +282,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('overall_mental_health_rating')}
             onChange={(value) => form.setValue('overall_mental_health_rating', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.overall_mental_health_rating as any)?.message}
           />
           <RatingSlider
@@ -225,7 +291,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('daily_stress_management')}
             onChange={(value) => form.setValue('daily_stress_management', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.daily_stress_management as any)?.message}
           />
           <RatingSlider
@@ -234,7 +300,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('depression_sadness_severity')}
             onChange={(value) => form.setValue('depression_sadness_severity', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.depression_sadness_severity as any)?.message}
           />
           <RatingSlider
@@ -243,7 +309,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('expressing_emotions_safety')}
             onChange={(value) => form.setValue('expressing_emotions_safety', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.expressing_emotions_safety as any)?.message}
           />
           <RatingSlider
@@ -252,7 +318,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('ibogaine_therapy_preparation')}
             onChange={(value) => form.setValue('ibogaine_therapy_preparation', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.ibogaine_therapy_preparation as any)?.message}
           />
           <RatingSlider
@@ -261,7 +327,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('support_system_strength')}
             onChange={(value) => form.setValue('support_system_strength', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.support_system_strength as any)?.message}
           />
           <RatingSlider
@@ -270,7 +336,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('treatment_outcome_hope')}
             onChange={(value) => form.setValue('treatment_outcome_hope', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.treatment_outcome_hope as any)?.message}
           />
           <RatingSlider
@@ -279,7 +345,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('anxiety_nervousness_severity')}
             onChange={(value) => form.setValue('anxiety_nervousness_severity', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.anxiety_nervousness_severity as any)?.message}
           />
           <RatingSlider
@@ -288,7 +354,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('emotional_numbness_frequency')}
             onChange={(value) => form.setValue('emotional_numbness_frequency', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.emotional_numbness_frequency as any)?.message}
           />
           <RatingSlider
@@ -297,7 +363,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('sleep_quality')}
             onChange={(value) => form.setValue('sleep_quality', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.sleep_quality as any)?.message}
           />
         </div>
@@ -314,7 +380,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('parkinsons_motor_symptoms_severity')}
             onChange={(value) => form.setValue('parkinsons_motor_symptoms_severity', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.parkinsons_motor_symptoms_severity as any)?.message}
           />
           <RatingSlider
@@ -323,7 +389,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('stiffness_difficulty_moving_frequency')}
             onChange={(value) => form.setValue('stiffness_difficulty_moving_frequency', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.stiffness_difficulty_moving_frequency as any)?.message}
           />
           <RatingSlider
@@ -332,7 +398,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('medication_effectiveness')}
             onChange={(value) => form.setValue('medication_effectiveness', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.medication_effectiveness as any)?.message}
           />
           <RatingSlider
@@ -341,7 +407,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('muscle_spasms_cramps_frequency')}
             onChange={(value) => form.setValue('muscle_spasms_cramps_frequency', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.muscle_spasms_cramps_frequency as any)?.message}
           />
           <RatingSlider
@@ -350,7 +416,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('non_motor_symptoms_severity')}
             onChange={(value) => form.setValue('non_motor_symptoms_severity', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.non_motor_symptoms_severity as any)?.message}
           />
           <RatingSlider
@@ -359,7 +425,7 @@ export function ParkinsonsPsychologicalReportForm({
             value={form.watch('iboga_wellness_team_support')}
             onChange={(value) => form.setValue('iboga_wellness_team_support', value)}
             required
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
             error={(form.formState.errors.iboga_wellness_team_support as any)?.message}
           />
         </div>
@@ -379,7 +445,7 @@ export function ParkinsonsPsychologicalReportForm({
               form.setValue('signature_data', '')
               form.setValue('signature_date', '')
             }}
-            disabled={formIsCompleted}
+            disabled={formIsCompleted && !isEditMode}
           />
         </div>
         {form.formState.errors.signature_data && (
@@ -394,14 +460,14 @@ export function ParkinsonsPsychologicalReportForm({
               value={form.watch('signature_date') || format(new Date(), 'yyyy-MM-dd')}
               onChange={(e) => form.setValue('signature_date', e.target.value)}
               className="mt-2 h-12"
-              disabled={formIsCompleted}
+              disabled={formIsCompleted && !isEditMode}
             />
           </div>
         )}
       </div>
 
       {/* Submit Button - Only show if form is not completed */}
-      {!formIsCompleted && (
+      {!formIsCompleted && !isEditMode && (
         <div className="flex justify-end gap-3 pt-6 border-t">
           <Button
             type="submit"
@@ -433,6 +499,17 @@ export function ParkinsonsPsychologicalReportForm({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit History Dialog */}
+      {initialData?.id && (
+        <FormEditHistoryDialog
+          open={showEditHistory}
+          onOpenChange={setShowEditHistory}
+          formTable="patient_management_parkinsons_psychological_reports"
+          formId={initialData.id}
+          formTitle="Parkinson's Psychological Report"
+        />
       )}
     </form>
   )
