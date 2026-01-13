@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { SignaturePad } from '@/components/forms/signature-pad'
 import { 
   startDailyMedicalUpdate, 
@@ -95,6 +96,9 @@ export function DailyMedicalUpdateForm({
       night_vital_signs: initialData?.night_vital_signs || '',
       night_symptoms: initialData?.night_symptoms || '',
       night_evolution: initialData?.night_evolution || '',
+      ibogaine_given: initialData?.ibogaine_given || 
+        (initialData?.ibogaine_doses && initialData.ibogaine_doses.length > 0 && initialData.ibogaine_doses.some((d: any) => d.dose > 0)) ? 'yes' :
+        (initialData?.ibogaine_dose && initialData.ibogaine_dose > 0) ? 'yes' : 'no',
       ibogaine_doses: initialData?.ibogaine_doses 
         ? (Array.isArray(initialData.ibogaine_doses) ? initialData.ibogaine_doses : [])
         : (initialData?.ibogaine_dose && initialData?.ibogaine_time 
@@ -495,12 +499,15 @@ export function DailyMedicalUpdateForm({
 
       // Clean up ibogaine_doses: remove entries with empty time or dose 0 and empty time
       // This allows saving draft even if dosage isn't filled in yet
+      // If ibogaine_given is "no", clear the doses
       const cleanedData = {
         ...data,
-        ibogaine_doses: data.ibogaine_doses?.filter((dose) => {
-          // Keep entries that have either a valid dose (> 0) or a time
-          return (dose.dose && dose.dose > 0) || (dose.time && dose.time.trim() !== '')
-        }) || null,
+        ibogaine_doses: data.ibogaine_given === 'no' 
+          ? null 
+          : (data.ibogaine_doses?.filter((dose) => {
+              // Keep entries that have either a valid dose (> 0) or a time
+              return (dose.dose && dose.dose > 0) || (dose.time && dose.time.trim() !== '')
+            }) || null),
       }
 
       // If all doses were filtered out, set to null/empty array
@@ -548,8 +555,24 @@ export function DailyMedicalUpdateForm({
         ? staffResult.data.data.fullName 
         : data.submitted_by_name || ''
 
-      const result = await submitDailyMedicalUpdate({
+      // Clean up ibogaine_doses: if ibogaine_given is "no", clear the doses
+      const cleanedData = {
         ...data,
+        ibogaine_doses: data.ibogaine_given === 'no' 
+          ? null 
+          : (data.ibogaine_doses?.filter((dose) => {
+              // Keep entries that have both a valid dose (> 0) and a time
+              return (dose.dose && dose.dose > 0) && (dose.time && dose.time.trim() !== '')
+            }) || null),
+      }
+
+      // If all doses were filtered out and ibogaine_given is "yes", set to empty array
+      if (cleanedData.ibogaine_given === 'yes' && cleanedData.ibogaine_doses && cleanedData.ibogaine_doses.length === 0) {
+        cleanedData.ibogaine_doses = null
+      }
+
+      const result = await submitDailyMedicalUpdate({
+        ...cleanedData,
         submitted_by_name: submittedByName,
       } as any)
       if (result?.data?.success) {
@@ -1278,97 +1301,136 @@ export function DailyMedicalUpdateForm({
       <div className="border-t pt-4 space-y-4">
         <h3 className="text-lg font-semibold text-gray-900">Medication & Treatment</h3>
         
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <Label className="block">Ibogaine Doses *</Label>
-            {!isCompleted && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const currentDoses = form.watch('ibogaine_doses') || []
-                  form.setValue('ibogaine_doses', [...currentDoses, { dose: 0, time: '' }])
-                }}
-                className="text-xs"
-              >
-                + Add Dose
-              </Button>
-            )}
-          </div>
-          <p className="text-sm text-gray-600 mb-4">
-            Record each ibogaine administration with its dose and time. You can add multiple doses if administered more than once.
-          </p>
-          
-          <div className="space-y-3">
-            {(form.watch('ibogaine_doses') || []).map((dose: { dose: number; time: string }, index: number) => (
-              <div key={index} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor={`ibogaine_dose_${index}`} className="text-sm">
-                      Dose {index + 1} (mg) *
-                    </Label>
-                    <div className="relative mt-1">
-                      <Input
-                        id={`ibogaine_dose_${index}`}
-                        type="number"
-                        min={0}
-                        value={dose.dose || ''}
-                        onChange={(e) => {
-                          const currentDoses = form.watch('ibogaine_doses') || []
-                          const updatedDoses = [...currentDoses]
-                          updatedDoses[index] = { ...updatedDoses[index], dose: parseFloat(e.target.value) || 0 }
-                          form.setValue('ibogaine_doses', updatedDoses)
-                        }}
-                        placeholder="500"
-                        disabled={isCompleted}
-                        className={`pr-10 ${isCompleted ? 'bg-gray-50' : ''}`}
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">mg</span>
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor={`ibogaine_time_${index}`} className="text-sm">
-                      Time {index + 1} *
-                    </Label>
-                    <Input
-                      id={`ibogaine_time_${index}`}
-                      type="time"
-                      value={dose.time || ''}
-                      onChange={(e) => {
-                        const currentDoses = form.watch('ibogaine_doses') || []
-                        const updatedDoses = [...currentDoses]
-                        updatedDoses[index] = { ...updatedDoses[index], time: e.target.value }
-                        form.setValue('ibogaine_doses', updatedDoses)
-                      }}
-                      disabled={isCompleted}
-                      className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
-                    />
-                  </div>
-                </div>
-                {!isCompleted && (form.watch('ibogaine_doses') || []).length > 1 && (
+        {/* Ibogaine Given Yes/No */}
+        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+          <Label className="block mb-3 text-base font-semibold text-gray-900">Was ibogaine given to the patient? *</Label>
+          <RadioGroup
+            value={form.watch('ibogaine_given') || 'no'}
+            onValueChange={(value) => {
+              form.setValue('ibogaine_given', value as 'yes' | 'no')
+              // If "no" is selected, clear the doses
+              if (value === 'no') {
+                form.setValue('ibogaine_doses', [])
+              } else if (value === 'yes') {
+                // If "yes" is selected and no doses exist, add one empty dose
+                const currentDoses = form.watch('ibogaine_doses') || []
+                if (currentDoses.length === 0) {
+                  form.setValue('ibogaine_doses', [{ dose: 0, time: '' }])
+                }
+              }
+            }}
+            disabled={isCompleted}
+            className="flex items-center gap-6 mb-4"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="yes" id="ibogaine_given_yes" disabled={isCompleted} />
+              <Label htmlFor="ibogaine_given_yes" className="text-sm font-normal cursor-pointer">
+                Yes
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="no" id="ibogaine_given_no" disabled={isCompleted} />
+              <Label htmlFor="ibogaine_given_no" className="text-sm font-normal cursor-pointer">
+                No
+              </Label>
+            </div>
+          </RadioGroup>
+
+          {/* Ibogaine Doses - Only show if "yes" is selected */}
+          {form.watch('ibogaine_given') === 'yes' && (
+            <div className="mt-4 pt-4 border-t border-blue-300">
+              <div className="flex items-center justify-between mb-3">
+                <Label className="block">Ibogaine Doses *</Label>
+                {!isCompleted && (
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
                     onClick={() => {
                       const currentDoses = form.watch('ibogaine_doses') || []
-                      const updatedDoses = currentDoses.filter((_: any, i: number) => i !== index)
-                      form.setValue('ibogaine_doses', updatedDoses)
+                      form.setValue('ibogaine_doses', [...currentDoses, { dose: 0, time: '' }])
                     }}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50 mt-6"
+                    className="text-xs"
                   >
-                    Remove
+                    + Add Dose
                   </Button>
                 )}
               </div>
-            ))}
-            {(!form.watch('ibogaine_doses') || form.watch('ibogaine_doses')?.length === 0) && (
-              <div className="text-center py-4 text-gray-500 text-sm border border-dashed border-gray-300 rounded-lg">
-                No doses added yet. Click "Add Dose" to add the first dose.
+              <p className="text-sm text-gray-600 mb-4">
+                Record each ibogaine administration with its dose and time. You can add multiple doses if administered more than once.
+              </p>
+              
+              <div className="space-y-3">
+                {(form.watch('ibogaine_doses') || []).map((dose: { dose: number; time: string }, index: number) => (
+                  <div key={index} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg bg-white">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor={`ibogaine_dose_${index}`} className="text-sm">
+                          Dose {index + 1} (mg) *
+                        </Label>
+                        <div className="relative mt-1">
+                          <Input
+                            id={`ibogaine_dose_${index}`}
+                            type="number"
+                            min={0}
+                            value={dose.dose || ''}
+                            onChange={(e) => {
+                              const currentDoses = form.watch('ibogaine_doses') || []
+                              const updatedDoses = [...currentDoses]
+                              updatedDoses[index] = { ...updatedDoses[index], dose: parseFloat(e.target.value) || 0 }
+                              form.setValue('ibogaine_doses', updatedDoses)
+                            }}
+                            placeholder="500"
+                            disabled={isCompleted}
+                            className={`pr-10 ${isCompleted ? 'bg-gray-50' : ''}`}
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">mg</span>
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor={`ibogaine_time_${index}`} className="text-sm">
+                          Time {index + 1} *
+                        </Label>
+                        <Input
+                          id={`ibogaine_time_${index}`}
+                          type="time"
+                          value={dose.time || ''}
+                          onChange={(e) => {
+                            const currentDoses = form.watch('ibogaine_doses') || []
+                            const updatedDoses = [...currentDoses]
+                            updatedDoses[index] = { ...updatedDoses[index], time: e.target.value }
+                            form.setValue('ibogaine_doses', updatedDoses)
+                          }}
+                          disabled={isCompleted}
+                          className={`mt-1 ${isCompleted ? 'bg-gray-50' : ''}`}
+                        />
+                      </div>
+                    </div>
+                    {!isCompleted && (form.watch('ibogaine_doses') || []).length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const currentDoses = form.watch('ibogaine_doses') || []
+                          const updatedDoses = currentDoses.filter((_: any, i: number) => i !== index)
+                          form.setValue('ibogaine_doses', updatedDoses)
+                        }}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 mt-6"
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                {(!form.watch('ibogaine_doses') || form.watch('ibogaine_doses')?.length === 0) && (
+                  <div className="text-center py-4 text-gray-500 text-sm border border-dashed border-gray-300 rounded-lg bg-white">
+                    No doses added yet. Click "Add Dose" to add the first dose.
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         <div>
@@ -1420,7 +1482,7 @@ export function DailyMedicalUpdateForm({
       {/* File Upload - Multiple Files */}
       <div className="border-t pt-4">
         <MultiFileUpload
-          label="Photos of Vitals and Medical Notes *"
+          label="Photos of vitals (optional)"
           value={form.watch('vitals_photos') || []}
           onChange={(files) => form.setValue('vitals_photos', files)}
           onUpload={async (file) => {

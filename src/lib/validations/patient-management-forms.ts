@@ -410,6 +410,7 @@ export const dailyMedicalUpdateSchema = z.object({
   night_evolution: stringOptional,
 
   // Medication & Treatment
+  ibogaine_given: z.enum(['yes', 'no']).optional().nullable(),
   ibogaine_doses: z.array(z.object({
     dose: z.number().min(0, 'Dose must be 0 or greater'),
     time: z.string().min(1, 'Time is required'),

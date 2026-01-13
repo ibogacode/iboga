@@ -414,6 +414,7 @@ export interface PatientManagementDailyMedicalUpdate extends BaseDailyForm {
   night_evolution: string | null
   
   // Medication & Treatment
+  ibogaine_given: 'yes' | 'no' | null
   ibogaine_doses: Array<{ dose: number; time: string }> | null
   ibogaine_frequency: 'once' | 'twice' | null // Keep for backward compatibility
   ibogaine_dose: number | null // Keep for backward compatibility
