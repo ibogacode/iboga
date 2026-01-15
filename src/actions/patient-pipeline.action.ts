@@ -4,6 +4,7 @@ import { authActionClient } from '@/lib/safe-action'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { hasOwnerAccess, hasStaffAccess } from '@/lib/utils'
 import { z } from 'zod'
+import { unstable_cache } from 'next/cache'
 
 // Get count of scheduled patients from calendar events
 export const getScheduledPatientsCount = authActionClient
@@ -205,278 +206,215 @@ export const getPartialIntakeForms = authActionClient
       .select('*')
       .order('created_at', { ascending: false })
       .limit(parsedInput.limit)
-    
+
     if (partialError) {
       return { success: false, error: partialError.message }
     }
-    
+
+    // Filter out patients who have moved to onboarding or management stages
+    // Get all patient emails that are already in onboarding or management
+    const partialFormEmails = (partialForms || []).map((pf: any) => pf.email?.toLowerCase().trim()).filter(Boolean)
+    let movedPatientsEmails = new Set<string>()
+
+    if (partialFormEmails.length > 0) {
+      // Check patient_onboarding table in chunks to avoid query size limits
+      const chunkSize = 100
+      for (let i = 0; i < partialFormEmails.length; i += chunkSize) {
+        const emailChunk = partialFormEmails.slice(i, i + chunkSize)
+        const { data: onboardingPatients } = await supabase
+          .from('patient_onboarding')
+          .select('email')
+          .in('email', emailChunk)
+
+        ;(onboardingPatients || []).forEach((p: any) => {
+          if (p.email) {
+            movedPatientsEmails.add(p.email.toLowerCase().trim())
+          }
+        })
+      }
+    }
+
+    // Filter out patients who are already in onboarding or management
+    const filteredPartialForms = (partialForms || []).filter((pf: any) => {
+      const email = pf.email?.toLowerCase().trim()
+      return email && !movedPatientsEmails.has(email)
+    })
+
     // Fetch creator profiles for partial forms
-    const creatorIds = [...new Set((partialForms || []).map((pf: any) => pf.created_by).filter(Boolean))]
+    const creatorIds = [...new Set((filteredPartialForms || []).map((pf: any) => pf.created_by).filter(Boolean))]
     let creators: any[] = []
-    
+
     if (creatorIds.length > 0) {
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('id, first_name, last_name, email')
         .in('id', creatorIds)
-      
+
       creators = profilesData || []
     }
-    
+
+    // Early return if no forms to process
+    if (filteredPartialForms.length === 0) {
+      return { success: true, data: [] }
+    }
+
     // Batch fetch all related data to avoid N+1 queries
     const adminClient = createAdminClient()
-    const forms = partialForms || []
-    
+    const forms = filteredPartialForms
+
     // Collect all intake form IDs (from completed_form_id)
     const completedIntakeFormIds = forms
       .map((f: any) => f.completed_form_id)
       .filter(Boolean)
-    
-    // Fetch program_type from completed forms (this is the authoritative source when candidate fills out form)
-    const completedFormsProgramTypeMap = new Map<string, string>()
-    if (completedIntakeFormIds.length > 0) {
-      const { data: completedForms } = await adminClient
-        .from('patient_intake_forms')
-        .select('id, program_type')
-        .in('id', completedIntakeFormIds)
-      
-      ;(completedForms || []).forEach((form: any) => {
-        if (form.program_type) {
-          completedFormsProgramTypeMap.set(form.id, form.program_type)
-        }
-      })
-    }
-    
-    // Collect all patient emails
-    const patientEmails = forms
+
+    // Collect all patient emails (deduplicated)
+    const patientEmails = [...new Set(forms
       .map((f: any) => f.email?.toLowerCase().trim())
-      .filter(Boolean)
-    
-    // Batch fetch all medical history forms
-    let allMedicalHistory: any[] = []
-    if (completedIntakeFormIds.length > 0) {
-      const { data } = await adminClient
-        .from('medical_history_forms')
-        .select('intake_form_id')
-        .in('intake_form_id', completedIntakeFormIds)
-      allMedicalHistory = data || []
-    }
-    
+      .filter(Boolean))]
+
+    // Batch all queries in parallel for maximum performance
+    const [
+      completedFormsData,
+      allMedicalHistoryData,
+      allServiceAgreementsByIntakeData,
+      allIbogaineConsentsByIntakeData,
+      existingDocsData
+    ] = await Promise.all([
+      // Fetch program_type from completed forms
+      completedIntakeFormIds.length > 0
+        ? adminClient.from('patient_intake_forms').select('id, program_type').in('id', completedIntakeFormIds)
+        : Promise.resolve({ data: [] }),
+      // Batch fetch all medical history forms
+      completedIntakeFormIds.length > 0
+        ? adminClient.from('medical_history_forms').select('intake_form_id').in('intake_form_id', completedIntakeFormIds)
+        : Promise.resolve({ data: [] }),
+      // Batch fetch all service agreements by intake_form_id
+      completedIntakeFormIds.length > 0
+        ? adminClient.from('service_agreements')
+          .select('intake_form_id, patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
+          .in('intake_form_id', completedIntakeFormIds)
+        : Promise.resolve({ data: [] }),
+      // Batch fetch ibogaine consent forms by intake_form_id
+      completedIntakeFormIds.length > 0
+        ? adminClient.from('ibogaine_consent_forms')
+          .select('intake_form_id, email, signature_data, signature_date, signature_name')
+          .in('intake_form_id', completedIntakeFormIds)
+        : Promise.resolve({ data: [] }),
+      // Batch fetch existing patient documents
+      adminClient.from('existing_patient_documents')
+        .select('partial_intake_form_id, form_type')
+        .in('partial_intake_form_id', forms.map((f: any) => f.id))
+    ])
+
+    // Build lookup maps from results
+    const completedFormsProgramTypeMap = new Map<string, string>()
+    ;(completedFormsData.data || []).forEach((form: any) => {
+      if (form.program_type) {
+        completedFormsProgramTypeMap.set(form.id, form.program_type)
+      }
+    })
+
     // Create set for O(1) lookup
     const medicalHistorySet = new Set(
-      (allMedicalHistory || []).map((m: any) => m.intake_form_id)
+      (allMedicalHistoryData.data || []).map((m: any) => m.intake_form_id)
     )
-    
-    // Batch fetch all service agreements by intake_form_id (include signature fields)
-    let allServiceAgreementsByIntake: any[] = []
-    if (completedIntakeFormIds.length > 0) {
-      const { data } = await adminClient
-        .from('service_agreements')
-        .select('intake_form_id, patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
-        .in('intake_form_id', completedIntakeFormIds)
-      allServiceAgreementsByIntake = data || []
-    }
-    
-    // Batch fetch all service agreements by patient_email (case-insensitive)
-    // Note: Supabase doesn't support batch ILIKE, so we'll check individually but cache results
-    const serviceAgreementByIntakeMap = new Map<string, any>() // intake_form_id -> service agreement object
-    const serviceAgreementByEmailMap = new Map<string, any>() // email -> service agreement object
-    
-    // Process service agreements by intake_form_id
-    allServiceAgreementsByIntake.forEach((sa: any) => {
-      // Check if service agreement is actually completed (signature fields filled)
-      const isCompleted = sa.patient_signature_name && 
+
+    // Build service agreement maps
+    const serviceAgreementByIntakeMap = new Map<string, any>()
+    const serviceAgreementByEmailMap = new Map<string, any>()
+
+    // Helper function to check if service agreement is completed
+    const isServiceAgreementCompleted = (sa: any) => {
+      return sa.patient_signature_name &&
         sa.patient_signature_name.trim() !== '' &&
-        sa.patient_signature_first_name && 
+        sa.patient_signature_first_name &&
         sa.patient_signature_first_name.trim() !== '' &&
-        sa.patient_signature_last_name && 
+        sa.patient_signature_last_name &&
         sa.patient_signature_last_name.trim() !== '' &&
         sa.patient_signature_date &&
         sa.patient_signature_data &&
         sa.patient_signature_data.trim() !== ''
-      
-      if (sa.intake_form_id && isCompleted) {
-        serviceAgreementByIntakeMap.set(sa.intake_form_id, sa)
-      }
-      if (sa.patient_email && isCompleted) {
-        serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), sa)
+    }
+
+    // Process service agreements from initial query
+    ;(allServiceAgreementsByIntakeData.data || []).forEach((sa: any) => {
+      if (isServiceAgreementCompleted(sa)) {
+        if (sa.intake_form_id) {
+          serviceAgreementByIntakeMap.set(sa.intake_form_id, sa)
+        }
+        if (sa.patient_email) {
+          serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), sa)
+        }
       }
     })
-    
-    // For forms without completed_form_id, batch fetch intake forms by email
+
+    // Build ibogaine consent maps
+    const ibogaineConsentByIntakeMap = new Map<string, any>()
+    const ibogaineConsentByEmailMap = new Map<string, any>()
+
+    // Helper function to check if ibogaine consent is completed
+    const isIbogaineConsentCompleted = (ic: any) => {
+      return ic.signature_data &&
+        ic.signature_data.trim() !== '' &&
+        ic.signature_date &&
+        ic.signature_name &&
+        ic.signature_name.trim() !== ''
+    }
+
+    // Process ibogaine consents from initial query
+    ;(allIbogaineConsentsByIntakeData.data || []).forEach((ic: any) => {
+      if (isIbogaineConsentCompleted(ic)) {
+        if (ic.intake_form_id) {
+          ibogaineConsentByIntakeMap.set(ic.intake_form_id, ic)
+        }
+        if (ic.email) {
+          ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), ic)
+        }
+      }
+    })
+
+    // Build existing documents map
+    const existingDocumentsByPartialFormMap = new Map<string, Set<string>>()
+    ;(existingDocsData.data || []).forEach((doc: any) => {
+      if (doc.partial_intake_form_id) {
+        if (!existingDocumentsByPartialFormMap.has(doc.partial_intake_form_id)) {
+          existingDocumentsByPartialFormMap.set(doc.partial_intake_form_id, new Set())
+        }
+        existingDocumentsByPartialFormMap.get(doc.partial_intake_form_id)?.add(doc.form_type)
+      }
+    })
+
+    // For forms without completed_form_id, fetch intake forms by email for fallback lookup
+    const intakeFormsByEmailMap = new Map<string, string>()
     const formsWithoutCompletedId = forms.filter((f: any) => !f.completed_form_id)
-    const emailsForIntakeLookup = [...new Set(
-      formsWithoutCompletedId.map((f: any) => f.email?.toLowerCase().trim()).filter(Boolean)
-    )]
-    
-    // Batch fetch intake forms by emails (we'll need to do this in chunks if too many)
-    const intakeFormsByEmailMap = new Map<string, string>() // email -> intake_form_id
-    if (emailsForIntakeLookup.length > 0) {
-      // Fetch in chunks of 50 (Supabase IN clause limit)
-      const chunkSize = 50
-      for (let i = 0; i < emailsForIntakeLookup.length; i += chunkSize) {
-        const emailChunk = emailsForIntakeLookup.slice(i, i + chunkSize)
+    if (formsWithoutCompletedId.length > 0) {
+      const emailsForLookup = [...new Set(formsWithoutCompletedId.map((f: any) => f.email?.toLowerCase().trim()).filter(Boolean))]
+      if (emailsForLookup.length > 0) {
         const { data: intakeForms } = await adminClient
           .from('patient_intake_forms')
           .select('id, email')
-          .in('email', emailChunk)
-        
+          .in('email', emailsForLookup)
+
         ;(intakeForms || []).forEach((form: any) => {
           const email = form.email?.toLowerCase().trim()
           if (email) {
             intakeFormsByEmailMap.set(email, form.id)
           }
         })
+
+        // Add these intake form IDs to medical history set if they have medical history
+        const intakeFormIds = Array.from(intakeFormsByEmailMap.values())
+        if (intakeFormIds.length > 0) {
+          const { data: medicalHistoryData } = await adminClient
+            .from('medical_history_forms')
+            .select('intake_form_id')
+            .in('intake_form_id', intakeFormIds)
+
+          ;(medicalHistoryData || []).forEach((m: any) => {
+            medicalHistorySet.add(m.intake_form_id)
+          })
+        }
       }
-    }
-    
-    // Get all intake form IDs from email lookup
-    const intakeFormIdsFromEmail = Array.from(intakeFormsByEmailMap.values())
-    
-    // Batch fetch medical history for intake forms found by email
-    let medicalHistoryForEmailIntakes = []
-    if (intakeFormIdsFromEmail.length > 0) {
-      const { data: medicalHistoryData } = await adminClient
-        .from('medical_history_forms')
-        .select('intake_form_id')
-        .in('intake_form_id', intakeFormIdsFromEmail)
-      
-      medicalHistoryForEmailIntakes = medicalHistoryData || []
-      medicalHistoryForEmailIntakes.forEach((m: any) => {
-        medicalHistorySet.add(m.intake_form_id)
-      })
-    }
-    
-    // Batch fetch service agreements for intake forms found by email (include signature fields)
-    if (intakeFormIdsFromEmail.length > 0) {
-      const { data: serviceAgreementsForEmailIntakes } = await adminClient
-        .from('service_agreements')
-        .select('intake_form_id, patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
-        .in('intake_form_id', intakeFormIdsFromEmail)
-      
-      ;(serviceAgreementsForEmailIntakes || []).forEach((sa: any) => {
-        // Check if service agreement is actually completed (signature fields filled)
-        const isCompleted = sa.patient_signature_name && 
-          sa.patient_signature_name.trim() !== '' &&
-          sa.patient_signature_first_name && 
-          sa.patient_signature_first_name.trim() !== '' &&
-          sa.patient_signature_last_name && 
-          sa.patient_signature_last_name.trim() !== '' &&
-          sa.patient_signature_date &&
-          sa.patient_signature_data &&
-          sa.patient_signature_data.trim() !== ''
-        
-        if (sa.intake_form_id && isCompleted) {
-          serviceAgreementByIntakeMap.set(sa.intake_form_id, sa)
-        }
-        if (sa.patient_email && isCompleted) {
-          serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), sa)
-        }
-      })
-    }
-    
-    // Batch fetch ibogaine consent forms (include signature fields)
-    const ibogaineConsentByIntakeMap = new Map<string, any>() // intake_form_id -> ibogaine consent object
-    const ibogaineConsentByEmailMap = new Map<string, any>() // email -> ibogaine consent object
-    
-    // Fetch ibogaine consent forms by intake_form_id
-    const allIntakeFormIds = [...completedIntakeFormIds, ...intakeFormIdsFromEmail]
-    if (allIntakeFormIds.length > 0) {
-      const { data: ibogaineConsents } = await adminClient
-        .from('ibogaine_consent_forms')
-        .select('intake_form_id, email, signature_data, signature_date, signature_name')
-        .in('intake_form_id', allIntakeFormIds)
-      
-      ;(ibogaineConsents || []).forEach((ic: any) => {
-        // Check if ibogaine consent is actually completed (signature fields filled)
-        const isCompleted = ic.signature_data && 
-          ic.signature_data.trim() !== '' &&
-          ic.signature_date &&
-          ic.signature_name &&
-          ic.signature_name.trim() !== ''
-        
-        if (ic.intake_form_id && isCompleted) {
-          ibogaineConsentByIntakeMap.set(ic.intake_form_id, ic)
-        }
-        if (ic.email && isCompleted) {
-          ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), ic)
-        }
-      })
-    }
-    
-    // Also fetch service agreements by patient_email (case-insensitive) for forms not linked by intake_form_id
-    if (patientEmails.length > 0) {
-      // Fetch in chunks of 50 (Supabase IN clause limit)
-      const chunkSize = 50
-      for (let i = 0; i < patientEmails.length; i += chunkSize) {
-        const emailChunk = patientEmails.slice(i, i + chunkSize)
-        const { data: serviceAgreementsByEmail } = await adminClient
-          .from('service_agreements')
-          .select('patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
-          .in('patient_email', emailChunk)
-        
-        ;(serviceAgreementsByEmail || []).forEach((sa: any) => {
-          // Check if service agreement is actually completed (signature fields filled)
-          const isCompleted = sa.patient_signature_name && 
-            sa.patient_signature_name.trim() !== '' &&
-            sa.patient_signature_first_name && 
-            sa.patient_signature_first_name.trim() !== '' &&
-            sa.patient_signature_last_name && 
-            sa.patient_signature_last_name.trim() !== '' &&
-            sa.patient_signature_date &&
-            sa.patient_signature_data &&
-            sa.patient_signature_data.trim() !== ''
-          
-          if (sa.patient_email && isCompleted) {
-            serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), sa)
-          }
-        })
-      }
-    }
-    
-    // Also fetch ibogaine consent forms by email (case-insensitive) for forms not linked by intake_form_id
-    if (patientEmails.length > 0) {
-      // Fetch in chunks of 50 (Supabase IN clause limit)
-      const chunkSize = 50
-      for (let i = 0; i < patientEmails.length; i += chunkSize) {
-        const emailChunk = patientEmails.slice(i, i + chunkSize)
-        const { data: ibogaineConsentsByEmail } = await adminClient
-          .from('ibogaine_consent_forms')
-          .select('email, signature_data, signature_date, signature_name')
-          .in('email', emailChunk)
-        
-        ;(ibogaineConsentsByEmail || []).forEach((ic: any) => {
-          // Check if ibogaine consent is actually completed (signature fields filled)
-          const isCompleted = ic.signature_data && 
-            ic.signature_data.trim() !== '' &&
-            ic.signature_date &&
-            ic.signature_name &&
-            ic.signature_name.trim() !== ''
-          
-          if (ic.email && isCompleted) {
-            ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), ic)
-          }
-        })
-      }
-    }
-    
-    // Batch fetch existing patient documents (uploaded documents)
-    const existingDocumentsByPartialFormMap = new Map<string, Set<string>>() // partial_form_id -> Set<form_type>
-    const partialFormIds = forms.map((f: any) => f.id).filter(Boolean)
-    if (partialFormIds.length > 0) {
-      const { data: existingDocs } = await adminClient
-        .from('existing_patient_documents')
-        .select('partial_intake_form_id, form_type')
-        .in('partial_intake_form_id', partialFormIds)
-      
-      ;(existingDocs || []).forEach((doc: any) => {
-        if (doc.partial_intake_form_id) {
-          if (!existingDocumentsByPartialFormMap.has(doc.partial_intake_form_id)) {
-            existingDocumentsByPartialFormMap.set(doc.partial_intake_form_id, new Set())
-          }
-          existingDocumentsByPartialFormMap.get(doc.partial_intake_form_id)?.add(doc.form_type)
-        }
-      })
     }
     
     // Now calculate completion counts using the lookup maps
@@ -629,158 +567,120 @@ export const getPublicIntakeForms = authActionClient
       .from('partial_intake_forms')
       .select('completed_form_id')
       .not('completed_form_id', 'is', null)
-    
+
     const completedFormIds = new Set(
       (partialForms || []).map((pf: any) => pf.completed_form_id)
     )
-    
+
     // Filter to only show direct public applications (not from partial forms)
-    const directApplications = (data || []).filter(
+    let directApplications = (data || []).filter(
       (form: any) => !completedFormIds.has(form.id)
     )
-    
+
+    // Filter out patients who have moved to onboarding or management stages
+    const publicPatientEmails = directApplications.map((f: any) => f.email?.toLowerCase().trim()).filter(Boolean)
+    const movedPublicPatientsEmails = new Set<string>()
+
+    if (publicPatientEmails.length > 0) {
+      // Check patient_onboarding table
+      const { data: onboardingPatients } = await supabase
+        .from('patient_onboarding')
+        .select('email')
+        .in('email', publicPatientEmails)
+
+      ;(onboardingPatients || []).forEach((p: any) => {
+        if (p.email) {
+          movedPublicPatientsEmails.add(p.email.toLowerCase().trim())
+        }
+      })
+    }
+
+    // Filter out patients who are already in onboarding or management
+    directApplications = directApplications.filter((f: any) => {
+      const email = f.email?.toLowerCase().trim()
+      return email && !movedPublicPatientsEmails.has(email)
+    })
+
+    // Early return if no forms to process
+    if (directApplications.length === 0) {
+      return { success: true, data: [] }
+    }
+
     // Batch fetch all related data to avoid N+1 queries
     const adminClient = createAdminClient()
-    
-    if (directApplications.length === 0) {
-      return {
-        success: true,
-        data: []
-      }
-    }
-    
+
     // Collect all intake form IDs
     const intakeFormIds = directApplications.map((f: any) => f.id)
-    
-    // Collect all patient emails
-    const patientEmails = directApplications
-      .map((f: any) => f.email?.toLowerCase().trim())
-      .filter(Boolean)
-    
-    // Batch fetch all medical history forms
-    const { data: allMedicalHistory } = await adminClient
-      .from('medical_history_forms')
-      .select('intake_form_id')
-      .in('intake_form_id', intakeFormIds)
-    
+
+    // Batch all queries in parallel for maximum performance
+    const [
+      allMedicalHistoryData,
+      allServiceAgreementsByIntakeData,
+      allIbogaineConsentsByIntakeData
+    ] = await Promise.all([
+      adminClient.from('medical_history_forms').select('intake_form_id').in('intake_form_id', intakeFormIds),
+      adminClient.from('service_agreements')
+        .select('intake_form_id, patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
+        .in('intake_form_id', intakeFormIds),
+      adminClient.from('ibogaine_consent_forms')
+        .select('intake_form_id, email, signature_data, signature_date, signature_name')
+        .in('intake_form_id', intakeFormIds)
+    ])
+
     // Create set for O(1) lookup
     const medicalHistorySet = new Set(
-      (allMedicalHistory || []).map((m: any) => m.intake_form_id)
+      (allMedicalHistoryData.data || []).map((m: any) => m.intake_form_id)
     )
-    
-    // Batch fetch all service agreements by intake_form_id (include signature fields)
-    const { data: allServiceAgreementsByIntake } = await adminClient
-      .from('service_agreements')
-      .select('intake_form_id, patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
-      .in('intake_form_id', intakeFormIds)
-    
-    // Create lookup maps
-    const serviceAgreementByIntakeMap = new Map<string, any>() // intake_form_id -> service agreement object
-    const serviceAgreementByEmailMap = new Map<string, any>() // email -> service agreement object
-    
-    // Process service agreements
-    ;(allServiceAgreementsByIntake || []).forEach((sa: any) => {
-      // Check if service agreement is actually completed (signature fields filled)
-      const isCompleted = sa.patient_signature_name && 
+
+    // Helper functions
+    const isServiceAgreementCompleted = (sa: any) => {
+      return sa.patient_signature_name &&
         sa.patient_signature_name.trim() !== '' &&
-        sa.patient_signature_first_name && 
+        sa.patient_signature_first_name &&
         sa.patient_signature_first_name.trim() !== '' &&
-        sa.patient_signature_last_name && 
+        sa.patient_signature_last_name &&
         sa.patient_signature_last_name.trim() !== '' &&
         sa.patient_signature_date &&
         sa.patient_signature_data &&
         sa.patient_signature_data.trim() !== ''
-      
-      if (sa.intake_form_id && isCompleted) {
-        serviceAgreementByIntakeMap.set(sa.intake_form_id, sa)
-      }
-      if (sa.patient_email && isCompleted) {
-        serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), sa)
+    }
+
+    const isIbogaineConsentCompleted = (ic: any) => {
+      return ic.signature_data &&
+        ic.signature_data.trim() !== '' &&
+        ic.signature_date &&
+        ic.signature_name &&
+        ic.signature_name.trim() !== ''
+    }
+
+    // Build lookup maps
+    const serviceAgreementByIntakeMap = new Map<string, any>()
+    const serviceAgreementByEmailMap = new Map<string, any>()
+
+    ;(allServiceAgreementsByIntakeData.data || []).forEach((sa: any) => {
+      if (isServiceAgreementCompleted(sa)) {
+        if (sa.intake_form_id) {
+          serviceAgreementByIntakeMap.set(sa.intake_form_id, sa)
+        }
+        if (sa.patient_email) {
+          serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), sa)
+        }
       }
     })
-    
-    // Also fetch service agreements by patient_email (case-insensitive) for forms not linked by intake_form_id
-    if (patientEmails.length > 0) {
-      // Fetch in chunks of 50 (Supabase IN clause limit)
-      const chunkSize = 50
-      for (let i = 0; i < patientEmails.length; i += chunkSize) {
-        const emailChunk = patientEmails.slice(i, i + chunkSize)
-        const { data: serviceAgreementsByEmail } = await adminClient
-          .from('service_agreements')
-          .select('patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
-          .in('patient_email', emailChunk)
-        
-        ;(serviceAgreementsByEmail || []).forEach((sa: any) => {
-          // Check if service agreement is actually completed (signature fields filled)
-          const isCompleted = sa.patient_signature_name && 
-            sa.patient_signature_name.trim() !== '' &&
-            sa.patient_signature_first_name && 
-            sa.patient_signature_first_name.trim() !== '' &&
-            sa.patient_signature_last_name && 
-            sa.patient_signature_last_name.trim() !== '' &&
-            sa.patient_signature_date &&
-            sa.patient_signature_data &&
-            sa.patient_signature_data.trim() !== ''
-          
-          if (sa.patient_email && isCompleted) {
-            serviceAgreementByEmailMap.set(sa.patient_email.toLowerCase().trim(), sa)
-          }
-        })
-      }
-    }
-    
-    // Batch fetch ibogaine consent forms (include signature fields)
-    const ibogaineConsentByIntakeMap = new Map<string, any>() // intake_form_id -> ibogaine consent object
-    const ibogaineConsentByEmailMap = new Map<string, any>() // email -> ibogaine consent object
-    
-    if (intakeFormIds.length > 0) {
-      const { data: ibogaineConsents } = await adminClient
-        .from('ibogaine_consent_forms')
-        .select('intake_form_id, email, signature_data, signature_date, signature_name')
-        .in('intake_form_id', intakeFormIds)
-      
-      ;(ibogaineConsents || []).forEach((ic: any) => {
-        // Check if ibogaine consent is actually completed (signature fields filled)
-        const isCompleted = ic.signature_data && 
-          ic.signature_data.trim() !== '' &&
-          ic.signature_date &&
-          ic.signature_name &&
-          ic.signature_name.trim() !== ''
-        
-        if (ic.intake_form_id && isCompleted) {
+
+    const ibogaineConsentByIntakeMap = new Map<string, any>()
+    const ibogaineConsentByEmailMap = new Map<string, any>()
+
+    ;(allIbogaineConsentsByIntakeData.data || []).forEach((ic: any) => {
+      if (isIbogaineConsentCompleted(ic)) {
+        if (ic.intake_form_id) {
           ibogaineConsentByIntakeMap.set(ic.intake_form_id, ic)
         }
-        if (ic.email && isCompleted) {
+        if (ic.email) {
           ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), ic)
         }
-      })
-    }
-    
-    // Also fetch ibogaine consent forms by email (case-insensitive) for forms not linked by intake_form_id
-    if (patientEmails.length > 0) {
-      // Fetch in chunks of 50 (Supabase IN clause limit)
-      const chunkSize = 50
-      for (let i = 0; i < patientEmails.length; i += chunkSize) {
-        const emailChunk = patientEmails.slice(i, i + chunkSize)
-        const { data: ibogaineConsentsByEmail } = await adminClient
-          .from('ibogaine_consent_forms')
-          .select('email, signature_data, signature_date, signature_name')
-          .in('email', emailChunk)
-        
-        ;(ibogaineConsentsByEmail || []).forEach((ic: any) => {
-          // Check if ibogaine consent is actually completed (signature fields filled)
-          const isCompleted = ic.signature_data && 
-            ic.signature_data.trim() !== '' &&
-            ic.signature_date &&
-            ic.signature_name &&
-            ic.signature_name.trim() !== ''
-          
-          if (ic.email && isCompleted) {
-            ibogaineConsentByEmailMap.set(ic.email.toLowerCase().trim(), ic)
-          }
-        })
       }
-    }
+    })
     
     // Calculate completion counts using lookup maps
     const dataWithCounts = directApplications.map((form: any) => {
@@ -822,8 +722,123 @@ export const getPublicIntakeForms = authActionClient
       }
     })
     
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: dataWithCounts
+    }
+  })
+
+// ============================================================================
+// Get Pipeline Statistics
+// ============================================================================
+export const getPipelineStatistics = authActionClient
+  .schema(z.object({}))
+  .action(async ({ ctx }) => {
+    const supabase = await createClient()
+
+    // Check if user is staff
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile || !hasStaffAccess(profile.role)) {
+      return { success: false, error: 'Unauthorized - Staff access required' }
+    }
+
+    try {
+      const adminClient = createAdminClient()
+
+      // Run all queries in parallel for performance
+      const [
+        onboardingResult,
+        serviceAgreementsResult,
+        previousMonthOnboardingResult,
+        previousMonthServiceAgreementsResult
+      ] = await Promise.all([
+        // Get current count of patients in onboarding (not moved to management yet)
+        adminClient
+          .from('patient_onboarding')
+          .select('id, status, created_at, email')
+          .neq('status', 'moved_to_management'),
+
+        // Get all service agreements for pipeline value calculation
+        adminClient
+          .from('service_agreements')
+          .select('patient_email, total_program_fee, created_at'),
+
+        // Get previous month onboarding count (30 days ago)
+        adminClient
+          .from('patient_onboarding')
+          .select('id')
+          .neq('status', 'moved_to_management')
+          .lte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+
+        // Get previous month service agreements (30 days ago)
+        adminClient
+          .from('service_agreements')
+          .select('total_program_fee')
+          .lte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+      ])
+
+      // Calculate onboarding count
+      const onboardingCount = onboardingResult.data?.length || 0
+      const previousOnboardingCount = previousMonthOnboardingResult.data?.length || 0
+
+      // Calculate "at risk" patients (in onboarding for more than 14 days without progress)
+      const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
+      const atRiskCount = onboardingResult.data?.filter(record => {
+        const createdDate = new Date(record.created_at)
+        return createdDate < fourteenDaysAgo
+      }).length || 0
+
+      // Calculate pipeline value (sum of all service agreement amounts for patients in pipeline)
+      // We need to match service agreements with patients who are in onboarding
+      const onboardingEmails = new Set(
+        onboardingResult.data?.map(o => o.email?.toLowerCase().trim()).filter(Boolean) || []
+      )
+
+      const pipelineValue = serviceAgreementsResult.data
+        ?.filter(sa => {
+          const email = sa.patient_email?.toLowerCase().trim()
+          return email && onboardingEmails.has(email)
+        })
+        .reduce((sum, sa) => sum + (Number(sa.total_program_fee) || 0), 0) || 0
+
+      // Calculate previous month pipeline value
+      const previousPipelineValue = previousMonthServiceAgreementsResult.data
+        ?.reduce((sum, sa) => sum + (Number(sa.total_program_fee) || 0), 0) || 0
+
+      // Calculate month-over-month percentage change
+      let monthOverMonthChange = 0
+      if (previousPipelineValue > 0) {
+        monthOverMonthChange = Math.round(((pipelineValue - previousPipelineValue) / previousPipelineValue) * 100)
+      } else if (pipelineValue > 0) {
+        monthOverMonthChange = 100 // If we had no value before and now we do, that's 100% growth
+      }
+
+      return {
+        success: true,
+        data: {
+          onboardingCount,
+          atRiskCount,
+          pipelineValue,
+          monthOverMonthChange,
+          previousOnboardingCount,
+          previousPipelineValue
+        }
+      }
+    } catch (error) {
+      console.error('[getPipelineStatistics] Error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch pipeline statistics'
+      }
     }
   })

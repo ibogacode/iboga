@@ -2,12 +2,22 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getPatientManagementList } from '@/actions/patient-management.action'
-import { 
-  Loader2, Users, CheckCircle2, Clock, Calendar, FileCheck, 
-  Stethoscope, FileText, Activity, AlertCircle, UserCheck, ClipboardList
+import { getPatientManagementList, dischargePatient } from '@/actions/patient-management.action'
+import {
+  Loader2, Users, CheckCircle2, Clock, Calendar, FileCheck,
+  Stethoscope, FileText, Activity, AlertCircle, UserCheck, ClipboardList, LogOut
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 
@@ -34,6 +44,9 @@ export default function PatientManagementPage() {
   const [patients, setPatients] = useState<PatientManagementRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<'active' | 'discharged' | 'transferred' | 'all'>('active')
+  const [dischargeDialogOpen, setDischargeDialogOpen] = useState(false)
+  const [selectedPatientForDischarge, setSelectedPatientForDischarge] = useState<PatientManagementRecord | null>(null)
+  const [isDischarging, setIsDischarging] = useState(false)
 
   useEffect(() => {
     loadPatientManagementList()
@@ -110,6 +123,35 @@ export default function PatientManagementPage() {
     return patient.program_type === 'neurological' ? 2 : 1
   }
 
+  function handleDischargeClick(patient: PatientManagementRecord) {
+    setSelectedPatientForDischarge(patient)
+    setDischargeDialogOpen(true)
+  }
+
+  async function confirmDischarge() {
+    if (!selectedPatientForDischarge) return
+
+    setIsDischarging(true)
+    try {
+      const result = await dischargePatient({
+        management_id: selectedPatientForDischarge.id,
+      })
+
+      if (result?.data?.success) {
+        toast.success(result.data.message || 'Patient discharged successfully')
+        loadPatientManagementList()
+        setDischargeDialogOpen(false)
+        setSelectedPatientForDischarge(null)
+      } else {
+        toast.error(result?.data?.error || 'Failed to discharge patient')
+      }
+    } catch (error) {
+      console.error('Error discharging patient:', error)
+      toast.error('An error occurred while discharging patient')
+    } finally {
+      setIsDischarging(false)
+    }
+  }
 
   // Calculate stats
   const activePatients = patients.filter(p => p.status === 'active').length
@@ -344,15 +386,26 @@ export default function PatientManagementPage() {
                               </span>
                             </Button>
                             {patient.status === 'active' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => router.push(`/patient-management/${patient.id}/daily-forms`)}
-                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              >
-                                <ClipboardList className="h-4 w-4 mr-1" />
-                                <span className="hidden sm:inline">Daily Forms</span>
-                              </Button>
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => router.push(`/patient-management/${patient.id}/daily-forms`)}
+                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                >
+                                  <ClipboardList className="h-4 w-4 mr-1" />
+                                  <span className="hidden sm:inline">Daily Forms</span>
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDischargeClick(patient)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <LogOut className="h-4 w-4 mr-1" />
+                                  <span className="hidden sm:inline">Discharge</span>
+                                </Button>
+                              </>
                             )}
                           </div>
                         </td>
@@ -365,6 +418,44 @@ export default function PatientManagementPage() {
           </div>
         )}
       </div>
+
+      {/* Discharge Confirmation Dialog */}
+      <AlertDialog open={dischargeDialogOpen} onOpenChange={setDischargeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discharge Patient?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedPatientForDischarge && (
+                <>
+                  This will discharge <strong>{selectedPatientForDischarge.first_name} {selectedPatientForDischarge.last_name}</strong> and set their actual departure date to today.
+                  {selectedPatientForDischarge.expected_departure_date && (
+                    <div className="mt-2 text-sm">
+                      Expected departure was: <strong>{formatDate(selectedPatientForDischarge.expected_departure_date)}</strong>
+                    </div>
+                  )}
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDischarging}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDischarge}
+              disabled={isDischarging}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDischarging ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Discharging...
+                </>
+              ) : (
+                'Discharge Patient'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

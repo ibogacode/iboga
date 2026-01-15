@@ -59,3 +59,34 @@ export async function getUserConversations() {
 
   return { conversations, error: null }
 }
+
+export async function getUnreadMessageCount() {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+    error: userErr,
+  } = await supabase.auth.getUser()
+
+  if (userErr || !user) {
+    return { count: 0, error: 'Not authenticated' }
+  }
+
+  const { data, error } = await supabase.rpc('get_user_conversations', {
+    p_user_id: user.id,
+    p_limit: 50,
+    p_offset: 0,
+  })
+
+  if (error) {
+    console.error('[getUnreadMessageCount] RPC error:', error)
+    return { count: 0, error: error.message }
+  }
+
+  // Sum up all unread counts across conversations
+  const totalUnread = (data ?? []).reduce((sum: number, conv: any) => {
+    return sum + (conv.unread_count ?? 0)
+  }, 0)
+
+  return { count: totalUnread, error: null }
+}

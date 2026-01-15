@@ -60,7 +60,10 @@ export interface PatientOnboarding {
   priority: OnboardingPriority
   assigned_to: string | null
   expected_arrival_date: string | null
-  
+  treatment_date: string | null
+  treatment_date_assigned_by: string | null
+  treatment_date_assigned_at: string | null
+
   // Timestamps
   started_at: string
   completed_at: string | null

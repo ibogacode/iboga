@@ -3,17 +3,19 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getOnboardingPatientsNew, moveToPatientManagement, uploadOnboardingFormDocument } from '@/actions/onboarding-forms.action'
-import { 
-  Loader2, Users, CheckCircle2, Clock, Eye, Calendar, CreditCard, 
+import {
+  Loader2, Users, CheckCircle2, Clock, Eye, Calendar, CreditCard,
   Plane, Stethoscope, FileCheck, ArrowRight, Send, UserCheck,
-  FileText, FileSignature, Camera, BookOpen, FileX, Upload, File
+  FileText, FileSignature, Camera, BookOpen, FileX, Upload, File, AlertCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import type { PatientOnboardingWithProgress } from '@/types'
 import { useUser } from '@/hooks/use-user.hook'
 import { hasStaffAccess } from '@/lib/utils'
+import { TreatmentDateCalendar } from '@/components/treatment-scheduling/treatment-date-calendar'
 
 // Onboarding forms
 const ONBOARDING_FORMS = [
@@ -32,6 +34,8 @@ export default function OnboardingPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'completed'>('all')
   const [uploadingForm, setUploadingForm] = useState<{ onboardingId: string; formType: string } | null>(null)
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [selectedPatient, setSelectedPatient] = useState<PatientOnboardingWithProgress | null>(null)
 
   useEffect(() => {
     loadOnboardingPatients()
@@ -119,7 +123,7 @@ export default function OnboardingPage() {
     if (!file) return
 
     setUploadingForm({ onboardingId, formType })
-    
+
     try {
       const result = await uploadOnboardingFormDocument({
         onboarding_id: onboardingId,
@@ -144,6 +148,16 @@ export default function OnboardingPage() {
         fileInputRefs.current[key]!.value = ''
       }
     }
+  }
+
+  function openCalendarModal(patient: PatientOnboardingWithProgress) {
+    setSelectedPatient(patient)
+    setCalendarOpen(true)
+  }
+
+  function handleCalendarSuccess() {
+    loadOnboardingPatients()
+    setCalendarOpen(false)
   }
 
   // Calculate stats
@@ -294,13 +308,10 @@ export default function OnboardingPage() {
                       Program
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Forms Progress
-                    </th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Form Status
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Started
+                      Treatment Date
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
@@ -327,79 +338,41 @@ export default function OnboardingPage() {
                           </span>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div className="w-24 bg-gray-200 rounded-full h-2">
-                              <div 
-                                className={`h-2 rounded-full transition-all ${
-                                  allFormsCompleted ? 'bg-emerald-500' : 'bg-amber-500'
-                                }`}
-                                style={{ width: `${(patient.forms_completed / 3) * 100}%` }}
-                              />
-                            </div>
-                            <span className={`text-xs sm:text-sm font-medium ${
-                              allFormsCompleted ? 'text-emerald-600' : 'text-amber-600'
-                            }`}>
-                              {patient.forms_completed}/3
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-3 sm:px-6 py-4">
-                          <div className="flex items-center gap-1 flex-wrap">
-                            {ONBOARDING_FORMS.map((form) => {
-                              const isCompleted = (patient as any)[form.key] as boolean | undefined
-                              const FormIcon = form.icon
-                              const formType = form.id as 'release' | 'outing' | 'regulations'
-                              const isUploading = uploadingForm?.onboardingId === patient.id && uploadingForm?.formType === form.id
-                              const inputKey = `${patient.id}-${form.id}`
-                              
-                              return (
-                                <div
-                                  key={form.id}
-                                  className="flex items-center gap-1"
-                                  title={`${form.label}: ${isCompleted ? 'Completed' : 'Pending'}`}
-                                >
-                                  {isCompleted ? (
-                                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                  ) : (
-                                    <Clock className="h-4 w-4 text-gray-300" />
-                                  )}
-                                  {isAdmin && (
-                                    <>
-                                      <input
-                                        ref={(el) => {
-                                          fileInputRefs.current[inputKey] = el
-                                        }}
-                                        type="file"
-                                        accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx"
-                                        className="hidden"
-                                        onChange={(e) => handleFileChange(e, patient.id, formType)}
-                                        disabled={isUploading}
-                                      />
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 p-0 hover:bg-gray-100"
-                                        onClick={() => handleUploadClick(patient.id, form.id)}
-                                        disabled={isUploading}
-                                        title={`Upload ${form.label}`}
-                                      >
-                                        {isUploading ? (
-                                          <Loader2 className="h-3 w-3 animate-spin text-gray-500" />
-                                        ) : (
-                                          <Upload className="h-3 w-3 text-gray-500" />
-                                        )}
-                                      </Button>
-                                    </>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
+                          <span className={`text-sm font-medium ${
+                            allFormsCompleted ? 'text-emerald-600' : 'text-amber-600'
+                          }`}>
+                            {patient.forms_completed}/3
+                          </span>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                          <div className="text-xs sm:text-sm text-gray-500">
-                            {formatDate(patient.created_at)}
-                          </div>
+                          {patient.treatment_date ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="default" className="bg-emerald-500">
+                                {formatDate(patient.treatment_date)}
+                              </Badge>
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openCalendarModal(patient)}
+                                  className="h-6 px-2 text-xs"
+                                >
+                                  Change
+                                </Button>
+                              )}
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openCalendarModal(patient)}
+                              disabled={!isAdmin}
+                              className="h-7"
+                            >
+                              <Calendar className="h-3 w-3 mr-1" />
+                              Assign Date
+                            </Button>
+                          )}
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -416,14 +389,20 @@ export default function OnboardingPage() {
                               <Button
                                 size="sm"
                                 onClick={() => handleMoveToManagement(patient.id)}
-                                disabled={movingPatient === patient.id}
-                                className="bg-emerald-600 hover:bg-emerald-700"
+                                disabled={!patient.treatment_date || movingPatient === patient.id}
+                                className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                                title={!patient.treatment_date ? 'Treatment date must be assigned first' : ''}
                               >
                                 {movingPatient === patient.id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                   <>
-                                    <UserCheck className="h-4 w-4 mr-1" />
+                                    {!patient.treatment_date && (
+                                      <AlertCircle className="h-4 w-4 mr-1" />
+                                    )}
+                                    {patient.treatment_date && (
+                                      <UserCheck className="h-4 w-4 mr-1" />
+                                    )}
                                     <span className="hidden sm:inline">Move to Management</span>
                                   </>
                                 )}
@@ -456,6 +435,18 @@ export default function OnboardingPage() {
           })}
         </div>
       </div>
+
+      {/* Treatment Date Calendar Modal */}
+      {selectedPatient && (
+        <TreatmentDateCalendar
+          open={calendarOpen}
+          onOpenChange={setCalendarOpen}
+          onboardingId={selectedPatient.id}
+          patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
+          currentTreatmentDate={selectedPatient.treatment_date}
+          onSuccess={handleCalendarSuccess}
+        />
+      )}
     </div>
   )
 }

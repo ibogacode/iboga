@@ -7,6 +7,7 @@ import { ibogaineConsentFormSchema } from '@/lib/validations/ibogaine-consent'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { sendIbogaineConsentConfirmationEmail, sendEmailDirect } from './email.action'
+import { autoCreateOnboarding } from './form-automation.action'
 
 /**
  * Get intake form data by ID for auto-population
@@ -429,14 +430,25 @@ export const submitIbogaineConsentForm = actionClient
         }).catch((error) => {
           console.error('Failed to send admin notification email for ibogaine consent:', error)
         })
+
+        // AUTO-CREATE ONBOARDING RECORD (Fire and forget)
+        autoCreateOnboarding({
+          intakeFormId: parsedInput.intake_form_id || null,
+          patientEmail: parsedInput.email,
+          patientFirstName: parsedInput.first_name,
+          patientLastName: parsedInput.last_name,
+          patientId: parsedInput.patient_id || null,
+        }).catch((error) => {
+          console.error('[submitIbogaineConsentForm] Failed to auto-create onboarding:', error)
+        })
       }
-      
-      return { 
-        success: true, 
-        data: { 
+
+      return {
+        success: true,
+        data: {
           id: data.id,
-          message: 'Ibogaine Therapy Consent Form submitted successfully' 
-        } 
+          message: 'Ibogaine Therapy Consent Form submitted successfully'
+        }
       }
     } else {
       // Insert new form (for admin/owner creating forms, or if no draft exists)
@@ -613,14 +625,25 @@ export const submitIbogaineConsentForm = actionClient
         }).catch((error) => {
           console.error('Failed to send admin notification email for ibogaine consent:', error)
         })
+
+        // AUTO-CREATE ONBOARDING RECORD (Fire and forget)
+        autoCreateOnboarding({
+          intakeFormId: parsedInput.intake_form_id || null,
+          patientEmail: parsedInput.email,
+          patientFirstName: parsedInput.first_name,
+          patientLastName: parsedInput.last_name,
+          patientId: parsedInput.patient_id || null,
+        }).catch((error) => {
+          console.error('[submitIbogaineConsentForm] Failed to auto-create onboarding:', error)
+        })
       }
-      
-      return { 
-        success: true, 
-        data: { 
+
+      return {
+        success: true,
+        data: {
           id: data.id,
-          message: 'Ibogaine Therapy Consent Form submitted successfully' 
-        } 
+          message: 'Ibogaine Therapy Consent Form submitted successfully'
+        }
       }
     }
   })

@@ -1719,3 +1719,66 @@ export const updateDailyOOWS = authActionClient
     revalidatePath('/patient-management')
     return { success: true, data, message: 'OOWS form updated successfully' }
   })
+
+// ============================================================================
+// Discharge Patient
+// ============================================================================
+
+const dischargePatientSchema = z.object({
+  management_id: z.string().uuid(),
+  discharge_notes: z.string().optional(),
+})
+
+export const dischargePatient = authActionClient
+  .schema(dischargePatientSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    // Check if user has admin/manager role
+    const isAdminStaff = ['owner', 'admin', 'manager'].includes(ctx.user.role)
+    if (!isAdminStaff) {
+      return { success: false, error: 'Unauthorized: admin staff access required' }
+    }
+
+    const supabase = await createClient()
+    const today = new Date().toISOString().split('T')[0]
+
+    // Get current patient info
+    const { data: patient } = await supabase
+      .from('patient_management')
+      .select('first_name, last_name, status')
+      .eq('id', parsedInput.management_id)
+      .single()
+
+    if (!patient) {
+      return { success: false, error: 'Patient not found' }
+    }
+
+    if (patient.status === 'discharged') {
+      return { success: false, error: 'Patient is already discharged' }
+    }
+
+    // Update patient_management record
+    const { data, error } = await supabase
+      .from('patient_management')
+      .update({
+        status: 'discharged',
+        actual_departure_date: today,
+        discharged_at: new Date().toISOString(),
+        notes: parsedInput.discharge_notes
+          ? `${parsedInput.discharge_notes}\n\n---\nDischarged on ${today}`
+          : `Discharged on ${today}`,
+      })
+      .eq('id', parsedInput.management_id)
+      .select()
+      .single()
+
+    if (error) {
+      return { success: false, error: handleSupabaseError(error, 'Failed to discharge patient') }
+    }
+
+    revalidatePath('/patient-management')
+    return {
+      success: true,
+      data,
+      message: `${patient.first_name} ${patient.last_name} has been discharged successfully`,
+    }
+  })

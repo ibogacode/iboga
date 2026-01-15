@@ -161,11 +161,28 @@ const fetchConversations = useCallback(
             );
           }
         )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'messages',
+            filter,
+          },
+          (payload) => {
+            // When messages are marked as read, refresh unread counts from database
+            const msg = payload.new as any;
+            if (msg.read_at) {
+              // Message was marked as read, refresh the conversation list to update unread counts
+              scheduleRefetch();
+            }
+          }
+        )
         .subscribe();
 
       channelRef.current = channel;
     },
-    [supabase, userId]
+    [supabase, userId, scheduleRefetch]
   );
 
   // Load auth user object once (client-side)
@@ -200,6 +217,33 @@ const fetchConversations = useCallback(
       inFlightRef.current = null;
     };
   }, [initialConversations, fetchConversations, safeSet, supabase]);
+
+  // Global subscription for new conversations (always active)
+  useEffect(() => {
+    if (!userId) return;
+
+    const newConvChannel = supabase
+      .channel(`new_conversations_for_${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'conversation_participants',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          // When current user is added to a new conversation, refresh the list
+          console.log('[Real-time] New conversation detected, refreshing list...');
+          scheduleRefetch();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(newConvChannel);
+    };
+  }, [userId, supabase, scheduleRefetch]);
 
   // Realtime subscription should track current conversation IDs
   useEffect(() => {

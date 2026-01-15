@@ -246,6 +246,8 @@ export function ChatWindow({
                         created_at: msg.created_at ?? new Date().toISOString(),
                         updated_at: msg.updated_at ?? new Date().toISOString(),
                         is_deleted: msg.is_deleted ?? false,
+                        delivered_at: (msg as any).delivered_at || undefined,
+                        read_at: (msg as any).read_at || undefined,
                         reply_to: msg.reply_to || undefined,
                         sender: msg.sender_id ? participantMapRef.current.get(msg.sender_id) : undefined,
                     };
@@ -318,6 +320,8 @@ export function ChatWindow({
                         created_at: newMsg.created_at ?? new Date().toISOString(),
                         updated_at: newMsg.updated_at ?? new Date().toISOString(),
                         is_deleted: newMsg.is_deleted ?? false,
+                        delivered_at: (newMsg as any).delivered_at || undefined,
+                        read_at: (newMsg as any).read_at || undefined,
                         reply_to: newMsg.reply_to || undefined,
                         sender: newMsg.sender_id ? participantMapRef.current.get(newMsg.sender_id) : undefined,
                     };

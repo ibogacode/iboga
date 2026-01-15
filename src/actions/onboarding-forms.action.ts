@@ -519,10 +519,30 @@ export const moveToPatientManagement = authActionClient
       return { success: false, error: 'Patient is already in management' }
     }
 
+    // Validate treatment_date is assigned
+    if (!onboarding.treatment_date) {
+      return {
+        success: false,
+        error: 'Treatment date must be assigned before moving to patient management',
+      }
+    }
+
     // Validate program_type
     if (!onboarding.program_type || !['neurological', 'mental_health', 'addiction'].includes(onboarding.program_type)) {
       return { success: false, error: 'Invalid program type. Cannot move to management.' }
     }
+
+    // Get service agreement to calculate expected_departure_date
+    const { data: serviceAgreement } = await supabase
+      .from('service_agreements')
+      .select('number_of_days')
+      .eq('patient_id', onboarding.patient_id)
+      .maybeSingle()
+
+    const numberOfDays = serviceAgreement?.number_of_days || 14
+
+    // Note: expected_departure_date will be auto-calculated by database trigger
+    // but we include program_duration for reference
 
     // Create patient_management record
     const { data: managementData, error: managementError } = await supabase
@@ -536,7 +556,8 @@ export const moveToPatientManagement = authActionClient
         phone_number: onboarding.phone_number,
         date_of_birth: onboarding.date_of_birth,
         program_type: onboarding.program_type,
-        arrival_date: new Date().toISOString().split('T')[0], // Today's date
+        arrival_date: onboarding.treatment_date, // Use assigned treatment date
+        program_duration: numberOfDays, // Store duration from service agreement
         status: 'active',
         created_by: ctx.user.id,
       })
