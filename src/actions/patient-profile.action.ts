@@ -297,19 +297,19 @@ export const getPatientProfile = authActionClient
 
     // Check for existing patient documents (uploaded documents for existing patients)
     let existingPatientDocuments: any[] = []
-    
+
     // First try to find by partial form ID
     if (partialForm?.id) {
       const { data: existingDocs } = await adminClient
         .from('existing_patient_documents')
         .select('*')
         .eq('partial_intake_form_id', partialForm.id)
-      
+
       if (existingDocs) {
         existingPatientDocuments = existingDocs
       }
     }
-    
+
     // Also check by patient email if we have it (for documents uploaded directly)
     if (existingPatientDocuments.length === 0 && patientEmail) {
       // Find partial forms for this email and get their documents
@@ -318,16 +318,102 @@ export const getPatientProfile = authActionClient
         .select('id')
         .eq('email', patientEmail)
         .order('created_at', { ascending: false })
-      
+
       if (partialFormsForEmail && partialFormsForEmail.length > 0) {
         const partialFormIds = partialFormsForEmail.map(pf => pf.id)
         const { data: existingDocs } = await adminClient
           .from('existing_patient_documents')
           .select('*')
           .in('partial_intake_form_id', partialFormIds)
-        
+
         if (existingDocs) {
           existingPatientDocuments = existingDocs
+        }
+      }
+    }
+
+    // Get onboarding data if patient has patient_id or email
+    let onboardingData: any = null
+    if (patientId) {
+      const { data: onboarding } = await adminClient
+        .from('patient_onboarding')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (onboarding) {
+        // Get onboarding forms
+        const [releaseForm, outingForm, regulationsForm] = await Promise.all([
+          adminClient
+            .from('release_forms')
+            .select('*')
+            .eq('onboarding_id', onboarding.id)
+            .maybeSingle()
+            .then(r => r.data),
+          adminClient
+            .from('outing_consent_forms')
+            .select('*')
+            .eq('onboarding_id', onboarding.id)
+            .maybeSingle()
+            .then(r => r.data),
+          adminClient
+            .from('internal_regulations_forms')
+            .select('*')
+            .eq('onboarding_id', onboarding.id)
+            .maybeSingle()
+            .then(r => r.data),
+        ])
+
+        onboardingData = {
+          onboarding,
+          forms: {
+            releaseForm,
+            outingForm,
+            regulationsForm,
+          }
+        }
+      }
+    } else if (patientEmail) {
+      const { data: onboarding } = await adminClient
+        .from('patient_onboarding')
+        .select('*')
+        .ilike('email', patientEmail)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (onboarding) {
+        // Get onboarding forms
+        const [releaseForm, outingForm, regulationsForm] = await Promise.all([
+          adminClient
+            .from('release_forms')
+            .select('*')
+            .eq('onboarding_id', onboarding.id)
+            .maybeSingle()
+            .then(r => r.data),
+          adminClient
+            .from('outing_consent_forms')
+            .select('*')
+            .eq('onboarding_id', onboarding.id)
+            .maybeSingle()
+            .then(r => r.data),
+          adminClient
+            .from('internal_regulations_forms')
+            .select('*')
+            .eq('onboarding_id', onboarding.id)
+            .maybeSingle()
+            .then(r => r.data),
+        ])
+
+        onboardingData = {
+          onboarding,
+          forms: {
+            releaseForm,
+            outingForm,
+            regulationsForm,
+          }
         }
       }
     }
@@ -345,35 +431,35 @@ export const getPatientProfile = authActionClient
       partialForm ? 'pending' : 
       'not_started'
     
-    const medicalHistoryStatus: 'completed' | 'not_started' = 
-      medicalHistoryForm ? 'completed' : 
-      hasMedicalDocument ? 'completed' : 
+    const medicalHistoryStatus: 'completed' | 'pending' | 'not_started' =
+      medicalHistoryForm ? 'completed' :
+      hasMedicalDocument ? 'completed' :
       'not_started'
-    
+
     // Check if service agreement is actually completed by patient (signature fields filled)
     // Match the patient-tasks check: only require essential signature fields (name, date, data)
     // patient_signature_first_name and patient_signature_last_name are optional for completion check
-    const serviceAgreementStatus: 'completed' | 'not_started' = 
-      (serviceAgreement && 
-       serviceAgreement.patient_signature_name && 
+    const serviceAgreementStatus: 'completed' | 'pending' | 'not_started' =
+      (serviceAgreement &&
+       serviceAgreement.patient_signature_name &&
        serviceAgreement.patient_signature_name.trim() !== '' &&
        serviceAgreement.patient_signature_date &&
        serviceAgreement.patient_signature_data &&
-       serviceAgreement.patient_signature_data.trim() !== '') ? 'completed' : 
-      hasServiceDocument ? 'completed' : 
-      serviceAgreement ? 'not_started' : // Form exists but patient hasn't filled signature
+       serviceAgreement.patient_signature_data.trim() !== '') ? 'completed' :
+      hasServiceDocument ? 'completed' :
+      serviceAgreement ? 'pending' : // Form exists but patient hasn't filled signature - show as pending
       'not_started'
-    
+
     // Check if ibogaine consent is actually completed by patient (signature fields filled)
-    const ibogaineConsentStatus: 'completed' | 'not_started' = 
-      (ibogaineConsentForm && 
-       ibogaineConsentForm.signature_data && 
+    const ibogaineConsentStatus: 'completed' | 'pending' | 'not_started' =
+      (ibogaineConsentForm &&
+       ibogaineConsentForm.signature_data &&
        ibogaineConsentForm.signature_data.trim() !== '' &&
        ibogaineConsentForm.signature_date &&
        ibogaineConsentForm.signature_name &&
-       ibogaineConsentForm.signature_name.trim() !== '') ? 'completed' : 
-      hasIbogaineDocument ? 'completed' : 
-      ibogaineConsentForm ? 'not_started' : // Form exists but patient hasn't filled signature
+       ibogaineConsentForm.signature_name.trim() !== '') ? 'completed' :
+      hasIbogaineDocument ? 'completed' :
+      ibogaineConsentForm ? 'pending' : // Form exists but patient hasn't filled signature - show as pending
       'not_started'
 
     return {
@@ -386,6 +472,7 @@ export const getPatientProfile = authActionClient
         serviceAgreement,
         ibogaineConsentForm,
         existingPatientDocuments, // Include uploaded documents
+        onboarding: onboardingData, // Include onboarding data
         formStatuses: {
           intake: intakeStatus,
           medicalHistory: medicalHistoryStatus,

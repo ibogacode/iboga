@@ -1,9 +1,13 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Search, Bell, Menu } from 'lucide-react'
+import { Search, Bell, Menu, MessageSquare, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useUnreadMessages } from '@/hooks/use-unread-messages.hook'
+import { useState, useEffect } from 'react'
+import { getUserConversations } from '@/app/(dashboard)/messages/actions'
 import {
   Sheet,
   SheetContent,
@@ -57,20 +61,49 @@ interface NavbarProps {
 }
 
 export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
+  const router = useRouter()
+  const { unreadCount } = useUnreadMessages()
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false)
+  const [conversations, setConversations] = useState<any[]>([])
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
+
+  // Load recent conversations when dropdown opens OR when unread count changes
+  useEffect(() => {
+    if (isNotificationOpen) {
+      setIsLoadingNotifications(true)
+      getUserConversations().then(({ conversations }) => {
+        // Show only conversations with unread messages, sorted by most recent
+        const unreadConversations = conversations
+          .filter((c: any) => c.unread_count > 0)
+          .sort((a: any, b: any) =>
+            new Date(b.last_message_at || b.updated_at).getTime() -
+            new Date(a.last_message_at || a.updated_at).getTime()
+          )
+          .slice(0, 5) // Show max 5 notifications
+        setConversations(unreadConversations)
+        setIsLoadingNotifications(false)
+      })
+    } else {
+      // Reset state when dropdown closes
+      setConversations([])
+      setIsLoadingNotifications(false)
+    }
+  }, [isNotificationOpen, unreadCount])
+
   // Get user name - prioritize generated name column, then construct from first/last, then fallback
-  const userName = profile?.name || 
-    (profile?.first_name && profile?.last_name 
-      ? `${profile.first_name} ${profile.last_name}` 
+  const userName = profile?.name ||
+    (profile?.first_name && profile?.last_name
+      ? `${profile.first_name} ${profile.last_name}`
       : profile?.first_name || profile?.last_name || user?.email?.split('@')[0] || 'User')
-  
+
   // Get user email - prioritize auth user email (most reliable), then profile email
   const userEmail = user?.email || profile?.email || ''
-  
+
   // Get avatar URL
   const userAvatar = profile?.avatar_url || ''
-  
+
   // Get initials for fallback
-  const userInitials = getInitials(profile?.name, profile?.first_name, profile?.last_name) || 
+  const userInitials = getInitials(profile?.name, profile?.first_name, profile?.last_name) ||
     (userEmail ? userEmail[0]?.toUpperCase() : 'U')
 
   return (
@@ -129,14 +162,103 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
               <Search className="h-4 w-4 md:h-5 md:w-5 text-black" />
               <span className="sr-only">Search</span>
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-auto w-auto p-1.5 md:p-2 hover:bg-transparent relative"
-            >
-              <Bell className="h-4 w-4 md:h-5 md:w-5 text-black" />
-              <span className="sr-only">Notifications</span>
-            </Button>
+            <DropdownMenu open={isNotificationOpen} onOpenChange={setIsNotificationOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-auto w-auto p-1.5 md:p-2 hover:bg-transparent relative"
+                >
+                  <Bell className="h-4 w-4 md:h-5 md:w-5 text-black" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 md:h-5 md:w-5 items-center justify-center rounded-full bg-red-500 text-[10px] md:text-xs font-medium text-white">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                  <span className="sr-only">Messages ({unreadCount} unread)</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuLabel>Messages</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {isLoadingNotifications ? (
+                  <div className="p-4 text-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400 mx-auto" />
+                  </div>
+                ) : conversations.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-gray-500">
+                    No unread messages
+                  </div>
+                ) : (
+                  <>
+                    {conversations.map((conv: any) => {
+                      // Get the other participant's name and info
+                      const otherParticipant = conv.participants?.find(
+                        (p: any) => p.user_id !== user?.id
+                      )
+                      const displayName = conv.is_group
+                        ? conv.name || 'Group Chat'
+                        : otherParticipant?.user?.name ||
+                          `${otherParticipant?.user?.first_name || ''} ${otherParticipant?.user?.last_name || ''}`.trim() ||
+                          'Unknown'
+
+                      // Get avatar and initials
+                      const avatarUrl = conv.is_group ? null : otherParticipant?.user?.avatar_url
+                      const initials = conv.is_group
+                        ? 'GC'
+                        : getInitials(
+                            otherParticipant?.user?.name,
+                            otherParticipant?.user?.first_name,
+                            otherParticipant?.user?.last_name
+                          ) || (otherParticipant?.user?.email?.[0]?.toUpperCase() || 'U')
+
+                      return (
+                        <DropdownMenuItem
+                          key={conv.id}
+                          className="cursor-pointer p-3 flex flex-col items-start gap-1"
+                          onClick={() => {
+                            router.push(`/messages?conversation=${conv.id}`)
+                            setIsNotificationOpen(false)
+                          }}
+                        >
+                          <div className="flex items-center gap-2 w-full">
+                            <Avatar className="h-8 w-8 shrink-0">
+                              <AvatarImage src={avatarUrl || undefined} alt={displayName} className="object-cover" />
+                              <AvatarFallback className="bg-[#2D3A1F] text-white text-xs">
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium text-sm truncate flex-1">
+                              {displayName}
+                            </span>
+                            {conv.unread_count > 0 && (
+                              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-medium text-white">
+                                {conv.unread_count}
+                              </span>
+                            )}
+                          </div>
+                          {conv.last_message_preview && (
+                            <p className="text-xs text-gray-500 truncate w-full pl-10">
+                              {conv.last_message_preview}
+                            </p>
+                          )}
+                        </DropdownMenuItem>
+                      )
+                    })}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="cursor-pointer justify-center text-center text-sm font-medium"
+                      onClick={() => {
+                        router.push('/messages')
+                        setIsNotificationOpen(false)
+                      }}
+                    >
+                      View all messages
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* User Avatar */}

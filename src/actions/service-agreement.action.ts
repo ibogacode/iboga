@@ -5,6 +5,7 @@ import { authActionClient } from '@/lib/safe-action'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { serviceAgreementSchema } from '@/lib/validations/service-agreement'
 import { sendServiceAgreementConfirmationEmail, sendEmailDirect } from './email.action'
+import { autoActivateIbogaineConsent } from './form-automation.action'
 
 /**
  * Get patient data for service agreement pre-population
@@ -314,8 +315,19 @@ export const submitServiceAgreement = authActionClient
         }).catch((error) => {
           console.error('Failed to send admin notification email for service agreement:', error)
         })
+
+        // AUTO-ACTIVATE IBOGAINE CONSENT FORM (Fire and forget)
+        autoActivateIbogaineConsent({
+          intakeFormId: parsedInput.intake_form_id || null,
+          patientEmail: parsedInput.patient_email,
+          patientFirstName: parsedInput.patient_first_name,
+          patientLastName: parsedInput.patient_last_name,
+          patientId: patientId || null,
+        }).catch((error) => {
+          console.error('[submitServiceAgreement] Failed to auto-activate ibogaine consent:', error)
+        })
       }
-      
+
       return { success: true, data: { id: data.id } }
     } else {
       // Get program_type from intake_form if available

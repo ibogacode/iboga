@@ -38,9 +38,9 @@ interface PatientProfileData {
   }>
   formStatuses: {
     intake: 'completed' | 'pending' | 'not_started'
-    medicalHistory: 'completed' | 'not_started'
-    serviceAgreement: 'completed' | 'not_started'
-    ibogaineConsent: 'completed' | 'not_started'
+    medicalHistory: 'completed' | 'pending' | 'not_started'
+    serviceAgreement: 'completed' | 'pending' | 'not_started'
+    ibogaineConsent: 'completed' | 'pending' | 'not_started'
   }
   onboarding?: {
     onboarding: any
@@ -118,78 +118,25 @@ export default function PatientProfilePage() {
     loadPatientProfile()
   }, [id])
 
-  // Load onboarding data after patient profile is loaded
-  useEffect(() => {
-    async function loadOnboarding() {
-      if (!profileData?.patient?.id) return
-      if (profileData.onboarding) return // Already loaded
-      
-      try {
-        setLoadingOnboarding(true)
-        const onboardingResult = await getOnboardingByPatientId({ patient_id: profileData.patient.id })
-        
-        if (!onboardingResult?.data?.data) {
-          // No onboarding found or error, which is fine
-          return
-        }
-        
-        // Check if result has success property (direct result) or is wrapped in SafeActionResult
-        const result = onboardingResult.data.data
-        
-        if ('success' in result && result.success && result.data) {
-          setProfileData(prev => prev ? {
-            ...prev,
-            onboarding: result.data,
-          } : prev)
-        } else if (result === null || ('success' in result && result.data === null)) {
-          // No onboarding found, which is fine
-        }
-      } catch (error) {
-        console.error('[PatientProfile] Error loading onboarding:', error)
-      } finally {
-        setLoadingOnboarding(false)
-      }
-    }
-    
-    loadOnboarding()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileData?.patient?.id, profileData?.onboarding])
-
   async function loadPatientProfile() {
     setIsLoading(true)
     try {
       // Determine if ID is a patient_id, partial form ID, or intake form ID
       // Try patientId first (for onboarding redirects), then try both form IDs
-      const result = await getPatientProfile({ 
+      const result = await getPatientProfile({
         patientId: id, // Try as patient_id first
         partialFormId: id, // Fallback to partial form ID
         intakeFormId: id, // Fallback to intake form ID
       })
-      
+
       console.log('[PatientProfile] Load result:', result)
-      
+
       if (result?.data?.success && result.data.data) {
         const data = result.data.data
         console.log('[PatientProfile] Profile data:', data)
-        
-        // Load onboarding data if patient has patient_id
-        let onboardingData = null
-        if (data.patient?.id) {
-          try {
-            setLoadingOnboarding(true)
-            // Try to find onboarding by patient_id - we'll fetch after setting initial profile data
-            // to avoid blocking the initial load
-          } catch (error) {
-            console.error('[PatientProfile] Error loading onboarding:', error)
-          } finally {
-            setLoadingOnboarding(false)
-          }
-        }
-        
-        setProfileData({
-          ...data,
-          onboarding: onboardingData,
-        } as PatientProfileData)
+
+        // Onboarding data is now included in the initial load
+        setProfileData(data as PatientProfileData)
         
         // Set form data for editing
         setFormData({
@@ -1233,32 +1180,7 @@ export default function PatientProfilePage() {
                 </div>
                 <div className="flex items-center gap-3">
                   {getStatusBadge(profileData.formStatuses.ibogaineConsent)}
-                  {profileData.ibogaineConsentForm?.id && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                        <Label htmlFor="ibogaine-activate" className="text-sm font-medium text-gray-700">
-                          {profileData.ibogaineConsentForm?.is_activated ? 'Activated' : 'Inactive'}
-                        </Label>
-                        {activatingForm === 'ibogaine' ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                        ) : (
-                          <Switch
-                            id="ibogaine-activate"
-                            checked={profileData.ibogaineConsentForm?.is_activated || false}
-                            disabled={activatingForm !== null || isFormCompleted('ibogaine')}
-                            onCheckedChange={(checked) => {
-                              const formId = profileData.ibogaineConsentForm?.id
-                              console.log('[Switch] Ibogaine Consent toggle:', { formId, checked, ibogaineConsentForm: profileData.ibogaineConsentForm })
-                              if (formId) {
-                                handleActivateForm('ibogaine', formId, checked)
-                              } else {
-                                console.error('[Switch] No form ID found:', profileData.ibogaineConsentForm)
-                                toast.error('Form ID not found. Please refresh the page.')
-                              }
-                            }}
-                          />
-                        )}
-                      </div>
-                  )}
+                  {/* Activation toggle removed - form is now auto-activated after Service Agreement completion */}
                   {profileData.formStatuses.ibogaineConsent === 'not_started' ? (
                     <div className="flex gap-2">
                       {isAdminOrOwner && (
@@ -1526,19 +1448,20 @@ export default function PatientProfilePage() {
               </div>
             )}
 
-            {/* Move to Onboarding Button - Only show when all 4 forms are completed */}
+            {/* Note: Onboarding is now auto-created when patient completes Ibogaine Consent Form */}
+            {/* Manual button kept as backup - automation should handle this automatically */}
             {!profileData.onboarding &&
              profileData.formStatuses.intake === 'completed' &&
              profileData.formStatuses.medicalHistory === 'completed' &&
              profileData.formStatuses.serviceAgreement === 'completed' &&
              profileData.formStatuses.ibogaineConsent === 'completed' && (
               <div className="mt-6 pt-6 border-t border-gray-200">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="font-medium text-emerald-800">All Forms Completed!</h3>
-                      <p className="text-sm text-emerald-600 mt-1">
-                        This patient has completed all 4 required forms and is ready to move to the onboarding stage.
+                      <h3 className="font-medium text-blue-800">All Forms Completed!</h3>
+                      <p className="text-sm text-blue-600 mt-1">
+                        Onboarding should be automatically created. If not visible after refreshing, use the button to manually create it.
                       </p>
                     </div>
                     <Button
@@ -1547,12 +1470,12 @@ export default function PatientProfilePage() {
                         try {
                           const intakeFormId = profileData.intakeForm?.id
                           const partialFormId = profileData.partialForm?.id
-                          
+
                           const result = await movePatientToOnboarding({
                             intake_form_id: intakeFormId || undefined,
                             partial_intake_form_id: partialFormId || undefined,
                           })
-                          
+
                           if (result?.data?.success) {
                             toast.success(result.data.data?.message || 'Patient moved to onboarding successfully')
                             router.push('/onboarding')
@@ -1567,7 +1490,8 @@ export default function PatientProfilePage() {
                         }
                       }}
                       disabled={isMovingToOnboarding}
-                      className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+                      variant="outline"
+                      className="border-blue-300 text-blue-700 hover:bg-blue-100 gap-2"
                     >
                       {isMovingToOnboarding ? (
                         <>
@@ -1577,7 +1501,7 @@ export default function PatientProfilePage() {
                       ) : (
                         <>
                           <UserPlus className="h-4 w-4" />
-                          Move to Onboarding
+                          Move to Onboarding (Manual)
                         </>
                       )}
                     </Button>

@@ -1391,6 +1391,155 @@ export async function sendIbogaineConsentConfirmationEmail(
   } else {
     console.log('[sendIbogaineConsentConfirmationEmail] Email sent successfully')
   }
-  
+
   return result
+}
+
+// Helper function to send onboarding forms email
+export async function sendOnboardingFormsEmail(
+  recipientEmail: string,
+  recipientFirstName: string,
+  recipientLastName: string,
+  onboardingId: string
+) {
+  const recipientName = `${recipientFirstName} ${recipientLastName}`.trim()
+  const formLink = `${process.env.NEXT_PUBLIC_APP_URL}/patient/onboarding?onboarding_id=${onboardingId}`
+
+  const subject = `Complete Your Onboarding Forms - ${recipientName} | Iboga Wellness Institute`
+
+  const htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body {
+          font-family: 'Helvetica Neue', Arial, sans-serif;
+          line-height: 1.8;
+          color: #333;
+          margin: 0;
+          padding: 0;
+          background-color: #f5f5f5;
+        }
+        .container {
+          max-width: 600px;
+          margin: 0 auto;
+          background: white;
+        }
+        .header {
+          background: #5D7A5F;
+          color: white;
+          padding: 40px 30px;
+          text-align: center;
+        }
+        .header h1 {
+          margin: 0;
+          font-size: 28px;
+          font-weight: 400;
+        }
+        .content {
+          padding: 40px 30px;
+          background: white;
+        }
+        .content h2 {
+          color: #5D7A5F;
+          font-size: 24px;
+          margin-top: 0;
+        }
+        .content p {
+          font-size: 16px;
+          color: #555;
+          margin-bottom: 20px;
+        }
+        .info-box {
+          background: #f9f9f9;
+          border-left: 4px solid #5D7A5F;
+          padding: 20px;
+          margin: 20px 0;
+        }
+        .cta-button {
+          display: inline-block;
+          background: #5D7A5F;
+          color: white !important;
+          padding: 16px 32px;
+          text-decoration: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          margin: 20px 0;
+        }
+        .cta-button:hover {
+          background: #4a6350;
+        }
+        .footer {
+          background: #f5f5f5;
+          padding: 30px;
+          text-align: center;
+          color: #777;
+          font-size: 14px;
+        }
+        .footer a {
+          color: #5D7A5F;
+          text-decoration: none;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Iboga Wellness Institute</h1>
+        </div>
+        <div class="content">
+          <h2>Complete Your Onboarding Forms</h2>
+
+          <p>Hello ${recipientName},</p>
+
+          <p>Congratulations on completing all your intake forms! You're now ready to complete the final onboarding forms before your treatment at Iboga Wellness Institute.</p>
+
+          <div class="info-box">
+            <p><strong>Forms to Complete:</strong></p>
+            <ul>
+              <li><strong>Release Form</strong> - Legal release and acknowledgment</li>
+              <li><strong>Outing Consent Form</strong> - Permission for therapeutic outings</li>
+              <li><strong>Internal Regulations Form</strong> - Facility rules and guidelines</li>
+            </ul>
+          </div>
+
+          <p>Click the button below to access and complete your onboarding forms:</p>
+
+          <div style="text-align: center;">
+            <a href="${formLink}" class="cta-button">Complete Onboarding Forms</a>
+          </div>
+
+          <p><strong>Important:</strong> These forms must be completed before we can assign your treatment date. Please complete them as soon as possible.</p>
+
+          <p><strong>What Happens Next:</strong></p>
+          <ol>
+            <li>Complete all 3 onboarding forms</li>
+            <li>Our admin team will assign your treatment date</li>
+            <li>You'll receive travel booking information</li>
+            <li>Your treatment journey begins!</li>
+          </ol>
+
+          <p>If you have any questions, please contact us:</p>
+          <p>
+            <strong>Phone:</strong> +1 (800) 604-7294<br>
+            <strong>Email:</strong> contactus@theibogainstitute.org
+          </p>
+
+          <p>Thank you,<br><strong>The Iboga Wellness Institute Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+          <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  return sendEmailDirect({
+    to: recipientEmail,
+    subject: subject,
+    body: htmlBody,
+  })
 }

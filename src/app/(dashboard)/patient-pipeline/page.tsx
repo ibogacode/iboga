@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getPartialIntakeForms, getPublicIntakeForms, getScheduledPatientsCount } from '@/actions/patient-pipeline.action'
+import { getPartialIntakeForms, getPublicIntakeForms, getScheduledPatientsCount, getPipelineStatistics } from '@/actions/patient-pipeline.action'
 import { Loader2, TrendingUp, TrendingDown, Eye, CheckCircle2, Users, Mail, UserPlus, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -60,6 +60,12 @@ export default function PatientPipelinePage() {
   const [publicForms, setPublicForms] = useState<PublicIntakeForm[]>([])
   const [scheduledCount, setScheduledCount] = useState<number>(0)
   const [isLoading, setIsLoading] = useState(true)
+
+  // Pipeline statistics state
+  const [onboardingCount, setOnboardingCount] = useState<number>(0)
+  const [atRiskCount, setAtRiskCount] = useState<number>(0)
+  const [pipelineValue, setPipelineValue] = useState<number>(0)
+  const [monthOverMonthChange, setMonthOverMonthChange] = useState<number>(0)
   const [selectedProgram, setSelectedProgram] = useState<string>('all')
   const [currentPagePartial, setCurrentPagePartial] = useState(1)
   const [currentPagePublic, setCurrentPagePublic] = useState(1)
@@ -120,18 +126,28 @@ export default function PatientPipelinePage() {
       // Don't block UI - load scheduled count in background
       setIsLoading(false)
       
-      // Load scheduled count asynchronously (doesn't block page render)
-      getScheduledPatientsCount({}).then(scheduledResult => {
+      // Load scheduled count and pipeline statistics asynchronously (doesn't block page render)
+      Promise.all([
+        getScheduledPatientsCount({}),
+        getPipelineStatistics({})
+      ]).then(([scheduledResult, statsResult]) => {
         if (scheduledResult?.data?.success && scheduledResult.data.data) {
           setScheduledCount(scheduledResult.data.data.count)
-          
+
           // Only log debug info in development
           if (process.env.NODE_ENV === 'development' && scheduledResult.data.data.debug) {
             console.log('[PatientPipeline] Scheduled Patients Debug Info:', scheduledResult.data.data.debug)
           }
         }
+
+        if (statsResult?.data?.success && statsResult.data.data) {
+          setOnboardingCount(statsResult.data.data.onboardingCount)
+          setAtRiskCount(statsResult.data.data.atRiskCount)
+          setPipelineValue(statsResult.data.data.pipelineValue)
+          setMonthOverMonthChange(statsResult.data.data.monthOverMonthChange)
+        }
       }).catch(error => {
-        console.error('[PatientPipeline] Failed to get scheduled count:', error)
+        console.error('[PatientPipeline] Failed to get scheduled count or statistics:', error)
         // Set to 0 on error to not break UI
         setScheduledCount(0)
       })
@@ -159,13 +175,23 @@ export default function PatientPipelinePage() {
     }
     
     setIsLoading(false)
-    
-    getScheduledPatientsCount({}).then(scheduledResult => {
+
+    Promise.all([
+      getScheduledPatientsCount({}),
+      getPipelineStatistics({})
+    ]).then(([scheduledResult, statsResult]) => {
       if (scheduledResult?.data?.success && scheduledResult.data.data) {
         setScheduledCount(scheduledResult.data.data.count)
       }
+
+      if (statsResult?.data?.success && statsResult.data.data) {
+        setOnboardingCount(statsResult.data.data.onboardingCount)
+        setAtRiskCount(statsResult.data.data.atRiskCount)
+        setPipelineValue(statsResult.data.data.pipelineValue)
+        setMonthOverMonthChange(statsResult.data.data.monthOverMonthChange)
+      }
     }).catch(error => {
-      console.error('[PatientPipeline] Failed to get scheduled count:', error)
+      console.error('[PatientPipeline] Failed to get scheduled count or statistics:', error)
       setScheduledCount(0)
     })
   }, [])
@@ -422,10 +448,10 @@ export default function PatientPipelinePage() {
         <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
           <div className="flex flex-col gap-2">
             <p className="text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">In Onboarding</p>
-            <p className="text-xl sm:text-2xl md:text-[25px] font-semibold text-black leading-[1.193em] tracking-[-0.04em]">9</p>
+            <p className="text-xl sm:text-2xl md:text-[25px] font-semibold text-black leading-[1.193em] tracking-[-0.04em]">{onboardingCount}</p>
             <div className="flex items-center gap-[10px] flex-wrap">
               <span className="flex items-center justify-center gap-[1px] px-3 py-0 h-[19px] rounded-[10px] bg-[#DEF8EE] text-[#10B981] text-xs leading-[1.193em] tracking-[-0.04em]">
-                3
+                {atRiskCount}
               </span>
               <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">at risk (slow)</p>
             </div>
@@ -436,10 +462,16 @@ export default function PatientPipelinePage() {
         <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
           <div className="flex flex-col gap-2">
             <p className="text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Pipeline Value</p>
-            <p className="text-xl sm:text-2xl md:text-[25px] font-semibold text-black leading-[1.193em] tracking-[-0.04em]">$380K</p>
+            <p className="text-xl sm:text-2xl md:text-[25px] font-semibold text-black leading-[1.193em] tracking-[-0.04em]">
+              ${pipelineValue >= 1000 ? `${(pipelineValue / 1000).toFixed(0)}K` : pipelineValue.toFixed(0)}
+            </p>
             <div className="flex items-center gap-[10px] flex-wrap">
-              <span className="flex items-center justify-center gap-[1px] px-3 py-0 h-[19px] rounded-[10px] bg-[#DEF8EE] text-[#10B981] text-xs leading-[1.193em] tracking-[-0.04em]">
-                7%
+              <span className={`flex items-center justify-center gap-[1px] px-3 py-0 h-[19px] rounded-[10px] text-xs leading-[1.193em] tracking-[-0.04em] ${
+                monthOverMonthChange >= 0
+                  ? 'bg-[#DEF8EE] text-[#10B981]'
+                  : 'bg-[#FEE2E2] text-[#EF4444]'
+              }`}>
+                {monthOverMonthChange > 0 ? '+' : ''}{monthOverMonthChange}%
               </span>
               <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">vs last month</p>
             </div>

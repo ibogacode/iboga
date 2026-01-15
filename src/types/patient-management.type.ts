@@ -45,7 +45,12 @@ export interface PatientManagement {
   program_notes: string | null
   program_name: string | null
   program_duration: number | null // Duration in days
-  
+
+  // Assessment tracking (after arrival, before program start)
+  assessment_date: string | null
+  assessment_completed_by: string | null
+  assessment_notes: string | null
+
   // Timestamps
   started_at: string
   discharged_at: string | null

@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { User } from '@/types'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { ChevronRight, User as UserIcon } from 'lucide-react'
+import { useUnreadMessages } from '@/hooks/use-unread-messages.hook'
 
 interface SidebarProps {
   role?: UserRole
@@ -50,7 +51,8 @@ const EXPANDED_WIDTH = 280
 export function Sidebar({ role = 'patient', user, profile, isMobile = false }: SidebarProps) {
   const pathname = usePathname()
   const [isExpanded, setIsExpanded] = useState(false)
-  
+  const { unreadCount } = useUnreadMessages()
+
   // Get navigation items based on role
   const navConfig = navigationByRole[role] || navigationByRole.patient
   const mainNavItems = navConfig.mainNav
@@ -152,21 +154,37 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
               const isItemExpanded = expandedItems.has(item.title) || (item.href && isActive)
               const hasHref = !!item.href
               
+              const isMessagesItem = item.title === 'Messages'
+              const showUnreadBadge = isMessagesItem && unreadCount > 0
+
               const itemContent = (
                 <>
                   {/* Active indicator */}
                   {isActive && showExpanded && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gray-900 rounded-r-full -ml-3" />
                   )}
-                  
-                  <Icon className={cn(
-                    'h-5 w-5 shrink-0',
-                    isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
-                  )} />
-                  
+
+                  <div className="relative">
+                    <Icon className={cn(
+                      'h-5 w-5 shrink-0',
+                      isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
+                    )} />
+                    {/* Unread badge on icon when collapsed */}
+                    {showUnreadBadge && !showExpanded && (
+                      <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-red-500">
+                        <span className="sr-only">{unreadCount} unread</span>
+                      </span>
+                    )}
+                  </div>
+
                   {showExpanded && (
                     <>
                       <span className="flex-1 whitespace-nowrap">{item.title}</span>
+                      {showUnreadBadge && (
+                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-medium text-white">
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
                       {hasChildren && (
                         <ChevronRight className={cn(
                           'h-4 w-4 shrink-0 transition-transform',
