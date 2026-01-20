@@ -78,7 +78,6 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
       first_name: '',
       last_name: '',
       email: '',
-      country: '',
     },
   })
 
