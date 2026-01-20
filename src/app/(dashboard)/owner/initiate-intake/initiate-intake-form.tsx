@@ -205,7 +205,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
         }
       } else {
         setIsSuccess(false)
-        setErrorMessage(result?.data?.error || 'Failed to add existing patient')
+        setErrorMessage(result?.data?.error || 'Failed to add existing client')
         setCurrentStep('confirmation')
         if (onStepChange) {
           onStepChange('confirmation')
@@ -213,7 +213,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
         setShowErrorDialog(true)
       }
     } catch (error) {
-      console.error('Error submitting existing patient:', error)
+      console.error('Error submitting existing client:', error)
       setIsSuccess(false)
       setErrorMessage('An unexpected error occurred')
       setCurrentStep('confirmation')
@@ -280,14 +280,14 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                 className="text-2xl font-medium text-black leading-[1.193em] tracking-[-0.04em]"
                 style={{ fontFamily: 'SF Pro Text, -apple-system, system-ui, sans-serif' }}
               >
-                {currentStep === 'confirmation' ? 'Invite Sent Successfully' : 'Add Patient'}
+                {currentStep === 'confirmation' ? 'Invite Sent Successfully' : 'Add Client'}
               </h1>
               <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">
-                {currentStep === 'entry-mode' && 'Choose how much information you want to capture before sending the patient application.'}
+                {currentStep === 'entry-mode' && 'Choose how much information you want to capture before sending the client application.'}
                 {currentStep === 'details' && (mode === 'minimal' 
-                  ? 'Minimal mode: enter name + email. We\'ll email the patient their application form link.'
-                  : 'Partial mode: capture key details while assisting the patient. Application link is emailed with data prefilled.')}
-                {currentStep === 'confirmation' && 'The patient has received their application form via email.'}
+                  ? 'Minimal mode: enter name + email. We\'ll email the client their application form link.'
+                  : 'Partial mode: capture key details while assisting the client. Application link is emailed with data prefilled.')}
+                {currentStep === 'confirmation' && 'The client has received their application form via email.'}
               </p>
             </div>
 
@@ -319,7 +319,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                     : 'text-[#090909] bg-transparent'
                 } ${currentStep === 'confirmation' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
               >
-                {mode === 'existing' ? 'Patient Details' : 'Details'}
+                {mode === 'existing' ? 'Client Details' : 'Details'}
               </button>
               <button
                 className={`w-[94px] h-[33px] rounded-full text-sm leading-[1.193em] tracking-[-0.04em] flex items-center justify-center ${
@@ -346,7 +346,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                     </div>
                     <div className="flex flex-col gap-[5px]">
                       <p className="text-sm text-[#777777] leading-[1.5em] tracking-[-0.04em]">
-                        Enter only name and email. We email the patient their application form.
+                        Enter only name and email. We email the client their application form.
                       </p>
                       <p className="text-sm text-[#777777] leading-[1.5em] tracking-[-0.04em] font-medium mt-2">
                         Name<br />Email
@@ -370,7 +370,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                     </div>
                     <div className="flex flex-col gap-[5px]">
                       <p className="text-sm text-[#777777] leading-[1.5em] tracking-[-0.04em]">
-                        Capture key details while assisting the patient. Application link is emailed with data prefilled.
+                        Capture key details while assisting the client. Application link is emailed with data prefilled.
                       </p>
                       <p className="text-sm text-[#777777] leading-[1.5em] tracking-[-0.04em] font-medium mt-2">
                         Name & Email<br />Emergency contact
@@ -386,15 +386,15 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                   </Button>
                 </div>
 
-                {/* Existing Patient Card */}
+                {/* Existing Client Card */}
                 <div className="flex-1 bg-[#F5F4F0] border border-[#D6D2C8] rounded-[10px] p-5 flex flex-col gap-[25px]">
                   <div className="flex flex-col gap-[3px]">
                     <div className="flex justify-between items-center">
-                      <h3 className="text-base font-normal text-black leading-[1.48em] tracking-[-0.04em]">Existing Patient</h3>
+                      <h3 className="text-base font-normal text-black leading-[1.48em] tracking-[-0.04em]">Existing Client</h3>
                     </div>
                     <div className="flex flex-col gap-[5px]">
                       <p className="text-sm text-[#777777] leading-[1.5em] tracking-[-0.04em]">
-                        Add an existing patient with all details. Admin can upload documents on their behalf.
+                        Add an existing client with all details. Admin can upload documents on their behalf.
                       </p>
                       <p className="text-sm text-[#777777] leading-[1.5em] tracking-[-0.04em] font-medium mt-2">
                         Full Details<br />Document Uploads
@@ -406,7 +406,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                     onClick={() => handleModeSelect('existing')}
                     className="w-full h-auto py-[10px] px-4 bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
                   >
-                    Add Existing Patient
+                    Add Existing Client
                   </Button>
                 </div>
               </div>
@@ -416,8 +416,8 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                 <h3 className="text-lg font-medium text-black leading-[1.193em] tracking-[-0.04em]">What happens next?</h3>
                 <p className="text-sm text-[#777777] leading-[2.03em] tracking-[-0.04em]">
                   Once selected, you'll enter the required details and the system will:<br />
-                  Create a patient record in the pipeline.<br />
-                  Send the patient a secure application form link.<br />
+                  Create a client record in the pipeline.<br />
+                  Send the client a secure application form link.<br />
                   Track form completion (0/4 → 4/4)
                 </p>
               </div>
@@ -452,9 +452,9 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
 
           {currentStep === 'details' && (
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-5">
-              {/* Patient Details Header */}
+              {/* Client Details Header */}
               <div className="flex flex-col gap-[10px]">
-                <h2 className="text-lg font-medium text-black leading-[1.193em] tracking-[-0.04em]">Patient Details</h2>
+                <h2 className="text-lg font-medium text-black leading-[1.193em] tracking-[-0.04em]">Client Details</h2>
                 <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Required fields are marked with *</p>
               </div>
 
@@ -480,13 +480,13 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="self" id="filled_by_self" />
                     <Label htmlFor="filled_by_self" className="font-normal cursor-pointer text-[#2B2820]">
-                      Patient will fill it out themselves
+                      Client will fill it out themselves
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="someone_else" id="filled_by_other" />
                     <Label htmlFor="filled_by_other" className="font-normal cursor-pointer text-[#2B2820]">
-                      Someone else will fill it out for the patient
+                      Someone else will fill it out for the client
                     </Label>
                   </div>
                 </RadioGroup>
@@ -499,7 +499,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                   <div className="mt-4 space-y-4 pt-4 border-t border-gray-200">
                     <div>
                       <Label htmlFor="filler_relationship" className="text-base font-medium text-[#2B2820]">
-                        What is their relationship to the patient? <span className="text-red-500">*</span>
+                        What is their relationship to the client? <span className="text-red-500">*</span>
                       </Label>
                       <Select
                         value={form.watch('filler_relationship') || ''}
@@ -599,7 +599,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                 )}
               </div>
 
-              {/* Patient Information - Only show if patient is filling themselves */}
+              {/* Client Information - Only show if client is filling themselves */}
               {form.watch('filled_by') === 'self' && (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -883,11 +883,11 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                   <div className="flex flex-col gap-[3px]">
                     <h3 className="text-base font-normal text-black leading-[1.48em] tracking-[-0.04em]">Invite Email Preview</h3>
                     <p className="text-sm text-[#2B2820] leading-[1.5em] tracking-[-0.04em]">
-                      Recipient: {form.watch('email') || '(Email above)'} • Template: Patient Application Link • Tracking: Opened / Completed
+                      Recipient: {form.watch('email') || '(Email above)'} • Template: Client Application Link • Tracking: Opened / Completed
                     </p>
                     <div className="pt-[10px] border-t border-[#D6D2C8] mt-[10px]">
                       <p className="text-sm text-[#777777] leading-[2.03em] tracking-[-0.04em]">
-                        The patient will receive a secure link to complete the full application and required forms (0/4 → 4/4).
+                        The client will receive a secure link to complete the full application and required forms (0/4 → 4/4).
                       </p>
                     </div>
                   </div>
@@ -957,18 +957,18 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                   </h1>
                   <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em] text-center">
                     {isSuccess 
-                      ? 'The patient has received their application form via email.'
+                      ? 'The client has received their application form via email.'
                       : (errorMessage || 'There was an error sending the invite. Please try again or contact support.')}
                   </p>
                 </div>
               </div>
 
-              {/* Patient Info Card - Only show on success */}
+              {/* Client Info Card - Only show on success */}
               {isSuccess && (
                 <div className="bg-[#F5F4F0] border border-[#D6D2C8] rounded-[10px] p-[15px] flex flex-col gap-[10px]">
                   <div className="flex justify-between items-center pb-5 border-b border-[#D6D2C8]">
                     <div className="flex flex-col gap-[10px]">
-                      <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Patient</p>
+                      <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Client</p>
                       <p className="text-base font-semibold text-[#2B2820] leading-[1.193em] tracking-[-0.04em]">
                         {submittedData.recipient_name}<br />
                         {submittedData.recipient_email}
@@ -985,7 +985,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                     <div className="flex flex-col gap-[10px]">
                       <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Next Step</p>
                       <p className="text-xs text-[#2B2820] leading-[1.193em] tracking-[-0.04em]">
-                        Waiting for patient to complete the application (0/4)
+                        Waiting for client to complete the application (0/4)
                       </p>
                     </div>
                     <div className="flex flex-col items-center gap-[10px]">
@@ -1003,7 +1003,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                 <div className="bg-[#F5F4F0] border border-[#D6D2C8] rounded-[10px] p-[15px] flex flex-col gap-[10px]">
                   <div className="flex justify-between items-center pb-5 border-b border-[#D6D2C8]">
                     <div className="flex flex-col gap-[10px]">
-                      <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Patient</p>
+                      <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Client</p>
                       <p className="text-base font-semibold text-[#2B2820] leading-[1.193em] tracking-[-0.04em]">
                         {submittedData.recipient_name}<br />
                         {submittedData.recipient_email}
@@ -1035,7 +1035,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                     </p>
                     <div className="pt-[10px] border-t border-[#D6D2C8] mt-[10px]">
                       <p className="text-sm text-[#777777] leading-[2.03em] tracking-[-0.04em]">
-                        If the patient doesn't respond, you can resend the invite or follow up manually.
+                        If the client doesn't respond, you can resend the invite or follow up manually.
                       </p>
                     </div>
                   </div>
@@ -1067,7 +1067,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                           onClick={handleAddAnotherPatient}
                           className="h-auto py-[10px] px-4 bg-white border border-[#D6D2C8] text-[#777777] hover:bg-gray-50 rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base w-full sm:w-auto"
                         >
-                          + Add Another Patient
+                          + Add Another Client
                         </Button>
                       </div>
                       <Button
@@ -1075,7 +1075,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                         onClick={handleViewPatientRecord}
                         className="h-auto py-[10px] px-4 bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base w-full sm:w-auto"
                       >
-                        View Patient Record
+                        View Client Record
                       </Button>
                     </>
                   ) : (
@@ -1087,7 +1087,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                           onClick={handleAddAnotherPatient}
                           className="h-auto py-[10px] px-4 bg-white border border-[#D6D2C8] text-[#777777] hover:bg-gray-50 rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-base w-full sm:w-auto"
                         >
-                          + Add Another Patient
+                          + Add Another Client
                         </Button>
                       </div>
                       <Button
@@ -1108,7 +1108,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                 </div>
                 {isSuccess && (
                   <p className="text-sm text-[#777777] leading-[2.03em] tracking-[-0.04em]">
-                    Tip: You can track completion progress in the Patient Pipeline dashboard.
+                    Tip: You can track completion progress in the Client Pipeline dashboard.
                   </p>
                 )}
               </div>

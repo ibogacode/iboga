@@ -67,13 +67,13 @@ export default function OnboardingPage() {
     try {
       const result = await moveToPatientManagement({ onboarding_id: onboardingId })
       if (result?.data?.success) {
-        toast.success('Patient moved to Patient Management successfully')
+        toast.success('Client moved to Client Management successfully')
         loadOnboardingPatients()
       } else {
-        toast.error(result?.data?.error || 'Failed to move patient')
+        toast.error(result?.data?.error || 'Failed to move client')
       }
     } catch (error) {
-      console.error('Error moving patient:', error)
+      console.error('Error moving client:', error)
       toast.error('An error occurred')
     } finally {
       setMovingPatient(null)
@@ -99,13 +99,13 @@ export default function OnboardingPage() {
   }
 
   function handleViewPatient(patient: PatientOnboardingWithProgress) {
-    // If patient_id exists, redirect to patient profile
+    // If patient_id exists, redirect to client profile
     if (patient.patient_id) {
       router.push(`/patient-pipeline/patient-profile/${patient.patient_id}`)
     } else {
-      // Fallback: try to find patient by email or intake form
+      // Fallback: try to find client by email or intake form
       // For now, show error since we need patient_id to view profile
-      toast.error('Patient profile not linked. Please link the patient first.')
+      toast.error('Client profile not linked. Please link the client first.')
     }
   }
 
@@ -184,7 +184,7 @@ export default function OnboardingPage() {
           Onboarding
         </h1>
         <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">
-          Track onboarding forms completion and move patients to management
+          Track onboarding forms completion and move clients to management
         </p>
       </div>
 
@@ -192,7 +192,7 @@ export default function OnboardingPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Patients in Onboarding */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Patients in Onboarding</p>
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Clients in Onboarding</p>
           {isLoading ? (
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           ) : (
@@ -278,7 +278,7 @@ export default function OnboardingPage() {
       <div className="mt-4">
         <div className="flex items-center gap-2 mb-4">
           <Users className="h-5 w-5 text-emerald-600" />
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Patients in Onboarding</h2>
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Clients in Onboarding</h2>
           <span className="px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">
             {totalOnboarding}
           </span>
@@ -290,9 +290,9 @@ export default function OnboardingPage() {
           </div>
         ) : patients.length === 0 ? (
           <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-100 text-center">
-            <p className="text-gray-500 text-sm sm:text-base">No patients in onboarding yet.</p>
+            <p className="text-gray-500 text-sm sm:text-base">No clients in onboarding yet.</p>
             <p className="text-gray-400 text-xs sm:text-sm mt-2">
-              Patients who complete all 4 pipeline forms and are moved to onboarding will appear here.
+              Clients who complete all 4 pipeline forms and are moved to onboarding will appear here.
             </p>
           </div>
         ) : (
@@ -302,7 +302,7 @@ export default function OnboardingPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Patient
+                      Client
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Program
