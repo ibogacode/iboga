@@ -52,16 +52,11 @@ export const patientIntakeFormSchema = z.object({
     }, 'Phone number must contain at least 10 digits'),
   date_of_birth: z.string().optional().nullable(),
   gender: z.enum(['male', 'female', 'other', 'prefer-not-to-say']).optional().nullable(),
-  address: z.string().min(1, 'Address is required'),
+  address_line_1: z.string().min(1, 'Address Line 1 is required'),
+  address_line_2: z.string().optional().nullable(),
   city: z.string().min(1, 'City is required'),
-  state: z.string().min(1, 'Please select a state'),
-  zip_code: z.string()
-    .min(1, 'Zip code is required')
-    .refine((val) => {
-      // Only allow numbers and hyphens (US zip code format: 5 digits or 5+4 format)
-      const zipPattern = /^\d{5}(-\d{4})?$/
-      return zipPattern.test(val)
-    }, 'Please enter a valid zip code (e.g., 12345 or 12345-6789)'),
+  country: z.string().min(1, 'Country is required'),
+  zip_code: z.string().min(1, 'Zip code or postal code is required'),
   
   // Emergency Contact Information
   emergency_contact_first_name: z.string().min(1, 'Emergency contact first name is required'),
@@ -87,29 +82,31 @@ export const patientIntakeFormSchema = z.object({
   }),
   // Optional field for linking to partial form (not validated, just passed through)
   partialFormId: z.string().uuid().optional(),
-}).refine((data) => {
-  // If filled by someone else, require filler information
-  if (data.filled_by === 'someone_else') {
-    if (!data.filler_relationship || data.filler_relationship.trim() === '') {
-      return false
-    }
-    if (!data.filler_first_name || data.filler_first_name.trim() === '') {
-      return false
-    }
-    if (!data.filler_last_name || data.filler_last_name.trim() === '') {
-      return false
-    }
-    if (!data.filler_email || data.filler_email.trim() === '') {
-      return false
-    }
-    if (!data.filler_phone || data.filler_phone.trim() === '') {
-      return false
-    }
-  }
-  return true
-}, {
-  message: 'Please fill in all required information for the person filling out this form',
-  path: ['filler_relationship'], // Show error on relationship field
 })
+  .refine((data) => {
+    // If filled by someone else, require filler information
+    if (data.filled_by === 'someone_else') {
+      if (!data.filler_relationship || data.filler_relationship.trim() === '') {
+        return false
+      }
+      if (!data.filler_first_name || data.filler_first_name.trim() === '') {
+        return false
+      }
+      if (!data.filler_last_name || data.filler_last_name.trim() === '') {
+        return false
+      }
+      if (!data.filler_email || data.filler_email.trim() === '') {
+        return false
+      }
+      if (!data.filler_phone || data.filler_phone.trim() === '') {
+        return false
+      }
+    }
+    return true
+  }, {
+    message: 'Please fill in all required information for the person filling out this form',
+    path: ['filler_relationship'], // Show error on relationship field
+  })
+  // No country-specific validation - accept any format for global compatibility
 
 export type PatientIntakeFormValues = z.infer<typeof patientIntakeFormSchema>

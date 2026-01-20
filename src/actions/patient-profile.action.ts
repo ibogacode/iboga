@@ -654,6 +654,82 @@ export const updatePatientDetails = authActionClient
     return { success: true, data }
   })
 
+// Create Service Agreement for patient (when trigger didn't create it)
+export const createServiceAgreementForPatient = authActionClient
+  .schema(z.object({
+    patientId: z.string().uuid().optional(),
+    patientEmail: z.string().email(),
+    patientFirstName: z.string(),
+    patientLastName: z.string(),
+    patientPhone: z.string().optional(),
+    intakeFormId: z.string().uuid().optional(),
+  }))
+  .action(async ({ parsedInput, ctx }) => {
+    const supabase = await createClient()
+    const adminClient = createAdminClient()
+
+    // Check if user is owner/admin
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile || !hasOwnerAccess(profile.role)) {
+      return { success: false, error: 'Unauthorized - Owner or Admin access required' }
+    }
+
+    // Check if service agreement already exists
+    let existingQuery = adminClient
+      .from('service_agreements')
+      .select('id')
+
+    if (parsedInput.patientId) {
+      existingQuery = existingQuery.or(`patient_id.eq.${parsedInput.patientId},patient_email.ilike.${parsedInput.patientEmail}`)
+    } else {
+      existingQuery = existingQuery.ilike('patient_email', parsedInput.patientEmail)
+    }
+
+    const { data: existing } = await existingQuery.maybeSingle()
+
+    if (existing) {
+      return { success: false, error: 'Service agreement already exists for this patient' }
+    }
+
+    // Create the service agreement
+    const { data, error } = await adminClient
+      .from('service_agreements')
+      .insert({
+        patient_id: parsedInput.patientId || null,
+        intake_form_id: parsedInput.intakeFormId || null,
+        patient_first_name: parsedInput.patientFirstName,
+        patient_last_name: parsedInput.patientLastName,
+        patient_email: parsedInput.patientEmail,
+        patient_phone_number: parsedInput.patientPhone || '',
+        number_of_days: 14, // Default
+        program_type: null, // Admin will fill
+        total_program_fee: null,
+        deposit_amount: null,
+        deposit_percentage: null,
+        remaining_balance: null,
+        is_activated: false,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('[createServiceAgreementForPatient] Error:', error)
+      return { success: false, error: error.message }
+    }
+
+    return { success: true, data }
+  })
+
 // Activate/Deactivate Service Agreement Form
 export const activateServiceAgreement = authActionClient
   .schema(z.object({ 

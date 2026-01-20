@@ -103,17 +103,11 @@ export const partialIntakeSchema = z.object({
     }, 'Phone number must contain at least 10 digits'),
   date_of_birth: z.string().optional().nullable(),
   gender: z.enum(['male', 'female', 'other', 'prefer-not-to-say']).optional().nullable(),
-  address: z.string().optional().nullable(),
+  address_line_1: z.string().optional().nullable(),
+  address_line_2: z.string().optional().nullable(),
   city: z.string().optional().nullable(),
-  state: z.string().optional().nullable(),
-  zip_code: z.string()
-    .optional()
-    .nullable()
-    .refine((val) => {
-      if (!val || val.trim() === '') return true // Optional when someone else fills
-      const zipPattern = /^\d{5}(-\d{4})?$/
-      return zipPattern.test(val)
-    }, 'Please enter a valid zip code (e.g., 12345 or 12345-6789)'),
+  country: z.string().optional().nullable(),
+  zip_code: z.string().optional().nullable(),
   emergency_contact_first_name: z.string().optional().nullable(),
   emergency_contact_last_name: z.string().optional().nullable(),
   emergency_contact_email: z.union([
@@ -146,15 +140,13 @@ export const partialIntakeSchema = z.object({
     if (!data.phone_number || data.phone_number.trim() === '') {
       return false
     }
-    if (!data.address || data.address.trim() === '') {
+    if (!data.address_line_1 || data.address_line_1.trim() === '') {
       return false
     }
     if (!data.city || data.city.trim() === '') {
       return false
     }
-    if (!data.state || data.state.trim() === '') {
-      return false
-    }
+    // State field is deprecated, no longer required
     if (!data.zip_code || data.zip_code.trim() === '') {
       return false
     }
@@ -194,6 +186,7 @@ export const partialIntakeSchema = z.object({
   message: 'Please fill in all required information',
   path: ['filled_by'],
 })
+  // No country-specific validation - accept any format for global compatibility
 
 // Union schema for both modes
 export const partialIntakeFormSchema = z.discriminatedUnion('mode', [

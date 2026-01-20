@@ -11,6 +11,8 @@ SET facilitator_doctor_name = 'Dr. Omar Calderon'
 WHERE facilitator_doctor_name IS NULL OR btrim(facilitator_doctor_name) = '';
 
 -- Step 2: Update the auto_create_forms_after_medical_history function to include default facilitator name
+-- IMPORTANT FIX: medical_history_forms does NOT have patient_id or address columns
+-- We need to look these up from profiles and intake_forms tables
 CREATE OR REPLACE FUNCTION public.auto_create_forms_after_medical_history()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -25,14 +27,34 @@ DECLARE
   v_facilitator_name TEXT;
 BEGIN
   -- Get patient information from the newly inserted medical history
-  v_patient_id := NEW.patient_id;
+  -- NOTE: medical_history_forms does NOT have patient_id or address columns!
   v_intake_form_id := NEW.intake_form_id;
   v_patient_first_name := NEW.first_name;
   v_patient_last_name := NEW.last_name;
   v_patient_email := NEW.email;
   v_patient_phone := NEW.phone_number;
   v_date_of_birth := NEW.date_of_birth;
-  v_address := NEW.address;
+
+  -- Look up patient_id from profiles table using email
+  SELECT id INTO v_patient_id
+  FROM public.profiles
+  WHERE LOWER(email) = LOWER(v_patient_email)
+    AND role = 'patient'
+  LIMIT 1;
+
+  -- Get address from patient_intake_forms if intake_form_id is available
+  IF v_intake_form_id IS NOT NULL THEN
+    SELECT address INTO v_address
+    FROM public.patient_intake_forms
+    WHERE id = v_intake_form_id;
+  END IF;
+
+  -- Fallback: try to get address from profiles if not found
+  IF v_address IS NULL AND v_patient_id IS NOT NULL THEN
+    SELECT address INTO v_address
+    FROM public.profiles
+    WHERE id = v_patient_id;
+  END IF;
 
   -- Get default facilitator_doctor_name from form_defaults
   SELECT default_values->>'facilitator_doctor_name'
@@ -44,21 +66,24 @@ BEGIN
   v_facilitator_name := COALESCE(v_facilitator_name, 'Dr. Omar Calderon');
 
   -- Create Service Agreement form if it doesn't exist
+  -- FIXED: Using correct column names (patient_first_name, patient_last_name, patient_email, patient_phone_number)
   IF NOT EXISTS (
     SELECT 1 FROM public.service_agreements
-    WHERE (patient_id = v_patient_id OR (v_patient_id IS NULL AND email = v_patient_email))
+    WHERE (patient_id = v_patient_id OR (v_patient_id IS NULL AND patient_email = v_patient_email))
     AND (intake_form_id = v_intake_form_id OR (v_intake_form_id IS NULL AND intake_form_id IS NULL))
   ) THEN
     INSERT INTO public.service_agreements (
       patient_id,
       intake_form_id,
-      first_name,
-      last_name,
-      email,
+      patient_first_name,
+      patient_last_name,
+      patient_email,
+      patient_phone_number,
       number_of_days,
       program_type,
-      amount_in_usd,
-      amount_paid,
+      total_program_fee,
+      deposit_amount,
+      deposit_percentage,
       remaining_balance,
       is_activated
     ) VALUES (
@@ -67,11 +92,13 @@ BEGIN
       v_patient_first_name,
       v_patient_last_name,
       v_patient_email,
+      COALESCE(v_patient_phone, ''),
       14, -- Default number of days
-      '', -- program_type - admin will fill
-      0, -- amount_in_usd - admin will fill
-      0, -- amount_paid - admin will fill
-      0, -- remaining_balance - auto-calculated
+      NULL, -- program_type - admin will fill
+      NULL, -- total_program_fee - admin will fill
+      NULL, -- deposit_amount - admin will fill
+      NULL, -- deposit_percentage - admin will fill
+      NULL, -- remaining_balance - auto-calculated
       false -- is_activated = false by default
     );
   END IF;

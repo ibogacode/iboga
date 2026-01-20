@@ -92,10 +92,13 @@ export const createPartialIntakeForm = authActionClient
         phone_number: parsedInput.mode === 'partial' ? parsedInput.phone_number : null,
         date_of_birth: dateOfBirth,
         gender: parsedInput.mode === 'partial' ? parsedInput.gender : null,
-        address: parsedInput.mode === 'partial' ? parsedInput.address : null,
+        address_line_1: parsedInput.mode === 'partial' ? parsedInput.address_line_1 : null,
+        address_line_2: parsedInput.mode === 'partial' ? (parsedInput.address_line_2 || null) : null,
         city: parsedInput.mode === 'partial' ? parsedInput.city : null,
-        state: parsedInput.mode === 'partial' ? parsedInput.state : null,
         zip_code: parsedInput.mode === 'partial' ? parsedInput.zip_code : null,
+        country: parsedInput.mode === 'partial' ? parsedInput.country : null,
+        // Keep old address field for backward compatibility
+        address: parsedInput.mode === 'partial' ? parsedInput.address_line_1 : null,
         emergency_contact_first_name: parsedInput.mode === 'partial' ? parsedInput.emergency_contact_first_name : null,
         emergency_contact_last_name: parsedInput.mode === 'partial' ? parsedInput.emergency_contact_last_name : null,
         emergency_contact_email: parsedInput.mode === 'partial' ? parsedInput.emergency_contact_email : null,
@@ -365,7 +368,7 @@ export async function sendPartialIntakeFormEmail(
             ? 'Complete Your Application Form' 
             : (patientFirstName && patientLastName 
                 ? `Complete Application Form for ${patientFirstName} ${patientLastName}`
-                : 'Complete Patient Application Form')}</h2>
+                : 'Complete Client Application Form')}</h2>
           <p>${greeting}</p>
           <p>${introText}</p>
           
