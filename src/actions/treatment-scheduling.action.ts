@@ -69,14 +69,27 @@ export const getAvailableTreatmentDates = authActionClient
     }
 
     // Get existing patients from patient_management (already arrived/in facility)
-    const { data: existingPatients } = await supabase
+    // Include discharged_at to account for early discharges
+    // We need to get:
+    // 1. Active patients (regardless of arrival date - they're currently in facility)
+    // 2. Discharged patients whose arrival_date is within our range (for historical occupancy)
+    const { data: activePatients } = await supabase
       .from('patient_management')
-      .select('id, first_name, last_name, arrival_date, program_type, patient_id, program_duration')
+      .select('id, first_name, last_name, arrival_date, program_type, patient_id, program_duration, discharged_at, status')
       .not('arrival_date', 'is', null)
-      .gte('arrival_date', startDate)
-      .lte('arrival_date', endDate)
-      .in('status', ['active', 'discharged'])
+      .eq('status', 'active')
       .order('arrival_date', { ascending: true })
+
+    const { data: dischargedPatients } = await supabase
+      .from('patient_management')
+      .select('id, first_name, last_name, arrival_date, program_type, patient_id, program_duration, discharged_at, status')
+      .not('arrival_date', 'is', null)
+      .eq('status', 'discharged')
+      .gte('discharged_at', startDate) // Only include if discharged within or after our date range
+      .order('arrival_date', { ascending: true })
+
+    // Combine active and relevant discharged patients
+    const existingPatients = [...(activePatients || []), ...(dischargedPatients || [])]
 
     // Get service agreements with number_of_days
     const patientIds = patients?.map((p) => p.patient_id).filter(Boolean) || []
@@ -151,16 +164,29 @@ export const getAvailableTreatmentDates = authActionClient
         patientsByDate.get(p.arrival_date)!.push(patientInfo)
 
         // Calculate all days this patient is/was in the facility
+        // If patient was discharged early, use discharged_at date instead of full program duration
         const arrivalDate = new Date(p.arrival_date)
-        for (let i = 0; i < numberOfDays; i++) {
-          const currentDay = new Date(arrivalDate)
-          currentDay.setDate(currentDay.getDate() + i)
+        let actualEndDate: Date
+
+        if (p.status === 'discharged' && p.discharged_at) {
+          // Patient was discharged - use actual discharge date
+          actualEndDate = new Date(p.discharged_at)
+        } else {
+          // Patient still active or no discharge date - use expected end based on program duration
+          actualEndDate = new Date(arrivalDate)
+          actualEndDate.setDate(actualEndDate.getDate() + numberOfDays - 1)
+        }
+
+        // Calculate occupancy from arrival to actual end date
+        const currentDay = new Date(arrivalDate)
+        while (currentDay <= actualEndDate) {
           const dayStr = currentDay.toISOString().split('T')[0]
 
           // Only count if within our date range
           if (dayStr >= startDate && dayStr <= endDate) {
             occupancyByDate.set(dayStr, (occupancyByDate.get(dayStr) || 0) + 1)
           }
+          currentDay.setDate(currentDay.getDate() + 1)
         }
       }
     })

@@ -26,7 +26,7 @@ const ONBOARDING_FORMS = [
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const { profile } = useUser()
+  const { profile, isLoading: isUserLoading } = useUser()
   const isAdmin = hasStaffAccess(profile?.role)
   const [patients, setPatients] = useState<PatientOnboardingWithProgress[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -366,7 +366,7 @@ export default function OnboardingPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => openCalendarModal(patient)}
-                              disabled={!isAdmin}
+                              disabled={!isUserLoading && !isAdmin}
                               className="h-7"
                             >
                               <Calendar className="h-3 w-3 mr-1" />

@@ -226,7 +226,7 @@ export function TreatmentDateCalendar({
               `}
             >
               <div className="text-sm">{format(day, 'd')}</div>
-              {capacity && !isPast && (
+              {capacity && !isPast && capacity.capacityUsed > 0 && (
                 <div className="text-xs mt-1">
                   {capacity.capacityUsed}/{capacity.capacityMax}
                 </div>
