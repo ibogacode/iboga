@@ -145,7 +145,7 @@ export default function DailyFormsPage() {
       <div className="mb-6 sm:mb-8">
         <Button variant="ghost" onClick={() => router.push('/patient-management')} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Patient Management
+          Back to Client Management
         </Button>
         <h1 
           style={{ 

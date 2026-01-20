@@ -71,7 +71,7 @@ export function AddPatientModal({ open, onOpenChange, onSuccess }: AddPatientMod
           }
         }}
       >
-        <DialogTitle className="sr-only">Add Patient</DialogTitle>
+        <DialogTitle className="sr-only">Add Client</DialogTitle>
         <div className="bg-white rounded-2xl shadow-[20px_20px_20px_0px_rgba(0,0,0,0.08)] border border-[rgba(0,0,0,0.1)] overflow-hidden max-h-[85vh] flex flex-col relative">
           {/* Custom close button that uses handleClose */}
           <button

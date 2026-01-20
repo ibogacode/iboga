@@ -76,7 +76,7 @@ export default function PatientPipelinePage() {
   const [customStartDate, setCustomStartDate] = useState<string>('')
   const [customEndDate, setCustomEndDate] = useState<string>('')
 
-  // Check if user is manager (managers cannot view patient profiles)
+  // Check if user is manager (managers cannot view client profiles)
   const isManager = profile?.role === 'manager'
 
   const programs = [
@@ -95,12 +95,12 @@ export default function PatientPipelinePage() {
   }
 
   function handleViewPartial(id: string) {
-    // Navigate to patient profile page using partial form ID
+    // Navigate to client profile page using partial form ID
     router.push(`/patient-pipeline/patient-profile/${id}`)
   }
 
   function handleViewPublic(id: string) {
-    // Navigate to patient profile page using intake form ID
+    // Navigate to client profile page using intake form ID
     router.push(`/patient-pipeline/patient-profile/${id}`)
   }
 
@@ -296,10 +296,10 @@ export default function PatientPipelinePage() {
               fontFamily: 'var(--font-instrument-serif), serif',
             }}
           >
-            Patient Pipeline
+            Client Pipeline
           </h1>
           <p className="text-sm sm:text-base text-[#777777] leading-[1.48em] tracking-[-0.04em]">
-            Track inquiries, scheduled patients, and onboarding readiness.
+            Track inquiries, scheduled clients, and onboarding readiness.
           </p>
         </div>
 
@@ -309,7 +309,7 @@ export default function PatientPipelinePage() {
             onClick={() => setIsAddPatientModalOpen(true)}
             className="gap-[10px] px-3 sm:px-4 py-[10px] h-auto min-h-[44px] bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm sm:text-base truncate"
           >
-            <span className="truncate">+ Add Patient</span>
+            <span className="truncate">+ Add Client</span>
           </Button>
           <Link href="/patient-pipeline/add-existing-patient" className="w-full sm:w-auto">
             <Button variant="outline" className="gap-[10px] px-3 sm:px-4 py-[10px] h-auto min-h-[44px] bg-white border border-[#D6D2C8] text-[#777777] hover:bg-gray-50 rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm sm:text-base w-full truncate">
@@ -436,7 +436,7 @@ export default function PatientPipelinePage() {
         {/* Scheduled Patients */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
           <div className="flex flex-col gap-2">
-            <p className="text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Scheduled Patients</p>
+            <p className="text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Scheduled Clients</p>
             <p className="text-xl sm:text-2xl md:text-[25px] font-semibold text-black leading-[1.193em] tracking-[-0.04em]">{scheduledCount}</p>
             <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">
               with calendar events
@@ -493,7 +493,7 @@ export default function PatientPipelinePage() {
           </div>
           <div className="hidden sm:block w-px h-[15px] bg-[#6B7280]" />
           <p className="hidden sm:block text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">
-            Mode = data captured before sending the patient application link (Minimal: Name+Email • Partial: +Emergency Contact)
+            Mode = data captured before sending the client application link (Minimal: Name+Email • Partial: +Emergency Contact)
           </p>
         </div>
 

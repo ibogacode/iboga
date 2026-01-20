@@ -187,15 +187,15 @@ export default function PatientProfilePage() {
       })
 
       if (result?.data?.success) {
-        toast.success('Patient details updated successfully')
+        toast.success('Client details updated successfully')
         setIsEditing(false)
         await loadPatientProfile()
       } else {
-        toast.error(result?.data?.error || 'Failed to update patient details')
+        toast.error(result?.data?.error || 'Failed to update client details')
       }
     } catch (error) {
       console.error('Error updating patient:', error)
-      toast.error('Failed to update patient details')
+      toast.error('Failed to update client details')
     } finally {
       setIsSaving(false)
     }
@@ -484,7 +484,7 @@ export default function PatientProfilePage() {
     const phone = profileData.patient?.phone || profileData.partialForm?.phone_number || profileData.intakeForm?.phone_number
 
     if (!email || !firstName || !lastName) {
-      toast.error('Missing patient information. Cannot create service agreement.')
+      toast.error('Missing client information. Cannot create service agreement.')
       return
     }
 
@@ -677,11 +677,11 @@ export default function PatientProfilePage() {
       </div>
 
       <div className="space-y-6">
-        {/* Patient Details */}
+        {/* Client Details */}
         <div className="space-y-6">
-          {/* Patient Information Card */}
+          {/* Client Information Card */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Patient Information</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Client Information</h2>
             
             {isEditing ? (
               <div className="space-y-4">
@@ -845,7 +845,7 @@ export default function PatientProfilePage() {
                   <FileText className="h-5 w-5 text-gray-400" />
                   <div>
                     <p className="font-medium text-gray-900">Application Form</p>
-                    <p className="text-sm text-gray-500">Patient intake application</p>
+                    <p className="text-sm text-gray-500">Client intake application</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">

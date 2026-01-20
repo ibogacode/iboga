@@ -69,7 +69,7 @@ export default function PatientManagementPage() {
       }
     } catch (error) {
       console.error('Error loading patient management list:', error)
-      toast.error('Failed to load patient management records')
+        toast.error('Failed to load client management records')
     } finally {
       setIsLoading(false)
     }
@@ -138,16 +138,16 @@ export default function PatientManagementPage() {
       })
 
       if (result?.data?.success) {
-        toast.success(result.data.message || 'Patient discharged successfully')
+        toast.success(result.data.message || 'Client discharged successfully')
         loadPatientManagementList()
         setDischargeDialogOpen(false)
         setSelectedPatientForDischarge(null)
       } else {
-        toast.error(result?.data?.error || 'Failed to discharge patient')
+        toast.error(result?.data?.error || 'Failed to discharge client')
       }
     } catch (error) {
       console.error('Error discharging patient:', error)
-      toast.error('An error occurred while discharging patient')
+      toast.error('An error occurred while discharging client')
     } finally {
       setIsDischarging(false)
     }
@@ -177,10 +177,10 @@ export default function PatientManagementPage() {
           }}
           className="text-2xl sm:text-3xl md:text-[44px]"
         >
-          Patient Management
+          Client Management
         </h1>
         <p className="text-gray-600 mt-2 text-sm sm:text-base md:text-lg">
-          Manage active patients, daily forms, and treatment progress
+          Manage active clients, daily forms, and treatment progress
         </p>
       </div>
 
@@ -188,7 +188,7 @@ export default function PatientManagementPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
         {/* Active Patients */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Active Patients</p>
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Active Clients</p>
           {isLoading ? (
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           ) : (
@@ -203,7 +203,7 @@ export default function PatientManagementPage() {
 
         {/* Total Patients */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Total Patients</p>
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Total Clients</p>
           {isLoading ? (
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           ) : (
@@ -247,7 +247,7 @@ export default function PatientManagementPage() {
                 {statusFilter === 'all' ? totalPatients : patients.length}
               </p>
               <p className="text-blue-600 text-xs sm:text-sm font-medium capitalize">
-                {statusFilter === 'all' ? 'All Statuses' : statusFilter} patients
+                {statusFilter === 'all' ? 'All Statuses' : statusFilter} clients
               </p>
             </>
           )}
@@ -291,7 +291,7 @@ export default function PatientManagementPage() {
         <div className="flex items-center gap-2 mb-4">
           <Users className="h-5 w-5 text-emerald-600" />
           <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
-            {statusFilter === 'all' ? 'All Patients' : `Patients - ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}`}
+            {statusFilter === 'all' ? 'All Clients' : `Clients - ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}`}
           </h2>
           <span className="px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">
             {patients.length}
@@ -305,11 +305,11 @@ export default function PatientManagementPage() {
         ) : patients.length === 0 ? (
           <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-100 text-center">
             <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 text-sm sm:text-base">No patients found.</p>
+            <p className="text-gray-500 text-sm sm:text-base">No clients found.</p>
             <p className="text-gray-400 text-xs sm:text-sm mt-2">
               {statusFilter === 'active' 
-                ? 'Patients who are moved to management from onboarding will appear here.'
-                : `No patients with status "${statusFilter}" found.`}
+                ? 'Clients who are moved to management from onboarding will appear here.'
+                : `No clients with status "${statusFilter}" found.`}
             </p>
           </div>
         ) : (
@@ -319,7 +319,7 @@ export default function PatientManagementPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Patient
+                      Client
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Program
@@ -423,7 +423,7 @@ export default function PatientManagementPage() {
       <AlertDialog open={dischargeDialogOpen} onOpenChange={setDischargeDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Discharge Patient?</AlertDialogTitle>
+            <AlertDialogTitle>Discharge Client?</AlertDialogTitle>
             <AlertDialogDescription>
               {selectedPatientForDischarge && (
                 <>
@@ -450,7 +450,7 @@ export default function PatientManagementPage() {
                   Discharging...
                 </>
               ) : (
-                'Discharge Patient'
+                'Discharge Client'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
