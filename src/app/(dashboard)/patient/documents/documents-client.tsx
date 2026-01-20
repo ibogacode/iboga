@@ -32,7 +32,7 @@ function getDocumentIcon(type: PatientTask['type']) {
 function getDocumentTitle(type: PatientTask['type']): string {
   switch (type) {
     case 'intake':
-      return 'Patient Application Form'
+      return 'Client Application Form'
     case 'medical_history':
       return 'Medical Health History'
     case 'service_agreement':
@@ -183,7 +183,7 @@ export function DocumentsClient({ documents }: DocumentsClientProps) {
           <div className="flex min-h-screen items-center justify-center p-4">
             <div className="relative w-full max-w-6xl bg-white rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
               <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
-                <h2 className="text-xl font-semibold text-gray-900">Patient Application Form</h2>
+                <h2 className="text-xl font-semibold text-gray-900">Client Application Form</h2>
                 <Button
                   variant="ghost"
                   size="sm"

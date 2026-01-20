@@ -54,7 +54,7 @@ export function PatientIntakeFormView({ form }: PatientIntakeFormViewProps) {
     <div className="min-h-screen bg-gray-50 py-8 px-4 print:bg-white print:py-4">
       <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8 print:shadow-none print:rounded-none">
         <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center print:mb-4">
-          Patient Application Form
+          Client Application Form
         </h1>
 
         {/* Form Filler Information */}

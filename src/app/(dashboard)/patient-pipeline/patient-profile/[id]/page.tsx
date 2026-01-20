@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById, activateServiceAgreement, activateIbogaineConsent } from '@/actions/patient-profile.action'
+import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById, activateServiceAgreement, activateIbogaineConsent, createServiceAgreementForPatient } from '@/actions/patient-profile.action'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { sendFormEmail } from '@/actions/send-form-email.action'
 import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding, uploadOnboardingFormDocument } from '@/actions/onboarding-forms.action'
@@ -67,6 +67,7 @@ export default function PatientProfilePage() {
   const [viewFormData, setViewFormData] = useState<any>(null)
   const [loadingViewForm, setLoadingViewForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | null>(null)
   const [activatingForm, setActivatingForm] = useState<'service' | 'ibogaine' | null>(null)
+  const [creatingServiceAgreement, setCreatingServiceAgreement] = useState(false)
   const [showActivationModal, setShowActivationModal] = useState(false)
   const [activationModalData, setActivationModalData] = useState<{
     formType: 'service' | 'ibogaine'
@@ -471,6 +472,44 @@ export default function PatientProfilePage() {
         form.signature_name &&
         form.signature_name.trim() !== ''
       )
+    }
+  }
+
+  async function handleCreateServiceAgreement() {
+    if (!profileData) return
+
+    const email = profileData.patient?.email || profileData.partialForm?.email || profileData.intakeForm?.email
+    const firstName = profileData.patient?.first_name || profileData.partialForm?.first_name || profileData.intakeForm?.first_name
+    const lastName = profileData.patient?.last_name || profileData.partialForm?.last_name || profileData.intakeForm?.last_name
+    const phone = profileData.patient?.phone || profileData.partialForm?.phone_number || profileData.intakeForm?.phone_number
+
+    if (!email || !firstName || !lastName) {
+      toast.error('Missing patient information. Cannot create service agreement.')
+      return
+    }
+
+    setCreatingServiceAgreement(true)
+    try {
+      const result = await createServiceAgreementForPatient({
+        patientId: profileData.patient?.id,
+        patientEmail: email,
+        patientFirstName: firstName,
+        patientLastName: lastName,
+        patientPhone: phone || undefined,
+        intakeFormId: profileData.intakeForm?.id,
+      })
+
+      if (result?.data?.success) {
+        toast.success('Service Agreement created successfully. You can now fill in the details and activate it.')
+        await loadPatientProfile()
+      } else {
+        toast.error(result?.data?.error || 'Failed to create service agreement')
+      }
+    } catch (error) {
+      console.error('Error creating service agreement:', error)
+      toast.error('Failed to create service agreement')
+    } finally {
+      setCreatingServiceAgreement(false)
     }
   }
 
@@ -1073,6 +1112,23 @@ export default function PatientProfilePage() {
                   )}
                   {profileData.formStatuses.serviceAgreement === 'not_started' ? (
                     <div className="flex gap-2">
+                      {/* Create button if no service agreement exists */}
+                      {!profileData.serviceAgreement?.id && isAdminOrOwner && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={handleCreateServiceAgreement}
+                          disabled={creatingServiceAgreement}
+                          className="gap-2 bg-[#7c9a5e] hover:bg-[#6b8a4e]"
+                        >
+                          {creatingServiceAgreement ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <FileText className="h-4 w-4" />
+                          )}
+                          Create
+                        </Button>
+                      )}
                       {isAdminOrOwner && (
                         <label className="cursor-pointer">
                           <input

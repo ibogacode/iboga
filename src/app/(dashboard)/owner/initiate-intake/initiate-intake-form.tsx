@@ -17,11 +17,29 @@ import { addExistingPatient } from '@/actions/existing-patient.action'
 import { toast } from 'sonner'
 
 const US_STATES = [
-  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
-  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
-  'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
-  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
-  'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware',
+  'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky',
+  'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi', 'Missouri',
+  'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey', 'New Mexico', 'New York', 'North Carolina',
+  'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
+  'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
+]
+
+// Canadian Provinces and Territories list
+const CANADIAN_PROVINCES = [
+  'Alberta',
+  'British Columbia',
+  'Manitoba',
+  'New Brunswick',
+  'Newfoundland and Labrador',
+  'Northwest Territories',
+  'Nova Scotia',
+  'Nunavut',
+  'Ontario',
+  'Prince Edward Island',
+  'Quebec',
+  'Saskatchewan',
+  'Yukon'
 ]
 
 type Step = 'entry-mode' | 'details' | 'confirmation' | 'existing-patient'
@@ -60,6 +78,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
       first_name: '',
       last_name: '',
       email: '',
+      country: '',
     },
   })
 
@@ -687,24 +706,39 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                       </div>
 
                       <div className="flex flex-col gap-3">
-                        <Label htmlFor="address" className="text-base font-medium text-[#2B2820]">
-                          Address*
+                        <Label htmlFor="address_line_1" className="text-base font-medium text-[#2B2820]">
+                          Address Line 1*
                         </Label>
                         <Input
-                          id="address"
-                          placeholder="Street Address"
-                          {...form.register('address')}
+                          id="address_line_1"
+                          placeholder="Street address, P.O. box, company name"
+                          {...form.register('address_line_1')}
                           className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]"
                         />
-                        {(form.formState.errors as any).address && (
-                          <p className="text-sm text-red-500">{(form.formState.errors as any).address.message}</p>
+                        {(form.formState.errors as any).address_line_1 && (
+                          <p className="text-sm text-red-500">{(form.formState.errors as any).address_line_1.message}</p>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="flex flex-col gap-3">
+                        <Label htmlFor="address_line_2" className="text-base font-medium text-[#2B2820]">
+                          Address Line 2 <span className="text-gray-500 text-sm">(Optional)</span>
+                        </Label>
+                        <Input
+                          id="address_line_2"
+                          placeholder="Apartment, suite, unit, building, floor, etc."
+                          {...form.register('address_line_2')}
+                          className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]"
+                        />
+                        {(form.formState.errors as any).address_line_2 && (
+                          <p className="text-sm text-red-500">{(form.formState.errors as any).address_line_2.message}</p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="flex flex-col gap-3">
                           <Input
-                            placeholder="City"
+                            placeholder="City*"
                             {...form.register('city')}
                             className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]"
                           />
@@ -713,28 +747,8 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                           )}
                         </div>
                         <div className="flex flex-col gap-3">
-                          <Select
-                            value={form.watch('state') || ''}
-                            onValueChange={(value) => form.setValue('state', value)}
-                          >
-                            <SelectTrigger className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]">
-                              <SelectValue placeholder="State" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {US_STATES.map((state) => (
-                                <SelectItem key={state} value={state}>
-                                  {state}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {(form.formState.errors as any).state && (
-                            <p className="text-sm text-red-500">{(form.formState.errors as any).state.message}</p>
-                          )}
-                        </div>
-                        <div className="flex flex-col gap-3">
                           <Input
-                            placeholder="Zip Code"
+                            placeholder="Zip/Postal Code*"
                             {...form.register('zip_code')}
                             className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]"
                           />
@@ -742,6 +756,21 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                             <p className="text-sm text-red-500">{(form.formState.errors as any).zip_code.message}</p>
                           )}
                         </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <Label htmlFor="country" className="text-base font-medium text-[#2B2820]">
+                          Country*
+                        </Label>
+                        <Input
+                          id="country"
+                          placeholder="Country name"
+                          {...form.register('country')}
+                          className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] shadow-[0px_0.5px_1px_0px_rgba(25,33,61,0.04)]"
+                        />
+                        {(form.formState.errors as any).country && (
+                          <p className="text-sm text-red-500">{(form.formState.errors as any).country.message}</p>
+                        )}
                       </div>
 
                       <div>

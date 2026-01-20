@@ -94,6 +94,23 @@ const US_STATES = [
   'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
 ]
 
+// Canadian Provinces and Territories list
+const CANADIAN_PROVINCES = [
+  'Alberta',
+  'British Columbia',
+  'Manitoba',
+  'New Brunswick',
+  'Newfoundland and Labrador',
+  'Northwest Territories',
+  'Nova Scotia',
+  'Nunavut',
+  'Ontario',
+  'Prince Edward Island',
+  'Quebec',
+  'Saskatchewan',
+  'Yukon'
+]
+
 // Component to format Privacy Policy with styled headings
 function PrivacyPolicyContent({ text }: { text: string }) {
   const lines = text.split('\n')
@@ -542,9 +559,10 @@ function PatientIntakeFormContent() {
       phone_number: '',
       date_of_birth: null,
       gender: null,
-      address: '',
+      address_line_1: '',
+      address_line_2: '',
       city: '',
-      state: '',
+      country: '',
       zip_code: '',
       // Emergency Contact Information
       emergency_contact_first_name: '',
@@ -612,17 +630,23 @@ function PatientIntakeFormContent() {
             if (partialData.gender) {
               form.setValue('gender', partialData.gender as any)
             }
-            if (partialData.address) {
-              form.setValue('address', partialData.address)
+            if (partialData.address_line_1) {
+              form.setValue('address_line_1', partialData.address_line_1)
+            } else if (partialData.address) {
+              // Fallback: migrate old address field to address_line_1
+              form.setValue('address_line_1', partialData.address)
+            }
+            if (partialData.address_line_2) {
+              form.setValue('address_line_2', partialData.address_line_2)
             }
             if (partialData.city) {
               form.setValue('city', partialData.city)
             }
-            if (partialData.state) {
-              form.setValue('state', partialData.state)
-            }
             if (partialData.zip_code) {
               form.setValue('zip_code', partialData.zip_code)
+            }
+            if (partialData.country) {
+              form.setValue('country', partialData.country)
             }
             if (partialData.program_type) {
               form.setValue('program_type', partialData.program_type as any)
@@ -756,7 +780,7 @@ function PatientIntakeFormContent() {
         ) : (
           <>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6 md:mb-8 text-center">
-              Patient Application Form
+              Client Application Form
             </h1>
 
         {/* Progress indicator */}
@@ -1059,17 +1083,32 @@ function PatientIntakeFormContent() {
                 </div>
 
                 <div>
-                  <Label htmlFor="address" className="text-base font-medium">
-                    Address <span className="text-red-500">*</span>
+                  <Label htmlFor="address_line_1" className="text-base font-medium">
+                    Address Line 1 <span className="text-red-500">*</span>
                   </Label>
                   <Input
-                    id="address"
-                    placeholder="Street Address"
-                    {...form.register('address')}
+                    id="address_line_1"
+                    placeholder="Street address, P.O. box, company name"
+                    {...form.register('address_line_1')}
                     className="h-12 mt-2"
                   />
-                  {form.formState.errors.address && (
-                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.address.message}</p>
+                  {form.formState.errors.address_line_1 && (
+                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.address_line_1.message}</p>
+                  )}
+                </div>
+
+                <div>
+                  <Label htmlFor="address_line_2" className="text-base font-medium">
+                    Address Line 2 <span className="text-gray-500 text-sm">(Optional)</span>
+                  </Label>
+                  <Input
+                    id="address_line_2"
+                    placeholder="Apartment, suite, unit, building, floor, etc."
+                    {...form.register('address_line_2')}
+                    className="h-12 mt-2"
+                  />
+                  {form.formState.errors.address_line_2 && (
+                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.address_line_2.message}</p>
                   )}
                 </div>
 
@@ -1089,45 +1128,33 @@ function PatientIntakeFormContent() {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="state" className="text-base font-medium">
-                      State <span className="text-red-500">*</span>
+                    <Label htmlFor="zip_code" className="text-base font-medium">
+                      Zip/Postal Code <span className="text-red-500">*</span>
                     </Label>
-                    <Select
-                      value={form.watch('state') || ''}
-                      onValueChange={(value) => {
-                        form.setValue('state', value)
-                        form.trigger('state')
-                      }}
-                    >
-                      <SelectTrigger id="state" className="h-12 mt-2">
-                        <SelectValue placeholder="Please Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {US_STATES.map((state) => (
-                          <SelectItem key={state} value={state}>
-                            {state}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {form.formState.errors.state && (
-                      <p className="text-sm text-red-500 mt-1">{form.formState.errors.state.message}</p>
+                    <Input
+                      id="zip_code"
+                      placeholder="Zip or postal code"
+                      {...form.register('zip_code')}
+                      className="h-12 mt-2"
+                    />
+                    {form.formState.errors.zip_code && (
+                      <p className="text-sm text-red-500 mt-1">{form.formState.errors.zip_code.message}</p>
                     )}
                   </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="zip_code" className="text-base font-medium">
-                    Zip Code <span className="text-red-500">*</span>
+                  <Label htmlFor="country" className="text-base font-medium">
+                    Country <span className="text-red-500">*</span>
                   </Label>
                   <Input
-                    id="zip_code"
-                    placeholder="Zip Code"
-                    {...form.register('zip_code')}
+                    id="country"
+                    placeholder="Country name"
+                    {...form.register('country')}
                     className="h-12 mt-2"
                   />
-                  {form.formState.errors.zip_code && (
-                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.zip_code.message}</p>
+                  {form.formState.errors.country && (
+                    <p className="text-sm text-red-500 mt-1">{form.formState.errors.country.message}</p>
                   )}
                 </div>
               </div>
@@ -1315,7 +1342,7 @@ function getFieldsForStep(step: number, filledBy?: string): string[] {
   switch (step) {
     case 1:
       // Validate all required fields in step 1, including all address fields and filler info if applicable
-      const fields: string[] = ['filled_by', 'program_type', 'first_name', 'last_name', 'email', 'phone_number', 'address', 'city', 'state', 'zip_code']
+      const fields: string[] = ['filled_by', 'program_type', 'first_name', 'last_name', 'email', 'phone_number', 'address_line_1', 'city', 'zip_code', 'country']
       if (filledBy === 'someone_else') {
         fields.push('filler_relationship', 'filler_first_name', 'filler_last_name', 'filler_email', 'filler_phone')
       }

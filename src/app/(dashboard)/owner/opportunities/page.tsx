@@ -146,7 +146,7 @@ export default function OpportunitiesPage() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Patient Application Form - ${selectedOpportunity.first_name} ${selectedOpportunity.last_name}</title>
+          <title>Client Application Form - ${selectedOpportunity.first_name} ${selectedOpportunity.last_name}</title>
           <meta charset="utf-8">
           <style>
             ${styles}
