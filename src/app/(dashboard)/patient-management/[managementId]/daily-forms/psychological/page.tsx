@@ -82,7 +82,7 @@ export default function DailyPsychologicalFormPage() {
           <p className="text-gray-500 mb-4">Patient management record not found</p>
           <Button onClick={() => router.push('/patient-management')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Patient Management
+            Back to Client Management
           </Button>
         </div>
       </div>

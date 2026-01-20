@@ -51,7 +51,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Home', href: '/owner', icon: Home },
       { title: 'Facility Management', href: '/facility-management', icon: Building2 },
       {
-        title: 'Patient Pipeline',
+        title: 'Client Pipeline',
         href: '/patient-pipeline',
         icon: Users,
         children: [
@@ -59,7 +59,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
         ],
       },
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
-      { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
+      { title: 'Client Management', href: '/patient-management', icon: UserCheck },
       { title: 'Research', href: '/research', icon: Search },
       {
         title: 'Marketing',
@@ -82,7 +82,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Home', href: '/owner', icon: Home },
       { title: 'Facility Management', href: '/facility-management', icon: Building2 },
       {
-        title: 'Patient Pipeline',
+        title: 'Client Pipeline',
         href: '/patient-pipeline',
         icon: Users,
         children: [
@@ -90,7 +90,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
         ],
       },
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
-      { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
+      { title: 'Client Management', href: '/patient-management', icon: UserCheck },
       { title: 'Research', href: '/research', icon: Search },
       {
         title: 'Marketing',
@@ -111,8 +111,8 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   manager: {
     mainNav: [
       { title: 'Dashboard', href: '/manager', icon: LayoutDashboard },
-      { title: 'Patient Pipeline', href: '/patient-pipeline', icon: Users },
-      { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
+      { title: 'Client Pipeline', href: '/patient-pipeline', icon: Users },
+      { title: 'Client Management', href: '/patient-management', icon: UserCheck },
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
       {
         title: 'Marketing',
@@ -134,7 +134,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   doctor: {
     mainNav: [
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
-      { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
+      { title: 'Client Management', href: '/patient-management', icon: UserCheck },
       {
         title: 'Marketing',
         href: '/marketing',
@@ -153,7 +153,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   psych: {
     mainNav: [
       { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
-      { title: 'Patient Management', href: '/patient-management', icon: UserCheck },
+      { title: 'Client Management', href: '/patient-management', icon: UserCheck },
       {
         title: 'Marketing',
         href: '/marketing',
