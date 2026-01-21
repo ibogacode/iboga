@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { DailyMedicalUpdateForm } from './daily-medical-update-form'
 import { CheckCircle } from 'lucide-react'
+import { PDFDownloadButton } from '@/components/ui/pdf-download-button'
 
 interface DailyMedicalUpdateFormWrapperProps {
   managementId: string
@@ -28,6 +29,7 @@ export function DailyMedicalUpdateFormWrapper({
   onSuccess,
 }: DailyMedicalUpdateFormWrapperProps) {
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   function handleSuccess() {
     setIsSubmitted(true)
@@ -51,16 +53,34 @@ export function DailyMedicalUpdateFormWrapper({
   }
 
   return (
-    <DailyMedicalUpdateForm
-      managementId={managementId}
-      patientFirstName={patientFirstName}
-      patientLastName={patientLastName}
-      formDate={formDate}
-      programType={programType}
-      initialData={initialData}
-      isCompleted={isCompleted}
-      isStarted={isStarted}
-      onSuccess={handleSuccess}
-    />
+    <div className="relative">
+      {/* PDF Download Button - only show for completed forms */}
+      {isCompleted && (
+        <div className="absolute top-0 right-0 z-10 print:hidden">
+          <PDFDownloadButton
+            formType="Daily-Medical-Update"
+            patientName={`${patientFirstName}-${patientLastName}`}
+            date={formDate}
+            contentRef={contentRef as React.RefObject<HTMLElement>}
+          >
+            Download PDF
+          </PDFDownloadButton>
+        </div>
+      )}
+
+      <div ref={contentRef}>
+        <DailyMedicalUpdateForm
+          managementId={managementId}
+          patientFirstName={patientFirstName}
+          patientLastName={patientLastName}
+          formDate={formDate}
+          programType={programType}
+          initialData={initialData}
+          isCompleted={isCompleted}
+          isStarted={isStarted}
+          onSuccess={handleSuccess}
+        />
+      </div>
+    </div>
   )
 }

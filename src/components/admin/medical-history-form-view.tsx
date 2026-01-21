@@ -1,7 +1,9 @@
 'use client'
 
+import { useRef } from 'react'
 import { format } from 'date-fns'
 import { FileText, Download, CheckCircle2, XCircle } from 'lucide-react'
+import { PDFDownloadButton } from '@/components/ui/pdf-download-button'
 
 interface MedicalHistoryForm {
   id: string
@@ -66,6 +68,8 @@ interface MedicalHistoryFormViewProps {
 }
 
 export function MedicalHistoryFormView({ form }: MedicalHistoryFormViewProps) {
+  const contentRef = useRef<HTMLDivElement>(null)
+
   function formatDate(dateString: string | null) {
     if (!dateString) return 'N/A'
     try {
@@ -111,7 +115,19 @@ export function MedicalHistoryFormView({ form }: MedicalHistoryFormViewProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4 print:bg-white print:py-4">
-      <div className="max-w-5xl mx-auto bg-white rounded-xl shadow-lg border border-gray-200 p-8 print:shadow-none print:rounded-none">
+      {/* Download Button */}
+      <div className="fixed top-4 right-4 z-50 print:hidden">
+        <PDFDownloadButton
+          formType="Medical-History"
+          patientName={`${form.first_name}-${form.last_name}`}
+          date={form.created_at?.split('T')[0]}
+          contentRef={contentRef as React.RefObject<HTMLElement>}
+        >
+          Download PDF
+        </PDFDownloadButton>
+      </div>
+
+      <div ref={contentRef} className="max-w-5xl mx-auto bg-white rounded-xl shadow-lg border border-gray-200 p-8 print:shadow-none print:rounded-none">
         <div className="mb-8 pb-6 border-b border-gray-200">
           <h1 className="text-3xl font-bold text-gray-900 mb-2 text-center print:mb-4">
             Medical Health History Form

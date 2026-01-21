@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { IntakeReportForm } from './intake-report-form'
 import { CheckCircle } from 'lucide-react'
+import { PDFDownloadButton } from '@/components/ui/pdf-download-button'
 
 interface IntakeReportFormWrapperProps {
   managementId: string
@@ -22,6 +23,7 @@ export function IntakeReportFormWrapper({
   onSuccess,
 }: IntakeReportFormWrapperProps) {
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   function handleSuccess() {
     setIsSubmitted(true)
@@ -45,13 +47,31 @@ export function IntakeReportFormWrapper({
   }
 
   return (
-    <IntakeReportForm
-      managementId={managementId}
-      patientFirstName={patientFirstName}
-      patientLastName={patientLastName}
-      initialData={initialData}
-      isCompleted={isCompleted}
-      onSuccess={handleSuccess}
-    />
+    <div className="relative">
+      {/* PDF Download Button - only show for completed forms */}
+      {isCompleted && (
+        <div className="absolute top-0 right-0 z-10 print:hidden">
+          <PDFDownloadButton
+            formType="Intake-Report"
+            patientName={`${patientFirstName}-${patientLastName}`}
+            date={initialData?.created_at?.split('T')[0]}
+            contentRef={contentRef as React.RefObject<HTMLElement>}
+          >
+            Download PDF
+          </PDFDownloadButton>
+        </div>
+      )}
+
+      <div ref={contentRef}>
+        <IntakeReportForm
+          managementId={managementId}
+          patientFirstName={patientFirstName}
+          patientLastName={patientLastName}
+          initialData={initialData}
+          isCompleted={isCompleted}
+          onSuccess={handleSuccess}
+        />
+      </div>
+    </div>
   )
 }

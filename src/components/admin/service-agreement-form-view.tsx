@@ -1,7 +1,9 @@
 'use client'
 
+import { useRef } from 'react'
 import { format } from 'date-fns'
 import { getServiceAgreementText, ServiceAgreementContent } from '@/components/forms/form-content'
+import { PDFDownloadButton } from '@/components/ui/pdf-download-button'
 
 interface ServiceAgreement {
   id: string
@@ -39,6 +41,8 @@ interface ServiceAgreementFormViewProps {
 }
 
 export function ServiceAgreementFormView({ form }: ServiceAgreementFormViewProps) {
+  const contentRef = useRef<HTMLDivElement>(null)
+
   function formatDate(dateString: string | null) {
     if (!dateString) return 'N/A'
     try {
@@ -65,7 +69,19 @@ export function ServiceAgreementFormView({ form }: ServiceAgreementFormViewProps
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 print:bg-white print:py-4">
-      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8 print:shadow-none print:rounded-none">
+      {/* Download Button */}
+      <div className="fixed top-4 right-4 z-50 print:hidden">
+        <PDFDownloadButton
+          formType="Service-Agreement"
+          patientName={`${form.patient_first_name}-${form.patient_last_name}`}
+          date={form.created_at?.split('T')[0]}
+          contentRef={contentRef as React.RefObject<HTMLElement>}
+        >
+          Download PDF
+        </PDFDownloadButton>
+      </div>
+
+      <div ref={contentRef} className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8 print:shadow-none print:rounded-none">
         <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center print:mb-4">
           Service Agreement
         </h1>

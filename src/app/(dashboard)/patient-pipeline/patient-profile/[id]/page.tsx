@@ -22,6 +22,7 @@ import { IbogaineConsentFormView } from '@/components/admin/ibogaine-consent-for
 import { uploadExistingPatientDocument } from '@/actions/existing-patient.action'
 import { useUser } from '@/hooks/use-user.hook'
 import { uploadDocumentClient } from '@/lib/supabase/client-storage'
+import { PDFDownloadButton } from '@/components/ui/pdf-download-button'
 
 interface PatientProfileData {
   patient: any
@@ -96,6 +97,7 @@ export default function PatientProfilePage() {
   const [uploadingDocument, setUploadingDocument] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   const [uploadingOnboardingForm, setUploadingOnboardingForm] = useState<{ onboardingId: string; formType: string } | null>(null)
   const onboardingFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const onboardingFormContentRef = useRef<HTMLDivElement>(null)
   
   const isAdminOrOwner = profile?.role === 'admin' || profile?.role === 'owner'
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'manager'
@@ -1859,8 +1861,8 @@ export default function PatientProfilePage() {
       )}
 
       {/* Onboarding Forms View Modals */}
-      {(viewingForm === 'onboarding_release' || viewingForm === 'onboarding_outing' || 
-        viewingForm === 'onboarding_social_media' || viewingForm === 'onboarding_regulations' || 
+      {(viewingForm === 'onboarding_release' || viewingForm === 'onboarding_outing' ||
+        viewingForm === 'onboarding_social_media' || viewingForm === 'onboarding_regulations' ||
         viewingForm === 'onboarding_dissent') && viewFormData && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
           <div className="flex min-h-screen items-center justify-center p-4">
@@ -1873,20 +1875,36 @@ export default function PatientProfilePage() {
                   {viewingForm === 'onboarding_regulations' && 'View Internal Regulations Form'}
                   {viewingForm === 'onboarding_dissent' && 'View Letter of Informed Dissent Form'}
                 </h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setViewingForm(null)
-                    setViewFormData(null)
-                  }}
-                  className="gap-2"
-                >
-                  <X className="h-4 w-4" />
-                  Close
-                </Button>
+                <div className="flex items-center gap-2">
+                  <PDFDownloadButton
+                    formType={
+                      viewingForm === 'onboarding_release' ? 'Release-Form' :
+                      viewingForm === 'onboarding_outing' ? 'Outing-Consent' :
+                      viewingForm === 'onboarding_social_media' ? 'Social-Media-Release' :
+                      viewingForm === 'onboarding_regulations' ? 'Internal-Regulations' :
+                      'Informed-Dissent'
+                    }
+                    patientName={viewFormData?.full_name || `${viewFormData?.first_name || ''}-${viewFormData?.last_name || ''}`}
+                    date={viewFormData?.created_at?.split('T')[0]}
+                    contentRef={onboardingFormContentRef as React.RefObject<HTMLElement>}
+                  >
+                    Download PDF
+                  </PDFDownloadButton>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setViewingForm(null)
+                      setViewFormData(null)
+                    }}
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Close
+                  </Button>
+                </div>
               </div>
-              <div className="p-6">
+              <div ref={onboardingFormContentRef} className="p-6">
                 <OnboardingFormViewContent formType={viewingForm} formData={viewFormData} />
               </div>
             </div>

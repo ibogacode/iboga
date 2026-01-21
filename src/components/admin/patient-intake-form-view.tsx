@@ -1,10 +1,12 @@
 'use client'
 
+import { useRef } from 'react'
 import { format } from 'date-fns'
-import { 
-  PRIVACY_POLICY_TEXT, 
+import {
+  PRIVACY_POLICY_TEXT,
   PrivacyPolicyContent,
 } from '@/components/forms/form-content'
+import { PDFDownloadButton } from '@/components/ui/pdf-download-button'
 
 interface PatientIntakeForm {
   id: string
@@ -41,6 +43,8 @@ interface PatientIntakeFormViewProps {
 }
 
 export function PatientIntakeFormView({ form }: PatientIntakeFormViewProps) {
+  const contentRef = useRef<HTMLDivElement>(null)
+
   function formatDate(dateString: string | null) {
     if (!dateString) return 'N/A'
     try {
@@ -52,7 +56,19 @@ export function PatientIntakeFormView({ form }: PatientIntakeFormViewProps) {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 print:bg-white print:py-4">
-      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8 print:shadow-none print:rounded-none">
+      {/* Download Button */}
+      <div className="fixed top-4 right-4 z-50 print:hidden">
+        <PDFDownloadButton
+          formType="Client-Application"
+          patientName={`${form.first_name}-${form.last_name}`}
+          date={form.created_at?.split('T')[0]}
+          contentRef={contentRef as React.RefObject<HTMLElement>}
+        >
+          Download PDF
+        </PDFDownloadButton>
+      </div>
+
+      <div ref={contentRef} className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8 print:shadow-none print:rounded-none">
         <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center print:mb-4">
           Client Application Form
         </h1>
