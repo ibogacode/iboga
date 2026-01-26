@@ -106,7 +106,7 @@ export function IntakeReportFormPageContent() {
               <PDFDownloadButton
                 formType="Psychological-Intake-Report"
                 patientName={`${management.first_name}-${management.last_name}`}
-                date={formData?.created_at?.split('T')[0]}
+                date={formData?.created_at?.split('T')[0] ?? new Date().toISOString().split('T')[0]}
                 contentRef={contentRef as React.RefObject<HTMLElement>}
               >
                 Download PDF

@@ -77,9 +77,8 @@ export function downloadPlainTextPDF(
   const pageWidth = opts.format === 'a4' ? 210 : 216
   const pageHeight = opts.format === 'a4' ? 297 : 279
   const contentWidth = pageWidth - opts.marginMm * 2
-  // Use slightly wider width for text wrapping to account for jsPDF's conservative calculations
-  // This helps text use more of the available horizontal space
-  const textWrapWidth = contentWidth + 3 // Add 3mm buffer to use more space
+  // Clamp textWrapWidth to contentWidth to prevent right-margin overflow
+  const textWrapWidth = contentWidth
   let currentY = opts.marginMm
 
   /**
@@ -127,12 +126,11 @@ export function downloadPlainTextPDF(
     const lines = pdf.splitTextToSize(text, textWrapWidth)
     // Convert font size from points to mm, then apply line height multiplier
     const lineHeightMm = size * ptToMm * lineHeightMultiplier
-    
-    // Check if we need a new page before adding text
     const requiredHeight = lines.length * lineHeightMm
-    checkPageBreak(requiredHeight)
     
     lines.forEach((line: string) => {
+      // Check page break for each line to handle multi-page text
+      checkPageBreak(lineHeightMm)
       pdf.text(line, opts.marginMm, currentY)
       currentY += lineHeightMm
     })
@@ -294,12 +292,9 @@ export function formatBoolean(value: boolean | null | undefined): string {
  */
 export function formatDateForPDF(dateString: string | null | undefined): string {
   if (!dateString) return 'N/A'
-  try {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' })
-  } catch {
-    return dateString
-  }
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return dateString
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
 /**

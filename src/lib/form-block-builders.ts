@@ -50,7 +50,7 @@ export function buildPatientIntakeBlocks(form: PatientIntakeForm): TextBlock[] {
   if (form.filled_by === 'someone_else') {
     blocks.push({ type: 'h2', text: 'Form Filler Information' })
     
-    blocks.push({ type: 'kv', key: 'Filled By', value: form.filled_by?.replace('_', ' ') || 'N/A' })
+    blocks.push({ type: 'kv', key: 'Filled By', value: form.filled_by?.replaceAll('_', ' ') || 'N/A' })
     
     if (form.filler_first_name || form.filler_last_name) {
       blocks.push({ 
@@ -110,7 +110,7 @@ export function buildPatientIntakeBlocks(form: PatientIntakeForm): TextBlock[] {
   }
 
   if (form.program_type) {
-    blocks.push({ type: 'kv', key: 'Program Type', value: form.program_type.replace('_', ' ') })
+    blocks.push({ type: 'kv', key: 'Program Type', value: form.program_type.replaceAll('_', ' ') })
   }
 
   blocks.push({ type: 'spacer', height: 3 })
@@ -867,7 +867,7 @@ export function buildMedicalHistoryBlocks(form: MedicalHistoryForm): TextBlock[]
     })
   }
   
-  if (form.gender !== 'M') {
+  if (form.gender === 'F') {
     blocks.push({ type: 'kv', key: 'Currently Pregnant', value: formatBoolean(form.is_pregnant) })
   }
 

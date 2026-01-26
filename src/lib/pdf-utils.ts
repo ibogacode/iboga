@@ -493,6 +493,14 @@ export async function downloadElementAsPDF(
 
         const sliceHeight = nextBreakY - sourceY
         
+        // Ensure we always make progress to prevent infinite loops
+        if (sliceHeight <= 0) {
+          console.warn('PDF generation: no progress made, forcing minimum slice')
+          sourceY = Math.min(sourceY + maxPageCanvasHeight, canvasHeight)
+          pageNum++
+          continue
+        }
+        
         if (DEBUG_PDF_BREAKS) {
           console.log(`[PDF] Page ${pageNum + 1}:`, {
             sourceY: sourceY / scale,
@@ -565,6 +573,14 @@ export async function handlePDFDownload(
 /**
  * Format form name for filename
  */
+// Sanitize string for use in filename
+function sanitizeForFilename(str: string): string {
+  return str
+    .replace(/[/\\:*?"<>|]/g, '') // Remove invalid filename characters
+    .replace(/\s+/g, '-')          // Replace spaces with hyphens
+    .toLowerCase()
+}
+
 export function formatFormFilename(
   formType: string,
   patientName?: string,
@@ -573,11 +589,11 @@ export function formatFormFilename(
   const parts: string[] = []
 
   // Add form type
-  parts.push(formType.replace(/\s+/g, '-').toLowerCase())
+  parts.push(sanitizeForFilename(formType))
 
   // Add patient name if provided
   if (patientName) {
-    parts.push(patientName.replace(/\s+/g, '-').toLowerCase())
+    parts.push(sanitizeForFilename(patientName))
   }
 
   // Add date
