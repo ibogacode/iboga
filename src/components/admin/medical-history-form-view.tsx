@@ -3,7 +3,8 @@
 import { useRef } from 'react'
 import { format } from 'date-fns'
 import { FileText, Download, CheckCircle2, XCircle } from 'lucide-react'
-import { PDFDownloadButton } from '@/components/ui/pdf-download-button'
+import { PDFTextDownloadButton } from '@/components/ui/pdf-text-download-button'
+import { buildMedicalHistoryBlocks } from '@/lib/form-block-builders'
 
 interface MedicalHistoryForm {
   id: string
@@ -117,14 +118,14 @@ export function MedicalHistoryFormView({ form }: MedicalHistoryFormViewProps) {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4 print:bg-white print:py-4">
       {/* Download Button */}
       <div className="fixed top-4 right-4 z-50 print:hidden">
-        <PDFDownloadButton
+        <PDFTextDownloadButton
           formType="Medical-History"
           patientName={`${form.first_name}-${form.last_name}`}
           date={form.created_at?.split('T')[0]}
-          contentRef={contentRef as React.RefObject<HTMLElement>}
+          getBlocks={() => buildMedicalHistoryBlocks(form)}
         >
           Download PDF
-        </PDFDownloadButton>
+        </PDFTextDownloadButton>
       </div>
 
       <div ref={contentRef} className="max-w-5xl mx-auto bg-white rounded-xl shadow-lg border border-gray-200 p-8 print:shadow-none print:rounded-none">

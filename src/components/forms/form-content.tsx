@@ -327,6 +327,19 @@ export function PrivacyPolicyContent({ text }: { text: string }) {
   }
   
   function isSubheading(line: string): boolean {
+    // Exclude information type lines that should not be bold
+    const infoTypePatterns = [
+      /^Personal Information:/,
+      /^Medical Information:/,
+      /^Payment Information:/,
+      /^Travel & Stay Information:/
+    ]
+    
+    // If it matches an information type pattern, don't treat it as a subheading
+    if (infoTypePatterns.some(pattern => pattern.test(line))) {
+      return false
+    }
+    
     return /^[A-Z][^:]+:\s+.+/.test(line)
   }
   
@@ -437,7 +450,7 @@ export function PrivacyPolicyContent({ text }: { text: string }) {
   
   flushBulletList()
   
-  return <div>{elements}</div>
+  return <div style={{ width: '100%', display: 'block', visibility: 'visible' }}>{elements}</div>
 }
 
 // Component to format Service Agreement with styled headings
