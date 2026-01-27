@@ -22,6 +22,7 @@ import { IbogaineConsentFormView } from '@/components/admin/ibogaine-consent-for
 import { uploadExistingPatientDocument } from '@/actions/existing-patient.action'
 import { useUser } from '@/hooks/use-user.hook'
 import { uploadDocumentClient } from '@/lib/supabase/client-storage'
+import { PDFDownloadButton } from '@/components/ui/pdf-download-button'
 
 interface PatientProfileData {
   patient: any
@@ -96,6 +97,7 @@ export default function PatientProfilePage() {
   const [uploadingDocument, setUploadingDocument] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   const [uploadingOnboardingForm, setUploadingOnboardingForm] = useState<{ onboardingId: string; formType: string } | null>(null)
   const onboardingFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const onboardingFormContentRef = useRef<HTMLDivElement>(null)
   
   const isAdminOrOwner = profile?.role === 'admin' || profile?.role === 'owner'
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'manager'
@@ -1859,8 +1861,8 @@ export default function PatientProfilePage() {
       )}
 
       {/* Onboarding Forms View Modals */}
-      {(viewingForm === 'onboarding_release' || viewingForm === 'onboarding_outing' || 
-        viewingForm === 'onboarding_social_media' || viewingForm === 'onboarding_regulations' || 
+      {(viewingForm === 'onboarding_release' || viewingForm === 'onboarding_outing' ||
+        viewingForm === 'onboarding_social_media' || viewingForm === 'onboarding_regulations' ||
         viewingForm === 'onboarding_dissent') && viewFormData && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
           <div className="flex min-h-screen items-center justify-center p-4">
@@ -1873,20 +1875,36 @@ export default function PatientProfilePage() {
                   {viewingForm === 'onboarding_regulations' && 'View Internal Regulations Form'}
                   {viewingForm === 'onboarding_dissent' && 'View Letter of Informed Dissent Form'}
                 </h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setViewingForm(null)
-                    setViewFormData(null)
-                  }}
-                  className="gap-2"
-                >
-                  <X className="h-4 w-4" />
-                  Close
-                </Button>
+                <div className="flex items-center gap-2">
+                  <PDFDownloadButton
+                    formType={
+                      viewingForm === 'onboarding_release' ? 'Release-Form' :
+                      viewingForm === 'onboarding_outing' ? 'Outing-Consent' :
+                      viewingForm === 'onboarding_social_media' ? 'Social-Media-Release' :
+                      viewingForm === 'onboarding_regulations' ? 'Internal-Regulations' :
+                      'Informed-Dissent'
+                    }
+                    patientName={viewFormData?.full_name || `${viewFormData?.first_name || ''}-${viewFormData?.last_name || ''}`}
+                    date={viewFormData?.created_at?.split('T')[0]}
+                    contentRef={onboardingFormContentRef as React.RefObject<HTMLElement>}
+                  >
+                    Download PDF
+                  </PDFDownloadButton>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setViewingForm(null)
+                      setViewFormData(null)
+                    }}
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Close
+                  </Button>
+                </div>
               </div>
-              <div className="p-6">
+              <div ref={onboardingFormContentRef} className="p-6">
                 <OnboardingFormViewContent formType={viewingForm} formData={viewFormData} />
               </div>
             </div>
@@ -2596,12 +2614,258 @@ function OnboardingFormViewContent({
     )
   }
 
+  if (formType === 'onboarding_regulations') {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
+          Internal Regulations
+        </h1>
+        <p className="text-center text-gray-600 mb-8">Iboga Wellness Institute</p>
+
+        {/* Participant Information */}
+        <div className="space-y-6 mb-8">
+          <h2 className="text-2xl font-semibold text-gray-900 border-b pb-2">Patient Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">First Name</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.first_name || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Last Name</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.last_name || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Email</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.email || 'N/A'}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Phone Number</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formData.phone_number || 'N/A'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Chapter I: General Provisions */}
+        <div className="space-y-3 mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 border-b pb-2">CHAPTER I: GENERAL PROVISIONS</h2>
+          <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 space-y-2">
+            <p><strong>Article 1.</strong> These regulations establish the rules of coexistence, rights, and obligations of patients, staff, and visitors within the Iboga Wellness Institute clinic.</p>
+            <p><strong>Article 2.</strong> The clinic&apos;s objective is to provide comprehensive treatment for the rehabilitation of individuals with addiction problems, promoting their social reintegration and improving their quality of life.</p>
+            <p><strong>Article 3.</strong> These regulations are mandatory for all persons within the clinic&apos;s facilities.</p>
+          </div>
+        </div>
+
+        {/* Chapter II: Rights and Obligations */}
+        <div className="space-y-3 mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 border-b pb-2">CHAPTER II: RIGHTS AND OBLIGATIONS OF PATIENTS</h2>
+          <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 space-y-3">
+            <div>
+              <p className="font-medium">Article 4. Patients&apos; rights:</p>
+              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                <li>To receive dignified, respectful, and non-discriminatory treatment.</li>
+                <li>To have access to adequate medical and psychological care.</li>
+                <li>To participate in scheduled therapeutic and recreational activities.</li>
+                <li>To maintain communication with their families during established hours.</li>
+                <li>To receive information about their treatment and progress.</li>
+              </ul>
+            </div>
+            <div>
+              <p className="font-medium">Article 5. Patients&apos; obligations:</p>
+              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                <li>To comply with the established rules and schedules.</li>
+                <li>To respect other patients, staff, and clinic facilities.</li>
+                <li>To refrain from consuming any prohibited substances.</li>
+                <li>To actively participate in their rehabilitation process.</li>
+                <li>To maintain personal hygiene and cleanliness in their assigned space.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Chapter III: Rules of Coexistence */}
+        <div className="space-y-3 mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 border-b pb-2">CHAPTER III: RULES OF COEXISTENCE</h2>
+          <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 space-y-3">
+            <div>
+              <p className="font-medium">Article 6. The following are strictly prohibited:</p>
+              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                <li>The consumption, possession, or distribution of drugs, coffee, and alcohol.</li>
+                <li>Physical or verbal violence against anyone within the clinic.</li>
+                <li>The destruction or misuse of facilities.</li>
+                <li>Romantic or sexual relationships between patients during their stay.</li>
+                <li>Possession of dangerous objects.</li>
+              </ul>
+            </div>
+            <p><strong>Article 7.</strong> Patients must follow the assigned therapeutic program without interruptions or unjustified excuses.</p>
+            <p><strong>Article 8.</strong> Clothing must be appropriate and respectful, avoiding provocative attire or messages deemed inappropriate.</p>
+            <p><strong>Article 9.</strong> Family visits must take place only during established hours and under staff supervision.</p>
+          </div>
+        </div>
+
+        {/* Chapter IV: Staff Responsibilities */}
+        <div className="space-y-3 mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 border-b pb-2">CHAPTER IV: STAFF RESPONSIBILITIES</h2>
+          <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700">
+            <p className="font-medium">Article 10. Clinic staff is responsible for:</p>
+            <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+              <li>Providing professional and ethical care at all times.</li>
+              <li>Respecting patient confidentiality.</li>
+              <li>Promoting a safe and violence-free environment.</li>
+              <li>Enforcing the regulations fairly and justly.</li>
+              <li>Reporting any rule violations to the clinic&apos;s management.</li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Chapter V: Sanctions */}
+        <div className="space-y-3 mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 border-b pb-2">CHAPTER V: SANCTIONS AND DISCIPLINARY MEASURES</h2>
+          <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 space-y-2">
+            <div>
+              <p className="font-medium">Article 11. In case of non-compliance with the regulations, proportional sanctions will be applied, which may include:</p>
+              <ul className="list-disc list-inside ml-4 mt-1 space-y-1">
+                <li>Verbal or written warnings.</li>
+                <li>Temporary restriction of privileges.</li>
+                <li>Suspension of visits.</li>
+                <li>Expulsion from the program in severe cases.</li>
+              </ul>
+            </div>
+            <p><strong>Article 12.</strong> Repeated serious offenses will be grounds for treatment review and possible termination.</p>
+          </div>
+        </div>
+
+        {/* Chapter VI: Final Provisions */}
+        <div className="space-y-3 mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 border-b pb-2">CHAPTER VI: FINAL PROVISIONS</h2>
+          <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 space-y-2">
+            <p><strong>Article 13.</strong> Any situation not covered in these regulations will be evaluated by the clinic&apos;s management.</p>
+            <p><strong>Article 14.</strong> These regulations take effect upon approval and dissemination among patients and staff.</p>
+            <p><strong>Article 15.</strong> Acceptance of these regulations is a mandatory condition for admission and continued stay at Iboga Wellness Institute.</p>
+          </div>
+        </div>
+
+        {/* Acknowledgment of Acceptance */}
+        <div className="space-y-6 mb-8">
+          <h2 className="text-2xl font-semibold text-gray-900 border-b pb-2">Acknowledgment of Acceptance</h2>
+          <div className="space-y-4 bg-blue-50 p-4 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.regulations_read_understood ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <p className="text-base text-gray-900">I have read and understood all the regulations above</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.rights_acknowledged ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <p className="text-base text-gray-900">I acknowledge my rights as a patient</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.obligations_acknowledged ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <p className="text-base text-gray-900">I acknowledge my obligations as a patient</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.coexistence_rules_acknowledged ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <p className="text-base text-gray-900">I acknowledge and agree to follow the rules of coexistence</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.sanctions_acknowledged ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <p className="text-base text-gray-900">I understand and accept the sanctions for non-compliance</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="mt-1">
+                {formData.acceptance_confirmed ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : (
+                  <Clock className="h-5 w-5 text-gray-300" />
+                )}
+              </div>
+              <div>
+                <p className="text-base font-medium text-gray-900">I confirm my acceptance of these regulations as a condition for admission and continued stay</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Signature */}
+        {formData.signature_data && (
+          <div className="space-y-4 mt-8 pt-8 border-t border-gray-200">
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-1">Signature Date</label>
+              <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center">
+                {formatDate(formData.signature_date)}
+              </div>
+            </div>
+            <div>
+              <label className="text-base font-medium text-gray-700 block mb-4">Signature</label>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-300">
+                <img
+                  src={formData.signature_data}
+                  alt="Signature"
+                  className="max-w-full h-auto"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // For other forms, use a generic display
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center">
         {formType === 'onboarding_social_media' && 'Patient Social Media Release'}
-        {formType === 'onboarding_regulations' && 'Internal Regulations'}
         {formType === 'onboarding_dissent' && 'Letter of Informed Dissent'}
       </h1>
 

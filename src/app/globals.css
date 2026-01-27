@@ -288,3 +288,29 @@
     backdrop-filter: blur(12px);
   }
 }
+
+/* PDF Print utilities - use these classes to control page breaks */
+@layer utilities {
+  /* Prevent page breaks inside this element */
+  .pdf-keep-together {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Force a page break before this element */
+  .pdf-break-before {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Force a page break after this element */
+  .pdf-break-after {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  /* Good place for a page break (hint to PDF generator) */
+  .pdf-break-point {
+    /* This class is detected by the PDF generator as a safe break point */
+  }
+}

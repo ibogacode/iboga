@@ -1,10 +1,13 @@
 'use client'
 
+import { useRef } from 'react'
 import { format } from 'date-fns'
-import { 
-  PRIVACY_POLICY_TEXT, 
+import {
+  PRIVACY_POLICY_TEXT,
   PrivacyPolicyContent,
 } from '@/components/forms/form-content'
+import { PDFTextDownloadButton } from '@/components/ui/pdf-text-download-button'
+import { buildPatientIntakeBlocks } from '@/lib/form-block-builders'
 
 interface PatientIntakeForm {
   id: string
@@ -41,6 +44,8 @@ interface PatientIntakeFormViewProps {
 }
 
 export function PatientIntakeFormView({ form }: PatientIntakeFormViewProps) {
+  const contentRef = useRef<HTMLDivElement>(null)
+
   function formatDate(dateString: string | null) {
     if (!dateString) return 'N/A'
     try {
@@ -52,7 +57,19 @@ export function PatientIntakeFormView({ form }: PatientIntakeFormViewProps) {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 print:bg-white print:py-4">
-      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8 print:shadow-none print:rounded-none">
+      {/* Download Button */}
+      <div className="fixed top-4 right-4 z-50 print:hidden">
+        <PDFTextDownloadButton
+          formType="Client-Application"
+          patientName={`${form.first_name}-${form.last_name}`}
+          date={form.created_at?.split('T')[0]}
+          getBlocks={() => buildPatientIntakeBlocks(form)}
+        >
+          Download PDF
+        </PDFTextDownloadButton>
+      </div>
+
+      <div ref={contentRef} data-pdf-content className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8 print:shadow-none print:rounded-none">
         <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center print:mb-4">
           Client Application Form
         </h1>
@@ -251,11 +268,11 @@ export function PatientIntakeFormView({ form }: PatientIntakeFormViewProps) {
         </div>
 
         {/* Step 3: Privacy Policy */}
-        <div className="space-y-6 mb-8 print:mb-6 print:break-inside-avoid">
+        <div className="space-y-6 mb-8 print:mb-6">
           <h2 className="text-2xl font-semibold text-gray-900">Privacy Policy</h2>
           
-          <div className="bg-gray-50 p-8 rounded-lg print:p-4">
-            <div className="prose prose-sm max-w-none">
+          <div className="bg-gray-50 p-8 rounded-lg print:p-4" style={{ minHeight: '200px', width: '100%', position: 'relative' }} data-content-ref="privacy-policy">
+            <div className="max-w-none text-base text-gray-700" style={{ display: 'block', width: '100%', visibility: 'visible', opacity: 1 }}>
               <PrivacyPolicyContent text={PRIVACY_POLICY_TEXT} />
             </div>
           </div>

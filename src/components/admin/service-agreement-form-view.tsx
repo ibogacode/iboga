@@ -1,7 +1,10 @@
 'use client'
 
+import { useRef } from 'react'
 import { format } from 'date-fns'
 import { getServiceAgreementText, ServiceAgreementContent } from '@/components/forms/form-content'
+import { PDFTextDownloadButton } from '@/components/ui/pdf-text-download-button'
+import { buildServiceAgreementBlocks } from '@/lib/form-block-builders'
 
 interface ServiceAgreement {
   id: string
@@ -39,6 +42,8 @@ interface ServiceAgreementFormViewProps {
 }
 
 export function ServiceAgreementFormView({ form }: ServiceAgreementFormViewProps) {
+  const contentRef = useRef<HTMLDivElement>(null)
+
   function formatDate(dateString: string | null) {
     if (!dateString) return 'N/A'
     try {
@@ -65,7 +70,19 @@ export function ServiceAgreementFormView({ form }: ServiceAgreementFormViewProps
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 print:bg-white print:py-4">
-      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8 print:shadow-none print:rounded-none">
+      {/* Download Button */}
+      <div className="fixed top-4 right-4 z-50 print:hidden">
+        <PDFTextDownloadButton
+          formType="Service-Agreement"
+          patientName={`${form.patient_first_name}-${form.patient_last_name}`}
+          date={form.created_at?.split('T')[0]}
+          getBlocks={() => buildServiceAgreementBlocks(form)}
+        >
+          Download PDF
+        </PDFTextDownloadButton>
+      </div>
+
+      <div ref={contentRef} data-pdf-content className="max-w-4xl mx-auto bg-white rounded-lg shadow-sm p-8 print:shadow-none print:rounded-none">
         <h1 className="text-3xl font-bold text-gray-900 mb-8 text-center print:mb-4">
           Service Agreement
         </h1>
@@ -231,7 +248,7 @@ export function ServiceAgreementFormView({ form }: ServiceAgreementFormViewProps
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Provider Signature</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="text-base font-medium text-gray-900">Signature Name</label>
+                  <label className="text-base font-medium text-gray-900">Provider Name</label>
                   <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center mt-2">
                     {form.provider_signature_name}
                   </div>
@@ -256,30 +273,10 @@ export function ServiceAgreementFormView({ form }: ServiceAgreementFormViewProps
                     )}
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-6 mt-6">
-                  <div>
-                    <label className="text-base font-medium text-gray-900">Signature</label>
-                    <div className="mt-2">
-                      {form.provider_signature_data ? (
-                        <div className="border border-gray-300 rounded-md p-4 bg-gray-50">
-                          <img 
-                            src={form.provider_signature_data} 
-                            alt="Provider Signature" 
-                            className="max-w-full h-auto"
-                          />
-                        </div>
-                      ) : (
-                        <div className="h-32 border border-gray-300 rounded-md bg-gray-50 flex items-center justify-center text-gray-400">
-                          No signature provided
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-base font-medium text-gray-900">Date</label>
-                    <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center mt-2">
-                      {formatDate(form.provider_signature_date)}
-                    </div>
+                <div>
+                  <label className="text-base font-medium text-gray-900">Date</label>
+                  <div className="h-12 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center mt-2">
+                    {formatDate(form.provider_signature_date)}
                   </div>
                 </div>
               </div>
