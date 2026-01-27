@@ -352,6 +352,7 @@ export default function PatientTasksPage() {
                       : 'bg-white text-[#777777] border-gray-200 hover:bg-gray-50'
                   }`}
                   onClick={() => setSelectedFilter('not_started')}
+                  data-tour="tour-tasks-incomplete-button"
                 >
                   <span className="hidden sm:inline">Not Started </span>
                   <span>({tasks.filter(t => t.status === 'not_started').length})</span>
@@ -364,6 +365,7 @@ export default function PatientTasksPage() {
                       : 'bg-white text-[#777777] border-gray-200 hover:bg-gray-50'
                   }`}
                   onClick={() => setSelectedFilter('completed')}
+                  data-tour="tour-tasks-completed-button"
                 >
                   <span className="hidden sm:inline">Completed </span>
                   <span>({statistics.completed})</span>

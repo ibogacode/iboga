@@ -6,6 +6,10 @@ import { User } from '@/types'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { UserRole } from '@/types'
 import { useOnlineStatus } from '@/hooks/use-online-status.hook'
+import { TourProvider } from '@/contexts/tour-context'
+import { tourSteps } from '@/tour/steps'
+import { TourOverlay } from '@/components/tour/tour-overlay'
+import { TourHelpButton } from '@/components/tour/tour-help-button'
 
 // Dynamic imports to prevent hydration mismatch with Radix UI components
 const Navbar = dynamic(
@@ -50,21 +54,29 @@ export function DashboardShell({ children, user, profile, userRole }: DashboardS
   }, [])
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      {/* Navbar - Full width at top */}
-      <Navbar user={user} profile={profile} role={userRole} />
-      
-      {/* Sidebar - Fixed on left, hidden on mobile and tablet, shown on desktop (lg) */}
-      <div className="hidden lg:block">
-        <Sidebar role={userRole} user={user} profile={profile} />
-      </div>
-      
-      {/* Content - Below navbar, offset by collapsed sidebar width (72px) on desktop (lg) */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden pt-[52px] md:pt-[68px] lg:pl-[72px] bg-[#F5F4F0]">
-        <div className="w-full max-w-[1920px] mx-auto px-4 pb-4 md:px-6 md:pb-6">
-          {children}
+    <TourProvider steps={tourSteps}>
+      <div className="flex h-screen flex-col overflow-hidden">
+        {/* Navbar - Full width at top */}
+        <Navbar user={user} profile={profile} role={userRole} />
+        
+        {/* Sidebar - Fixed on left, hidden on mobile and tablet, shown on desktop (lg) */}
+        <div className="hidden lg:block">
+          <Sidebar role={userRole} user={user} profile={profile} />
         </div>
-      </main>
-    </div>
+        
+        {/* Content - Below navbar, offset by collapsed sidebar width (72px) on desktop (lg) */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-[52px] md:pt-[68px] lg:pl-[72px] bg-[#F5F4F0]">
+          <div className="w-full max-w-[1920px] mx-auto px-4 pb-4 md:px-6 md:pb-6">
+            {children}
+          </div>
+        </main>
+        
+        {/* Tour Overlay - Renders when tour is active */}
+        <TourOverlay />
+        
+        {/* Tour Help Button - Always visible in bottom right */}
+        <TourHelpButton />
+      </div>
+    </TourProvider>
   )
 }

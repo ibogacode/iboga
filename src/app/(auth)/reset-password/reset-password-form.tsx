@@ -8,7 +8,6 @@ import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { resetPasswordAction } from '@/actions/auth.action'
 import { toast } from 'sonner'
 import { resetPasswordSchema, type ResetPasswordFormData } from '@/lib/validations/auth'
 import { createClient } from '@/lib/supabase/client'
@@ -235,39 +234,52 @@ export function ResetPasswordForm() {
     setIsLoading(true)
     
     try {
-      const result = await resetPasswordAction({ 
+      const supabase = createClient()
+      
+      // Verify we have a session before proceeding
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError || !session) {
+        toast.error('Invalid or expired reset token. Please request a new password reset link.')
+        setIsValidToken(false)
+        return
+      }
+
+      // Update password using client-side Supabase (session is already established)
+      const { error: updateError } = await supabase.auth.updateUser({
         password: data.password,
-        confirmPassword: data.confirmPassword,
       })
 
-      if (result?.serverError) {
-        toast.error(result.serverError)
+      if (updateError) {
+        toast.error(updateError.message || 'Failed to reset password')
         return
       }
 
-      if (result?.validationErrors) {
-        const errors = Object.values(result.validationErrors)
-        const firstError = errors.length > 0 ? String(errors[0]) : null
-        toast.error(firstError || 'Validation failed')
-        return
-      }
+      // Clear must_change_password flag after successful password reset
+      if (session.user?.id) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ must_change_password: false })
+          .eq('id', session.user.id)
 
-      if (result?.data) {
-        if (result.data.success) {
-          toast.success('Password reset successfully! Redirecting to login...')
-          
-          // Redirect to login after a short delay
-          setTimeout(() => {
-            router.push('/login')
-          }, 2000)
-        } else if (result.data.error) {
-          toast.error(result.data.error)
-        } else {
-          toast.error('Failed to reset password')
+        if (profileError) {
+          console.error('Error clearing must_change_password flag:', profileError)
+          // Don't fail the password reset if flag update fails
         }
       }
-    } catch {
-      toast.error('An unexpected error occurred')
+
+      toast.success('Password reset successfully! Redirecting to login...')
+      
+      // Sign out to clear the recovery session
+      await supabase.auth.signOut()
+      
+      // Redirect to login after a short delay
+      setTimeout(() => {
+        router.push('/login')
+      }, 2000)
+    } catch (error) {
+      console.error('Password reset error:', error)
+      toast.error('An unexpected error occurred. Please try again.')
     } finally {
       setIsLoading(false)
     }

@@ -11,6 +11,7 @@ import { User } from '@/types'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { ChevronRight, User as UserIcon } from 'lucide-react'
 import { useUnreadMessages } from '@/hooks/use-unread-messages.hook'
+import { useTour } from '@/contexts/tour-context'
 
 interface SidebarProps {
   role?: UserRole
@@ -52,6 +53,7 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
   const pathname = usePathname()
   const [isExpanded, setIsExpanded] = useState(false)
   const { unreadCount } = useUnreadMessages()
+  const { startTour, restartTour, isActive } = useTour()
 
   // Get navigation items based on role
   const navConfig = navigationByRole[role] || navigationByRole.patient
@@ -157,17 +159,18 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
               const isMessagesItem = item.title === 'Messages'
               const showUnreadBadge = isMessagesItem && unreadCount > 0
 
+              const isGuideItem = item.title === 'Guide'
               const itemContent = (
                 <>
                   {/* Active indicator */}
-                  {isActive && showExpanded && (
+                  {(isActive || (isGuideItem && isActive)) && showExpanded && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gray-900 rounded-r-full -ml-3" />
                   )}
 
                   <div className="relative">
                     <Icon className={cn(
                       'h-5 w-5 shrink-0',
-                      isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
+                      (isActive || (isGuideItem && isActive)) ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
                     )} />
                     {/* Unread badge on icon when collapsed */}
                     {showUnreadBadge && !showExpanded && (
@@ -199,7 +202,27 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
               
               return (
                 <div key={item.href || item.title}>
-                  {hasHref ? (
+                  {isGuideItem ? (
+                    <button
+                      onClick={() => {
+                        if (isActive) {
+                          restartTour()
+                        } else {
+                          startTour()
+                        }
+                      }}
+                      className={cn(
+                        'group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-smooth relative focus-ring w-full text-left',
+                        isActive
+                          ? 'bg-gray-900 text-white'
+                          : 'text-gray-700 hover:bg-white hover:shadow-md',
+                        !showExpanded && 'justify-center px-0'
+                      )}
+                      title={!showExpanded ? item.title : undefined}
+                    >
+                      {itemContent}
+                    </button>
+                  ) : hasHref ? (
                     <Link
                       href={item.href!}
                       className={cn(
@@ -210,6 +233,7 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
                         !showExpanded && 'justify-center px-0'
                       )}
                       title={!showExpanded ? item.title : undefined}
+                      data-tour={item.title === 'Tasks' ? 'tour-sidebar-tasks' : item.title === 'Documents' ? 'tour-sidebar-documents' : undefined}
                     >
                       {itemContent}
                     </Link>
