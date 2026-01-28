@@ -168,6 +168,7 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
                   variant="ghost"
                   size="icon"
                   className="h-auto w-auto p-1.5 md:p-2 hover:bg-transparent relative"
+                  data-tour="tour-dashboard-notifications"
                 >
                   <Bell className="h-4 w-4 md:h-5 md:w-5 text-black" />
                   {unreadCount > 0 && (
@@ -267,6 +268,7 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
               <Button
                 variant="ghost"
                 className="relative h-[44px] w-[44px] md:h-[51px] md:w-[51px] rounded-full bg-[#2D3A1F] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] p-0 hover:bg-[#2D3A1F]/90 overflow-hidden"
+                data-tour="tour-profile-avatar"
               >
                 <Avatar className="h-full w-full">
                   <AvatarImage src={userAvatar || undefined} alt={userName} className="object-cover" />
@@ -293,9 +295,7 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
               <DropdownMenuItem asChild>
                 <Link href="/profile">Profile</Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/settings">Settings</Link>
-              </DropdownMenuItem>
+
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <SignOutButton className="w-full text-left text-destructive cursor-pointer">

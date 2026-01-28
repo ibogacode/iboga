@@ -27,6 +27,7 @@ import {
   Instagram,
   Youtube,
   Globe,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react'
 import { UserRole } from '@/types'
@@ -202,6 +203,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Documents', href: '/patient/documents', icon: FileText },
       { title: 'Messages', href: '/messages', icon: MessageSquare },
       { title: 'Resources', href: '/patient/resources', icon: User },
+      { title: 'Guide', href: '#', icon: BookOpen }, // Special item - handled by tour
     ],
     secondaryNav: [],
   },

@@ -60,10 +60,6 @@ export function PendingTasksCard({ tasks = [] }: PendingTasksCardProps) {
     }
   }
 
-  // If no tasks, show empty state or don't render
-  if (tasks.length === 0) {
-    return null
-  }
   return (
     <div className="flex flex-col gap-2 sm:gap-2.5 p-4 sm:p-6 rounded-xl sm:rounded-2xl bg-white">
       {/* Header */}
@@ -74,7 +70,20 @@ export function PendingTasksCard({ tasks = [] }: PendingTasksCardProps) {
         <div className="w-px h-[15px] bg-[#6B7280] hidden sm:block" />
       </div>
 
-      {/* Tasks Grid */}
+      {/* Tasks Grid or Empty State */}
+      {tasks.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 sm:py-12 text-center">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#F5F4F0] flex items-center justify-center mb-4">
+            <ClipboardList className="w-8 h-8 sm:w-10 sm:h-10 text-[#777777]" />
+          </div>
+          <p className="text-sm sm:text-base font-medium leading-[1.193em] tracking-[-0.04em] text-black mb-2">
+            No Pending Tasks
+          </p>
+          <p className="text-xs sm:text-sm leading-[1.193em] tracking-[-0.04em] text-[#777777] max-w-sm">
+            You're all caught up! There are no pending tasks at the moment.
+          </p>
+        </div>
+      ) : (
       <div className="flex flex-col gap-4 sm:gap-6">
         {/* First Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -172,6 +181,7 @@ export function PendingTasksCard({ tasks = [] }: PendingTasksCardProps) {
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }

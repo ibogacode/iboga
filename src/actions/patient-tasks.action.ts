@@ -34,150 +34,117 @@ export interface OnboardingStatus {
 
 /**
  * Get patient's forms and tasks
+ * Optimized to run queries in parallel where possible
  */
 export const getPatientTasks = authActionClient
   .schema(getPatientTasksSchema)
   .action(async ({ ctx }) => {
     const supabase = await createClient()
+    const adminClient = createAdminClient()
     const patientId = ctx.user.id
 
-    // Get patient profile to get email for matching forms
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('email, first_name, last_name')
-      .eq('id', patientId)
-      .single()
+    // ========== PHASE 1: Initial parallel queries ==========
+    // Run profile, onboarding, and form lookups in parallel
+    const [
+      profileResult,
+      onboardingResult,
+      intakeFormsByPatientResult,
+      medicalFormsByPatientResult,
+      serviceAgreementResult,
+      ibogaineConsentResult,
+    ] = await Promise.all([
+      // Get patient profile
+      supabase
+        .from('profiles')
+        .select('email, first_name, last_name')
+        .eq('id', patientId)
+        .single(),
+      // Check onboarding status (full query - no need to query again later)
+      supabase
+        .from('patient_onboarding')
+        .select('id, status, release_form_completed, outing_consent_completed, internal_regulations_completed')
+        .eq('patient_id', patientId)
+        .maybeSingle(),
+      // Try to find intake form by patient_id match in profiles
+      supabase
+        .from('patient_intake_forms')
+        .select('id, email, created_at, first_name, last_name')
+        .order('created_at', { ascending: false })
+        .limit(10), // Get recent forms to match by email/name
+      // Get medical forms
+      supabase
+        .from('medical_history_forms')
+        .select('id, email, intake_form_id, first_name, last_name, created_at')
+        .order('created_at', { ascending: false })
+        .limit(10),
+      // Get service agreements by patient_id
+      supabase
+        .from('service_agreements')
+        .select('id, patient_id, patient_email, created_at, is_activated, activated_at')
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false })
+        .limit(1),
+      // Get ibogaine consent forms by patient_id
+      supabase
+        .from('ibogaine_consent_forms')
+        .select('id, patient_id, email, intake_form_id, created_at, is_activated, activated_at')
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false })
+        .limit(1),
+    ])
 
-    if (profileError || !profile) {
-      console.error('[getPatientTasks] Profile error:', profileError)
+    const profile = profileResult.data
+    if (profileResult.error || !profile) {
+      console.error('[getPatientTasks] Profile error:', profileResult.error)
       return { success: false, error: 'Patient profile not found' }
     }
 
     const patientEmail = (profile.email || '').trim().toLowerCase()
-    console.log('[getPatientTasks] Patient ID:', patientId)
-    console.log('[getPatientTasks] Profile email (original):', profile.email)
-    console.log('[getPatientTasks] Profile email (normalized):', patientEmail)
-    console.log('[getPatientTasks] Profile name:', profile.first_name, profile.last_name)
-    const tasks: PatientTask[] = []
+    const onboardingFull = onboardingResult.data
+    const isInOnboarding = !!onboardingFull
+    console.log('[getPatientTasks] Patient ID:', patientId, 'Email:', patientEmail, 'Onboarding:', isInOnboarding)
 
-    // Check for uploaded documents by admin/owner (existing patient documents)
-    // These documents indicate forms that have been completed via document upload
-    let uploadedDocuments: Map<string, any> = new Map() // form_type -> document
+    const tasks: PatientTask[] = []
+    let uploadedDocuments: Map<string, any> = new Map()
+
+    // ========== PHASE 2: Get partial form and uploaded documents in parallel ==========
+    // Find partial intake form to get uploaded documents
     let partialFormId: string | null = null
-    
-    // Use admin client to check for documents (secure since we're checking patient's own data)
-    const adminClient = createAdminClient()
-    
-    // First, find partial intake form for this patient (to get documents)
     if (patientEmail) {
       const { data: partialForms } = await adminClient
         .from('partial_intake_forms')
-        .select('id, email')
+        .select('id')
         .eq('email', patientEmail)
         .order('created_at', { ascending: false })
         .limit(1)
       
-      if (partialForms && partialForms.length > 0) {
+      if (partialForms?.[0]) {
         partialFormId = partialForms[0].id
-      }
-    }
-    
-    // Get uploaded documents for this patient's partial form
-    if (partialFormId) {
-      // Use admin client to check documents (secure - only checking this patient's own documents)
-      const { data: existingDocs } = await adminClient
-        .from('existing_patient_documents')
-        .select('form_type, document_url, document_name, uploaded_at, id')
-        .eq('partial_intake_form_id', partialFormId)
-      
-      if (existingDocs) {
-        existingDocs.forEach((doc: any) => {
+        // Get uploaded documents
+        const { data: existingDocs } = await adminClient
+          .from('existing_patient_documents')
+          .select('form_type, document_url, document_name, uploaded_at, id')
+          .eq('partial_intake_form_id', partialFormId)
+        
+        existingDocs?.forEach((doc: any) => {
           uploadedDocuments.set(doc.form_type, doc)
         })
-        console.log('[getPatientTasks] Found uploaded documents:', Array.from(uploadedDocuments.keys()))
       }
     }
 
-    // Check if patient is in onboarding stage early (used to determine form completion status)
-    // If patient is in onboarding, it means they've completed all 4 initial forms
-    const { data: onboarding } = await supabase
-      .from('patient_onboarding')
-      .select('id, status')
-      .eq('patient_id', patientId)
-      .maybeSingle()
-    const isInOnboarding = !!onboarding
-    console.log('[getPatientTasks] Patient in onboarding:', isInOnboarding)
-
-    // 1. Check for Patient Intake Form (Application Form)
-    // Check by email (forms might be filled before profile creation)
-    // Use case-insensitive comparison and also check by name as fallback
-    let intakeForm = null
-    if (patientEmail) {
-      // First try exact email match (case-insensitive via ilike)
-      console.log('[getPatientTasks] Searching intake forms with email:', patientEmail)
-      const { data: intakeFormsByEmail, error: emailError } = await supabase
-        .from('patient_intake_forms')
-        .select('id, email, created_at, first_name, last_name')
-        .ilike('email', patientEmail)
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (emailError) {
-        console.error('[getPatientTasks] Intake form email query error:', emailError)
-        // If RLS error, log it specifically
-        if (emailError.code === '42501' || emailError.message?.includes('permission') || emailError.message?.includes('policy')) {
-          console.error('[getPatientTasks] RLS POLICY ERROR - Patient may not have permission to view intake forms. Make sure migration 20241210000020_add_patient_view_own_intake_forms_rls.sql is run.')
-        }
-      } else {
-        console.log('[getPatientTasks] Intake forms found by email:', intakeFormsByEmail?.length || 0)
-        if (intakeFormsByEmail && intakeFormsByEmail.length > 0) {
-          intakeForm = intakeFormsByEmail[0]
-          console.log('[getPatientTasks] ✓ Found intake form by email:', intakeForm.id)
-          console.log('[getPatientTasks]   Form email:', intakeForm.email)
-          console.log('[getPatientTasks]   Form name:', intakeForm.first_name, intakeForm.last_name)
-          console.log('[getPatientTasks]   Created at:', intakeForm.created_at)
-        } else {
-          // Fallback: Try matching by name if email doesn't match
-          // This handles cases where email might have changed or been entered differently
-          if (profile.first_name && profile.last_name) {
-            const { data: intakeFormsByName, error: nameError } = await supabase
-              .from('patient_intake_forms')
-              .select('id, email, created_at, first_name, last_name')
-              .ilike('first_name', profile.first_name.trim())
-              .ilike('last_name', profile.last_name.trim())
-              .order('created_at', { ascending: false })
-              .limit(1)
-
-            if (nameError) {
-              console.error('[getPatientTasks] Intake form name query error:', nameError)
-            } else if (intakeFormsByName && intakeFormsByName.length > 0) {
-              intakeForm = intakeFormsByName[0]
-              console.log('[getPatientTasks] Found intake form by name:', intakeForm.id, 'Form email:', intakeForm.email, 'Profile email:', patientEmail)
-            }
-          }
-
-          if (!intakeForm) {
-            console.log('[getPatientTasks] No intake form found for email:', patientEmail, 'or name:', profile.first_name, profile.last_name)
-          }
-        }
-      }
-    } else {
-      console.log('[getPatientTasks] No patient email, trying to find by name only')
-      // If no email, try to find by name
-      if (profile.first_name && profile.last_name) {
-        const { data: intakeFormsByName, error: nameError } = await supabase
-          .from('patient_intake_forms')
-          .select('id, email, created_at, first_name, last_name')
-          .ilike('first_name', profile.first_name.trim())
-          .ilike('last_name', profile.last_name.trim())
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        if (!nameError && intakeFormsByName && intakeFormsByName.length > 0) {
-          intakeForm = intakeFormsByName[0]
-          console.log('[getPatientTasks] Found intake form by name (no email):', intakeForm.id)
-        }
-      }
+    // ========== PHASE 3: Match forms from pre-fetched data ==========
+    // 1. Find intake form by email or name match from pre-fetched forms
+    const intakeForms = intakeFormsByPatientResult.data || []
+    let intakeForm = intakeForms.find(f => 
+      f.email?.toLowerCase().trim() === patientEmail
+    ) || intakeForms.find(f => 
+      profile.first_name && profile.last_name &&
+      f.first_name?.toLowerCase().trim() === profile.first_name.toLowerCase().trim() &&
+      f.last_name?.toLowerCase().trim() === profile.last_name.toLowerCase().trim()
+    ) || null
+    
+    if (intakeForm) {
+      console.log('[getPatientTasks] ✓ Found intake form:', intakeForm.id)
     }
 
     // Check if intake form document was uploaded (for existing patient flow)
@@ -236,100 +203,121 @@ export const getPatientTasks = authActionClient
       })
     }
 
-    // 2. Check for Medical History Form
-    // Check by email (case-insensitive), intake_form_id, and by name as fallback
-    let medicalForm = null
+    // 2. Find medical history form from pre-fetched data
+    const medicalForms = medicalFormsByPatientResult.data || []
+    let medicalForm = (intakeForm && medicalForms.find(f => f.intake_form_id === intakeForm.id)) ||
+      medicalForms.find(f => f.email?.toLowerCase().trim() === patientEmail) ||
+      medicalForms.find(f => 
+        profile.first_name && profile.last_name &&
+        f.first_name?.toLowerCase().trim() === profile.first_name.toLowerCase().trim() &&
+        f.last_name?.toLowerCase().trim() === profile.last_name.toLowerCase().trim()
+      ) || null
+    
+    if (medicalForm) {
+      console.log('[getPatientTasks] ✓ Found medical form:', medicalForm.id)
+    }
 
-    // Strategy 1: Try by intake_form_id first (most reliable link)
-    if (intakeForm) {
-      const { data: medicalByIntake, error: intakeError } = await supabase
-        .from('medical_history_forms')
-        .select('id, email, intake_form_id, first_name, last_name, created_at')
-        .eq('intake_form_id', intakeForm.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
+    // 3. Get service agreement and ibogaine consent (already fetched by patient_id, check email fallback if needed)
+    let serviceAgreement = serviceAgreementResult.data?.[0] || null
+    let ibogaineConsentForm = ibogaineConsentResult.data?.[0] || null
 
-      if (intakeError) {
-        console.error('[getPatientTasks] Medical history form intake_form_id query error:', intakeError)
-        if (intakeError.code === '42501' || intakeError.message?.includes('permission') || intakeError.message?.includes('policy')) {
-          console.error('[getPatientTasks] RLS POLICY ERROR - Patient may not have permission to view medical history forms. Make sure migration 20241210000020_add_patient_view_own_intake_forms_rls.sql is run.')
+    // If not found by patient_id, try email fallback in parallel
+    if (patientEmail && (!serviceAgreement || !ibogaineConsentForm)) {
+      const fallbackQueries = []
+      if (!serviceAgreement) {
+        fallbackQueries.push(
+          supabase
+            .from('service_agreements')
+            .select('id, patient_id, patient_email, created_at, is_activated, activated_at')
+            .ilike('patient_email', patientEmail)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .then(r => ({ type: 'service', data: r.data?.[0] }))
+        )
+      }
+      if (!ibogaineConsentForm) {
+        // Try by intake_form_id first, then email
+        const consentQuery = intakeForm
+          ? supabase
+              .from('ibogaine_consent_forms')
+              .select('id, patient_id, email, intake_form_id, created_at, is_activated, activated_at')
+              .eq('intake_form_id', intakeForm.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+          : supabase
+              .from('ibogaine_consent_forms')
+              .select('id, patient_id, email, intake_form_id, created_at, is_activated, activated_at')
+              .ilike('email', patientEmail)
+              .order('created_at', { ascending: false })
+              .limit(1)
+        fallbackQueries.push(
+          consentQuery.then(r => ({ type: 'consent', data: r.data?.[0] }))
+        )
+      }
+      
+      const fallbackResults = await Promise.all(fallbackQueries)
+      fallbackResults.forEach(r => {
+        if (r.type === 'service' && r.data) {
+          serviceAgreement = r.data as { id: any; patient_id: any; patient_email: any; created_at: any; is_activated: any; activated_at: any } | null
         }
-      } else if (medicalByIntake && medicalByIntake.length > 0) {
-        medicalForm = medicalByIntake[0]
-        console.log('[getPatientTasks] ✓ Found medical history form by intake_form_id:', medicalForm.id)
-      }
-    }
-
-    // Strategy 2: If not found, try by email (case-insensitive)
-    if (!medicalForm && patientEmail) {
-      const { data: medicalByEmail, error: emailError } = await supabase
-        .from('medical_history_forms')
-        .select('id, email, intake_form_id, first_name, last_name, created_at')
-        .ilike('email', patientEmail)
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (emailError) {
-        console.error('[getPatientTasks] Medical history form email query error:', emailError)
-        if (emailError.code === '42501' || emailError.message?.includes('permission') || emailError.message?.includes('policy')) {
-          console.error('[getPatientTasks] RLS POLICY ERROR - Patient may not have permission to view medical history forms. Make sure migration 20241210000020_add_patient_view_own_intake_forms_rls.sql is run.')
+        if (r.type === 'consent' && r.data) {
+          ibogaineConsentForm = r.data as { id: any; patient_id: any; email: any; intake_form_id: any; created_at: any; is_activated: any; activated_at: any } | null
         }
-      } else if (medicalByEmail && medicalByEmail.length > 0) {
-        medicalForm = medicalByEmail[0]
-        console.log('[getPatientTasks] ✓ Found medical history form by email:', medicalForm.id)
-      }
+      })
     }
 
-    // Strategy 3: If still not found and we have patient name, try by name matching
-    if (!medicalForm && profile.first_name && profile.last_name) {
-      const { data: medicalByName, error: nameError } = await supabase
-        .from('medical_history_forms')
-        .select('id, email, intake_form_id, first_name, last_name, created_at')
-        .ilike('first_name', profile.first_name.trim())
-        .ilike('last_name', profile.last_name.trim())
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (nameError) {
-        console.error('[getPatientTasks] Medical history form name query error:', nameError)
-      } else if (medicalByName && medicalByName.length > 0) {
-        medicalForm = medicalByName[0]
-        console.log('[getPatientTasks] ✓ Found medical history form by name:', medicalForm.id, 'Form email:', medicalForm.email, 'Profile email:', patientEmail)
-      }
+    // ========== PHASE 4: Fetch signature data in parallel for all forms that need checking ==========
+    const signatureQueries: Array<PromiseLike<{ type: string; data: any }>> = []
+    
+    if (medicalForm) {
+      signatureQueries.push(
+        adminClient
+          .from('medical_history_forms')
+          .select('signature_data, signature_date')
+          .eq('id', medicalForm.id)
+          .maybeSingle()
+          .then(r => ({ type: 'medical', data: r.data }))
+      )
+    }
+    
+    if (serviceAgreement?.is_activated) {
+      signatureQueries.push(
+        adminClient
+          .from('service_agreements')
+          .select('patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
+          .eq('id', serviceAgreement.id)
+          .maybeSingle()
+          .then(r => ({ type: 'service', data: r.data }))
+      )
+    }
+    
+    if (ibogaineConsentForm?.is_activated) {
+      signatureQueries.push(
+        adminClient
+          .from('ibogaine_consent_forms')
+          .select('signature_data, signature_date, signature_name')
+          .eq('id', ibogaineConsentForm.id)
+          .maybeSingle()
+          .then(r => ({ type: 'ibogaine', data: r.data }))
+      )
     }
 
-    if (!medicalForm) {
-      console.log('[getPatientTasks] No medical history form found after trying all strategies')
-    }
+    const signatureResults = await Promise.all(signatureQueries)
+    const signatureData: Record<string, any> = {}
+    signatureResults.forEach(r => { signatureData[r.type] = r.data })
 
-    // Check if medical history document was uploaded (for existing patient flow)
+    // ========== PHASE 5: Build tasks list ==========
+    // Check uploaded documents
     const hasMedicalDocument = uploadedDocuments.has('medical')
     const medicalDocument = uploadedDocuments.get('medical')
 
-    // Priority: FIRST check if patient filled form themselves (portal flow), 
-    // THEN check for uploaded documents (existing patient flow)
+    // Add Medical History task
     if (medicalForm) {
-      // Check if form has signature (indicates patient completed it through portal)
-      // Note: medical_history_forms doesn't have is_completed column, so we rely on signature
-      const { data: fullMedicalForm } = await adminClient
-        .from('medical_history_forms')
-        .select('signature_data, signature_date')
-        .eq('id', medicalForm.id)
-        .maybeSingle()
-      
-      // Form is considered completed if it has signature data
-      // signature_date is NOT NULL in schema, so we check signature_data which indicates actual completion
-      const hasSignature = fullMedicalForm?.signature_data && 
-        fullMedicalForm.signature_data.trim() !== ''
-      
-      // If patient is in onboarding, forms should be considered completed if they exist
-      // (onboarding only happens after completing all 4 initial forms)
+      const fullMedicalForm = signatureData.medical
+      const hasSignature = fullMedicalForm?.signature_data?.trim()
       const shouldConsiderCompleted = hasSignature || isInOnboarding
       
-      // If form exists and has signature (or patient is in onboarding), it's completed (portal flow)
-      // If form exists but no signature and not in onboarding, check if there's an uploaded document as fallback
       if (shouldConsiderCompleted) {
-        // Patient filled form themselves - show as completed with view link
         tasks.push({
           id: `medical-${medicalForm.id}`,
           type: 'medical_history',
@@ -344,7 +332,6 @@ export const getPatientTasks = authActionClient
           link: `/medical-history?view=${medicalForm.id}`,
         })
       } else if (hasMedicalDocument && medicalDocument) {
-        // Form exists but no signature - check if document was uploaded (existing patient fallback)
         tasks.push({
           id: `medical-doc-${medicalDocument.id}`,
           type: 'medical_history',
@@ -356,14 +343,13 @@ export const getPatientTasks = authActionClient
           isOptional: false,
           completedAt: medicalDocument.uploaded_at,
           formId: medicalDocument.id,
-          link: '#', // Document view link will be handled separately
+          link: '#',
           uploadedDocument: {
             url: medicalDocument.document_url,
             name: medicalDocument.document_name || 'Medical History Document',
           },
         })
       } else {
-        // Form exists but not completed (portal flow - patient needs to complete)
         const intakeFormId = intakeForm?.id || null
         tasks.push({
           id: `medical-${medicalForm.id}`,
@@ -379,7 +365,6 @@ export const getPatientTasks = authActionClient
         })
       }
     } else if (hasMedicalDocument && medicalDocument) {
-      // No patient-filled form exists, but document was uploaded by admin (existing patient flow)
       tasks.push({
         id: `medical-doc-${medicalDocument.id}`,
         type: 'medical_history',
@@ -391,14 +376,13 @@ export const getPatientTasks = authActionClient
         isOptional: false,
         completedAt: medicalDocument.uploaded_at,
         formId: medicalDocument.id,
-        link: '#', // Document view link will be handled separately
+        link: '#',
         uploadedDocument: {
           url: medicalDocument.document_url,
           name: medicalDocument.document_name || 'Medical History Document',
         },
       })
     } else {
-      // No form and no document - not started (portal flow - new patient)
       const intakeFormId = intakeForm?.id || null
       tasks.push({
         id: 'medical-new',
@@ -406,7 +390,7 @@ export const getPatientTasks = authActionClient
         title: 'Medical Health History',
         description: 'Helps our medical team prepare for your treatment.',
         status: 'not_started',
-        estimatedTime: '~15',
+        estimatedTime: '~15 min',
         isRequired: true,
         isOptional: false,
         formId: '',
@@ -414,125 +398,31 @@ export const getPatientTasks = authActionClient
       })
     }
 
-    // 3. Check for Service Agreement
-    // Check by patient_id first (most reliable), then by patient_email (case-insensitive)
-    let serviceAgreement = null
-
-    // First try by patient_id (most reliable link)
-    if (patientId) {
-      const { data: serviceByPatientId, error: patientIdError } = await supabase
-        .from('service_agreements')
-        .select('id, patient_id, patient_email, created_at, is_activated, activated_at')
-        .eq('patient_id', patientId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (!patientIdError && serviceByPatientId && serviceByPatientId.length > 0) {
-        serviceAgreement = serviceByPatientId[0]
-        console.log('[getPatientTasks] Found service agreement by patient_id:', serviceAgreement.id)
-      } else if (patientEmail) {
-        // Fallback to email (case-insensitive)
-        const { data: serviceByEmail, error: emailError } = await supabase
-          .from('service_agreements')
-          .select('id, patient_id, patient_email, created_at, is_activated, activated_at')
-          .ilike('patient_email', patientEmail)
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        if (!emailError && serviceByEmail && serviceByEmail.length > 0) {
-          serviceAgreement = serviceByEmail[0]
-          console.log('[getPatientTasks] Found service agreement by patient_email:', serviceAgreement.id)
-        } else {
-          console.log('[getPatientTasks] No service agreement found by patient_id or patient_email')
-        }
-      } else {
-        console.log('[getPatientTasks] No service agreement found (no patient_id match, no email)')
-      }
-    } else if (patientEmail) {
-      // If no patient_id, try by email only
-      const { data: serviceByEmail, error: emailError } = await supabase
-        .from('service_agreements')
-        .select('id, patient_id, patient_email, created_at, is_activated, activated_at')
-        .ilike('patient_email', patientEmail)
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (!emailError && serviceByEmail && serviceByEmail.length > 0) {
-        serviceAgreement = serviceByEmail[0]
-        console.log('[getPatientTasks] Found service agreement by patient_email (no patient_id):', serviceAgreement.id)
-      } else {
-        console.log('[getPatientTasks] No service agreement found by patient_email')
-      }
-    }
-
-    // Log final task statuses for debugging
-    console.log('[getPatientTasks] Final tasks:')
-    tasks.forEach(task => {
-      console.log(`  - ${task.title}: ${task.status} (ID: ${task.id}, FormID: ${task.formId})`)
-    })
-    console.log('[getPatientTasks] Final tasks count:', tasks.length)
-
-    // Check if service agreement document was uploaded (for existing patient flow)
+    // Add Service Agreement task
     const hasServiceDocument = uploadedDocuments.has('service')
     const serviceDocument = uploadedDocuments.get('service')
 
-    // Priority: FIRST check if patient-filled form exists (portal flow), 
-    // THEN check for uploaded documents (existing patient flow)
     if (serviceAgreement) {
       if (serviceAgreement.is_activated) {
-        // Check if patient signature fields are filled to determine if completed (portal flow)
-        // Fetch full service agreement data to check completion status
-        // Use same query structure as admin view (patient-profile.action.ts) for consistency
-        const { data: fullServiceAgreement, error: fetchError } = await adminClient
-          .from('service_agreements')
-          .select('patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
-          .eq('id', serviceAgreement.id)
-          .maybeSingle()
-
-        // If error fetching, log and continue (form might still exist, check later)
-        if (fetchError) {
-          console.error('[getPatientTasks] Error fetching service agreement:', fetchError.message)
-        }
-
-        // Form is considered completed if it has the essential signature fields
-        // Match the admin view check logic from patient-profile.action.ts (lines 356-362)
-        // Essential fields: patient_signature_name, patient_signature_date, and patient_signature_data
-        // Note: This matches the simplified admin check - only requires name, date, and data (not first_name/last_name)
-        const hasSignatureName = fullServiceAgreement?.patient_signature_name && 
-          typeof fullServiceAgreement.patient_signature_name === 'string' &&
-          fullServiceAgreement.patient_signature_name.trim() !== ''
-        const hasSignatureDate = fullServiceAgreement?.patient_signature_date !== null && 
-          fullServiceAgreement?.patient_signature_date !== undefined &&
-          fullServiceAgreement?.patient_signature_date !== ''
-        const hasSignatureData = fullServiceAgreement?.patient_signature_data &&
-          typeof fullServiceAgreement.patient_signature_data === 'string' &&
-          fullServiceAgreement.patient_signature_data.trim() !== '' &&
-          fullServiceAgreement.patient_signature_data.length > 0
-        
-        // Form is complete if it has signature name, date, and signature data (exact match with admin view check)
+        const fullServiceAgreement = signatureData.service
+        const hasSignatureName = fullServiceAgreement?.patient_signature_name?.trim()
+        const hasSignatureDate = fullServiceAgreement?.patient_signature_date
+        const hasSignatureData = fullServiceAgreement?.patient_signature_data?.trim()
         const isPatientSignatureComplete = Boolean(hasSignatureName && hasSignatureDate && hasSignatureData)
-        
-        // If patient is in onboarding, forms should be considered completed if they exist
-        // (onboarding only happens after completing all 4 initial forms)
-        // Note: service_agreements table doesn't have is_completed column - completion is determined by signature fields
         const shouldConsiderCompleted = isPatientSignatureComplete || isInOnboarding
 
         tasks.push({
           id: `service-${serviceAgreement.id}`,
           type: 'service_agreement',
           title: 'Service Agreement',
-          description: shouldConsiderCompleted
-            ? 'Service agreement completed.'
-            : 'Please review and sign the service agreement.',
+          description: shouldConsiderCompleted ? 'Service agreement completed.' : 'Please review and sign the service agreement.',
           status: shouldConsiderCompleted ? 'completed' : 'not_started',
           estimatedTime: '~5 min',
           isRequired: true,
           isOptional: false,
           completedAt: shouldConsiderCompleted ? serviceAgreement.created_at : undefined,
           formId: serviceAgreement.id,
-          link: shouldConsiderCompleted
-            ? `/patient/service-agreement?view=${serviceAgreement.id}`
-            : `/patient/service-agreement`,
+          link: shouldConsiderCompleted ? `/patient/service-agreement?view=${serviceAgreement.id}` : `/patient/service-agreement`,
         })
       } else {
         tasks.push({
@@ -549,7 +439,6 @@ export const getPatientTasks = authActionClient
         })
       }
     } else if (hasServiceDocument && serviceDocument) {
-      // No patient-filled form exists, but document was uploaded by admin (existing patient flow)
       tasks.push({
         id: `service-doc-${serviceDocument.id}`,
         type: 'service_agreement',
@@ -561,14 +450,13 @@ export const getPatientTasks = authActionClient
         isOptional: false,
         completedAt: serviceDocument.uploaded_at,
         formId: serviceDocument.id,
-        link: '#', // Document view link will be handled separately
+        link: '#',
         uploadedDocument: {
           url: serviceDocument.document_url,
           name: serviceDocument.document_name || 'Service Agreement Document',
         },
       })
     } else {
-      // Form doesn't exist yet - show as locked until admin creates and activates it
       tasks.push({
         id: 'service-new',
         type: 'service_agreement',
@@ -583,108 +471,31 @@ export const getPatientTasks = authActionClient
       })
     }
 
-    // 4. Check for Ibogaine Consent Form
-    let ibogaineConsentForm = null
-
-    // Strategy 1: Try by patient_id first (most reliable link)
-    if (patientId) {
-      const { data: consentByPatientId, error: patientIdError } = await supabase
-        .from('ibogaine_consent_forms')
-        .select('id, patient_id, email, intake_form_id, created_at, is_activated, activated_at')
-        .eq('patient_id', patientId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (!patientIdError && consentByPatientId && consentByPatientId.length > 0) {
-        ibogaineConsentForm = consentByPatientId[0]
-        console.log('[getPatientTasks] ✓ Found ibogaine consent form by patient_id:', ibogaineConsentForm.id)
-      }
-    }
-
-    // Strategy 2: Try by intake_form_id if available
-    if (!ibogaineConsentForm && intakeForm) {
-      const { data: consentByIntake, error: intakeError } = await supabase
-        .from('ibogaine_consent_forms')
-        .select('id, patient_id, email, intake_form_id, created_at, is_activated, activated_at')
-        .eq('intake_form_id', intakeForm.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (!intakeError && consentByIntake && consentByIntake.length > 0) {
-        ibogaineConsentForm = consentByIntake[0]
-        console.log('[getPatientTasks] ✓ Found ibogaine consent form by intake_form_id:', ibogaineConsentForm.id)
-      }
-    }
-
-    // Strategy 3: Try by email (case-insensitive)
-    if (!ibogaineConsentForm && patientEmail) {
-      const { data: consentByEmail, error: emailError } = await supabase
-        .from('ibogaine_consent_forms')
-        .select('id, patient_id, email, intake_form_id, created_at, is_activated, activated_at')
-        .ilike('email', patientEmail)
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      if (!emailError && consentByEmail && consentByEmail.length > 0) {
-        ibogaineConsentForm = consentByEmail[0]
-        console.log('[getPatientTasks] ✓ Found ibogaine consent form by email:', ibogaineConsentForm.id)
-      }
-    }
-
-    // Check if ibogaine consent document was uploaded (for existing patient flow)
+    // Add Ibogaine Consent Form task
     const hasIbogaineDocument = uploadedDocuments.has('ibogaine')
     const ibogaineDocument = uploadedDocuments.get('ibogaine')
 
-    // Priority: FIRST check if patient-filled form exists (portal flow), 
-    // THEN check for uploaded documents (existing patient flow)
     if (ibogaineConsentForm) {
       if (ibogaineConsentForm.is_activated) {
-        // Check if patient signature fields are filled to determine if completed (portal flow)
-        // Use admin client to also check is_completed flag
-        const { data: fullConsentForm, error: fullConsentError } = await adminClient
-          .from('ibogaine_consent_forms')
-          .select('signature_data, signature_date, signature_name')
-          .eq('id', ibogaineConsentForm.id)
-          .single()
-
-        console.log('[getPatientTasks] Ibogaine consent form check:', {
-          formId: ibogaineConsentForm.id,
-          hasSignatureData: !!fullConsentForm?.signature_data,
-          signatureDataLength: fullConsentForm?.signature_data?.length || 0,
-          hasSignatureDate: !!fullConsentForm?.signature_date,
-          signatureName: fullConsentForm?.signature_name,
-          error: fullConsentError?.message,
-        })
-
+        const fullConsentForm = signatureData.ibogaine
         const isPatientSignatureComplete = fullConsentForm &&
-          fullConsentForm.signature_data &&
-          fullConsentForm.signature_data.trim() !== '' &&
+          fullConsentForm.signature_data?.trim() &&
           fullConsentForm.signature_date &&
-          fullConsentForm.signature_name &&
-          fullConsentForm.signature_name.trim() !== ''
-
-        console.log('[getPatientTasks] Signature check result:', { isPatientSignatureComplete, isInOnboarding })
-        
-        // If patient is in onboarding, forms should be considered completed if they exist
-        // (onboarding only happens after completing all 4 initial forms)
+          fullConsentForm.signature_name?.trim()
         const shouldConsiderCompleted = isPatientSignatureComplete || isInOnboarding
 
         tasks.push({
           id: `ibogaine-consent-${ibogaineConsentForm.id}`,
           type: 'ibogaine_consent',
           title: 'Ibogaine Therapy Consent Form',
-          description: shouldConsiderCompleted
-            ? 'Consent form for Ibogaine therapy treatment.'
-            : 'Please review and complete the consent form.',
+          description: shouldConsiderCompleted ? 'Consent form for Ibogaine therapy treatment.' : 'Please review and complete the consent form.',
           status: shouldConsiderCompleted ? 'completed' : 'not_started',
           estimatedTime: '~5 min',
           isRequired: true,
           isOptional: false,
           completedAt: shouldConsiderCompleted ? ibogaineConsentForm.created_at : undefined,
           formId: ibogaineConsentForm.id,
-          link: shouldConsiderCompleted
-            ? `/patient/ibogaine-consent?formId=${ibogaineConsentForm.id}`
-            : `/patient/ibogaine-consent`,
+          link: shouldConsiderCompleted ? `/patient/ibogaine-consent?formId=${ibogaineConsentForm.id}` : `/patient/ibogaine-consent`,
         })
       } else {
         tasks.push({
@@ -701,7 +512,6 @@ export const getPatientTasks = authActionClient
         })
       }
     } else if (hasIbogaineDocument && ibogaineDocument) {
-      // No patient-filled form exists, but document was uploaded by admin (existing patient flow)
       tasks.push({
         id: `ibogaine-doc-${ibogaineDocument.id}`,
         type: 'ibogaine_consent',
@@ -713,14 +523,13 @@ export const getPatientTasks = authActionClient
         isOptional: false,
         completedAt: ibogaineDocument.uploaded_at,
         formId: ibogaineDocument.id,
-        link: '#', // Document view link will be handled separately
+        link: '#',
         uploadedDocument: {
           url: ibogaineDocument.document_url,
           name: ibogaineDocument.document_name || 'Ibogaine Consent Form Document',
         },
       })
     } else {
-      // Form doesn't exist yet - show as locked until admin creates and activates it
       tasks.push({
         id: 'ibogaine-consent-new',
         type: 'ibogaine_consent',
@@ -735,14 +544,9 @@ export const getPatientTasks = authActionClient
       })
     }
 
-    // 5. Check for Onboarding Forms (if patient is in onboarding stage)
-    // Note: onboarding check was done earlier to determine form completion status
+    // 5. Add Onboarding Forms (if patient is in onboarding stage)
+    // onboardingFull was already fetched in Phase 1
     let onboardingStatus: OnboardingStatus = { isInOnboarding: false }
-    const { data: onboardingFull } = await supabase
-      .from('patient_onboarding')
-      .select('id, status, release_form_completed, outing_consent_completed, internal_regulations_completed')
-      .eq('patient_id', patientId)
-      .maybeSingle()
 
     if (onboardingFull) {
       onboardingStatus = {
@@ -757,11 +561,7 @@ export const getPatientTasks = authActionClient
         formsTotal: 3,
       }
 
-      // Fetch all 3 onboarding forms
-      if (!onboardingFull) {
-        return { success: false, error: 'Onboarding record not found' }
-      }
-
+      // Fetch all 3 onboarding forms in parallel
       const [releaseForm, outingForm, regulationsForm] = await Promise.all([
         supabase.from('onboarding_release_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
         supabase.from('onboarding_outing_consent_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
@@ -773,7 +573,6 @@ export const getPatientTasks = authActionClient
         if (!form?.data) return 'locked'
         if (!form.data.is_activated) return 'locked'
         if (form.data.is_completed) return 'completed'
-        // If form exists and is activated but not completed, it's in progress (patient can edit it)
         return 'in_progress'
       }
 

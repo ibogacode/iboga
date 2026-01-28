@@ -449,6 +449,7 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
                 style={{
                   fontFamily: designTokens.typography.navItem.fontFamily,
                 }}
+                data-tour-security-tab="true"
               >
                 <div className="flex items-start gap-3">
                   <div
@@ -527,7 +528,7 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
                       Upload a new profile picture. Max 10MB.
                     </p>
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex gap-3" data-tour="tour-profile-image">
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -567,7 +568,7 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
             </div>
 
             {/* Personal Information Section */}
-            <div className="space-y-6">
+            <div className="space-y-6" data-tour="tour-profile-details">
               <div className="flex items-center justify-between">
                 <h3 
                   style={{
@@ -895,7 +896,7 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
             )}
 
             {activeTab === 'security' && (
-              <div className="space-y-6">
+              <div className="space-y-6" data-tour="tour-profile-password">
                 <div>
                 <h3 
                   style={{
@@ -906,7 +907,7 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
                       marginBottom: '8px',
                   }}
                 >
-                    Change Password
+                  Change Password
                 </h3>
                 <p
                   style={{

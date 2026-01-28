@@ -113,7 +113,7 @@ export default async function PatientHomePage() {
       {/* Header Section */}
       <div className="space-y-1 sm:space-y-2">
         <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
+          <div className="flex-1" data-tour="tour-dashboard-header">
         <h1 className="text-2xl sm:text-3xl md:text-[40px] font-normal leading-[1.3em] text-black" style={{ fontFamily: 'var(--font-instrument-serif), serif' }}>
           {greeting}, {userName}
         </h1>
@@ -146,12 +146,12 @@ export default async function PatientHomePage() {
       </div>
 
       {/* Progress Tracker */}
-      <div>
+      <div data-tour="tour-dashboard-progress">
         <ProgressTracker formsCompleted={formsCompleted} onboardingStatus={onboardingStatus} />
       </div>
 
       {/* Pending Tasks */}
-      <div>
+      <div data-tour="tour-dashboard-pending-tasks">
         <PendingTasksCard tasks={pendingTasks} />
       </div>
 
