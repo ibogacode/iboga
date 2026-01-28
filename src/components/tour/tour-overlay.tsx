@@ -10,7 +10,7 @@ export function TourOverlay() {
   const { isActive, currentStepIndex, steps, nextStep, previousStep, stopTour, skipTour } = useTour()
   const [targetElement, setTargetElement] = useState<HTMLElement | null>(null)
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
-  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number; placement: 'top' | 'bottom' | 'left' | 'right' } | null>(null)
+  const [tooltipPosition, setTooltipPosition] = useState<{ top: number; left: number; placement: 'top' | 'bottom' | 'left' | 'right' | 'center' } | null>(null)
   const [isWaiting, setIsWaiting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const checkIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -130,7 +130,10 @@ export function TourOverlay() {
     // Use a small delay to ensure tooltip is rendered and measured
     const timeoutId = setTimeout(() => {
       if (tooltipRef.current && targetRect && currentStep) {
-        calculateTooltipPosition(targetRect, currentStep.placement || 'bottom')
+        const placement = currentStep.placement || 'bottom'
+        if (placement !== 'center') {
+          calculateTooltipPosition(targetRect, placement)
+        }
       }
     }, 50)
 

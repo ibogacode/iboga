@@ -257,13 +257,17 @@ export const getPatientTasks = authActionClient
       
       const fallbackResults = await Promise.all(fallbackQueries)
       fallbackResults.forEach(r => {
-        if (r.type === 'service' && r.data) serviceAgreement = r.data
-        if (r.type === 'consent' && r.data) ibogaineConsentForm = r.data
+        if (r.type === 'service' && r.data) {
+          serviceAgreement = r.data as { id: any; patient_id: any; patient_email: any; created_at: any; is_activated: any; activated_at: any } | null
+        }
+        if (r.type === 'consent' && r.data) {
+          ibogaineConsentForm = r.data as { id: any; patient_id: any; email: any; intake_form_id: any; created_at: any; is_activated: any; activated_at: any } | null
+        }
       })
     }
 
     // ========== PHASE 4: Fetch signature data in parallel for all forms that need checking ==========
-    const signatureQueries: Promise<{ type: string; data: any }>[] = []
+    const signatureQueries: Array<PromiseLike<{ type: string; data: any }>> = []
     
     if (medicalForm) {
       signatureQueries.push(
