@@ -268,10 +268,17 @@ export function ResetPasswordForm() {
         }
       }
 
-      toast.success('Password reset successfully! Redirecting to login...')
-      
       // Sign out to clear the recovery session
-      await supabase.auth.signOut()
+      const { error: signOutError } = await supabase.auth.signOut()
+      
+      if (signOutError) {
+        console.error('Error signing out after password reset:', signOutError)
+        toast.error('Password reset successful, but failed to sign out. Please sign out manually.')
+        // Don't redirect - user stays signed in so they can manually sign out
+        return
+      }
+      
+      toast.success('Password reset successfully! Redirecting to login...')
       
       // Redirect to login after a short delay
       setTimeout(() => {
