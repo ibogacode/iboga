@@ -13,7 +13,8 @@ import { serviceAgreementSchema, type ServiceAgreementFormValues } from '@/lib/v
 import { submitServiceAgreement, uploadServiceAgreementDocument, getPatientDataForServiceAgreement } from '@/actions/service-agreement.action'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { getServiceAgreementText, ServiceAgreementContent } from '@/components/forms/form-content'
+import { ServiceAgreementContent } from '@/components/forms/form-content'
+import { getServiceAgreementText } from '@/lib/agreement-templates'
 
 interface ServiceAgreementFormProps {
   prefillPatientData?: boolean // If true, fetch and pre-fill patient data

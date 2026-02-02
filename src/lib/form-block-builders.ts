@@ -1,7 +1,8 @@
 'use client'
 
 import { TextBlock, formatBoolean, formatDateForPDF, formatCurrencyForPDF } from './plain-text-pdf'
-import { PRIVACY_POLICY_TEXT, getServiceAgreementText } from '@/components/forms/form-content'
+import { PRIVACY_POLICY_TEXT } from '@/components/forms/form-content'
+import { getServiceAgreementText, getServiceAgreementTextLegacy, LEGACY_AGREEMENT_SNAPSHOT } from '@/lib/agreement-templates'
 
 // Patient Intake Form types
 interface PatientIntakeForm {
@@ -266,11 +267,13 @@ interface ServiceAgreement {
   provider_signature_date: string
   program_type?: 'neurological' | 'mental_health' | 'addiction' | null
   number_of_days?: number | null
+  agreement_content_snapshot?: string | null
   created_at: string
 }
 
 /**
- * Build text blocks for Service Agreement Form
+ * Build text blocks for Service Agreement Form.
+ * Uses agreement_content_snapshot when present (completed agreements) so PDF matches what was signed.
  */
 export function buildServiceAgreementBlocks(form: ServiceAgreement): TextBlock[] {
   const blocks: TextBlock[] = []
@@ -279,23 +282,37 @@ export function buildServiceAgreementBlocks(form: ServiceAgreement): TextBlock[]
   blocks.push({ type: 'h1', text: 'Service Agreement' })
   blocks.push({ type: 'spacer', height: 2 })
 
-  // Service Agreement Content (from getServiceAgreementText)
-  const agreementText = getServiceAgreementText({
+  // Use snapshot for completed agreements so PDF matches what was signed.
+  // Legacy records with LEGACY_AGREEMENT_SNAPSHOT use OLD template (what they originally signed).
+  // New/unsigned records use CURRENT template.
+  const rawSnapshot = form.agreement_content_snapshot?.trim()
+  const templateParams = {
     programType: form.program_type || 'neurological',
-    totalProgramFee: typeof form.total_program_fee === 'number' 
-      ? form.total_program_fee 
+    totalProgramFee: typeof form.total_program_fee === 'number'
+      ? form.total_program_fee
       : parseFloat(String(form.total_program_fee).replace(/[^0-9.]/g, '')) || 0,
-    depositPercentage: typeof form.deposit_percentage === 'number' 
-      ? form.deposit_percentage 
+    depositPercentage: typeof form.deposit_percentage === 'number'
+      ? form.deposit_percentage
       : parseFloat(String(form.deposit_percentage)) || 50,
-    depositAmount: typeof form.deposit_amount === 'number' 
-      ? form.deposit_amount 
+    depositAmount: typeof form.deposit_amount === 'number'
+      ? form.deposit_amount
       : parseFloat(String(form.deposit_amount).replace(/[^0-9.]/g, '')) || 0,
-    remainingBalance: typeof form.remaining_balance === 'number' 
-      ? form.remaining_balance 
+    remainingBalance: typeof form.remaining_balance === 'number'
+      ? form.remaining_balance
       : parseFloat(String(form.remaining_balance).replace(/[^0-9.]/g, '')) || 0,
     numberOfDays: form.number_of_days || 14,
-  })
+  }
+  let agreementText: string
+  if (rawSnapshot && rawSnapshot !== LEGACY_AGREEMENT_SNAPSHOT) {
+    // Real snapshot: use it as-is
+    agreementText = rawSnapshot
+  } else if (rawSnapshot === LEGACY_AGREEMENT_SNAPSHOT) {
+    // Legacy completed (sentinel): use OLD template so they see what they originally signed
+    agreementText = getServiceAgreementTextLegacy(templateParams)
+  } else {
+    // No snapshot (new/unsigned): use CURRENT template
+    agreementText = getServiceAgreementText(templateParams)
+  }
 
   // Parse agreement text with proper structure (similar to privacy policy)
   const lines = agreementText.split('\n')
