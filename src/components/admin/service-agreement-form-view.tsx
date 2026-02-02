@@ -2,7 +2,8 @@
 
 import { useRef } from 'react'
 import { format } from 'date-fns'
-import { getServiceAgreementText, ServiceAgreementContent } from '@/components/forms/form-content'
+import { ServiceAgreementContent } from '@/components/forms/form-content'
+import { getServiceAgreementText, getServiceAgreementTextLegacy, LEGACY_AGREEMENT_SNAPSHOT } from '@/lib/agreement-templates'
 import { PDFTextDownloadButton } from '@/components/ui/pdf-text-download-button'
 import { buildServiceAgreementBlocks } from '@/lib/form-block-builders'
 
@@ -33,6 +34,7 @@ interface ServiceAgreement {
   uploaded_file_name: string | null
   program_type?: 'neurological' | 'mental_health' | 'addiction' | null
   number_of_days?: number | null
+  agreement_content_snapshot?: string | null
   created_at: string
   updated_at: string
 }
@@ -87,19 +89,32 @@ export function ServiceAgreementFormView({ form }: ServiceAgreementFormViewProps
           Service Agreement
         </h1>
 
-        {/* Service Agreement Content */}
+        {/* Service Agreement Content: use snapshot for completed agreements so template updates don't change what they see */}
         <div className="space-y-6 mb-8 print:mb-6 print:break-inside-avoid">
           <div className="bg-gray-50 p-8 rounded-lg print:p-4">
             <div className="prose prose-sm max-w-none">
-              <ServiceAgreementContent 
-                text={getServiceAgreementText({
-                  programType: form.program_type || 'neurological',
-                  totalProgramFee: typeof form.total_program_fee === 'number' ? form.total_program_fee : parseFloat(String(form.total_program_fee).replace(/[^0-9.]/g, '')) || 0,
-                  depositPercentage: typeof form.deposit_percentage === 'number' ? form.deposit_percentage : parseFloat(String(form.deposit_percentage)) || 50,
-                  depositAmount: typeof form.deposit_amount === 'number' ? form.deposit_amount : parseFloat(String(form.deposit_amount).replace(/[^0-9.]/g, '')) || 0,
-                  remainingBalance: typeof form.remaining_balance === 'number' ? form.remaining_balance : parseFloat(String(form.remaining_balance).replace(/[^0-9.]/g, '')) || 0,
-                  numberOfDays: form.number_of_days || 14,
-                })} 
+              <ServiceAgreementContent
+                text={(() => {
+                  const snapshot = form.agreement_content_snapshot?.trim()
+                  const templateParams = {
+                    programType: form.program_type || 'neurological',
+                    totalProgramFee: typeof form.total_program_fee === 'number' ? form.total_program_fee : parseFloat(String(form.total_program_fee).replace(/[^0-9.]/g, '')) || 0,
+                    depositPercentage: typeof form.deposit_percentage === 'number' ? form.deposit_percentage : parseFloat(String(form.deposit_percentage)) || 50,
+                    depositAmount: typeof form.deposit_amount === 'number' ? form.deposit_amount : parseFloat(String(form.deposit_amount).replace(/[^0-9.]/g, '')) || 0,
+                    remainingBalance: typeof form.remaining_balance === 'number' ? form.remaining_balance : parseFloat(String(form.remaining_balance).replace(/[^0-9.]/g, '')) || 0,
+                    numberOfDays: form.number_of_days || 14,
+                  }
+                  // Real snapshot: use it as-is
+                  if (snapshot && snapshot !== LEGACY_AGREEMENT_SNAPSHOT) {
+                    return snapshot
+                  }
+                  // Legacy completed (sentinel): use OLD template so they see what they originally signed
+                  if (snapshot === LEGACY_AGREEMENT_SNAPSHOT) {
+                    return getServiceAgreementTextLegacy(templateParams)
+                  }
+                  // No snapshot (new/unsigned): use CURRENT template
+                  return getServiceAgreementText(templateParams)
+                })()}
               />
             </div>
           </div>

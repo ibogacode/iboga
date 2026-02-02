@@ -6,6 +6,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { serviceAgreementSchema } from '@/lib/validations/service-agreement'
 import { sendServiceAgreementConfirmationEmail, sendEmailDirect } from './email.action'
 import { autoActivateIbogaineConsent } from './form-automation.action'
+import { getServiceAgreementText } from '@/lib/agreement-templates'
 
 /**
  * Get patient data for service agreement pre-population
@@ -145,7 +146,29 @@ export const submitServiceAgreement = authActionClient
     // If form exists and is activated, update it (patient completing their fields)
     // If form doesn't exist or is draft, insert new one
     if (existingForm && existingForm.is_activated) {
-      // Update existing activated form with patient's signature fields and payment method
+      // Fetch existing form for program_type/number_of_days if not in submission
+      const needFormForSnapshot = parsedInput.program_type == null || parsedInput.number_of_days == null
+      const existingRow = needFormForSnapshot
+        ? (await supabase
+            .from('service_agreements')
+            .select('program_type, number_of_days')
+            .eq('id', existingForm.id)
+            .single()).data
+        : null
+      const programType = (parsedInput.program_type ?? existingRow?.program_type ?? 'neurological') as 'neurological' | 'mental_health' | 'addiction'
+      const numberOfDays = parsedInput.number_of_days ?? existingRow?.number_of_days ?? 14
+
+      // Snapshot the agreement text at signing so completed agreements always show what was agreed to
+      const agreementContentSnapshot = getServiceAgreementText({
+        programType,
+        totalProgramFee: totalProgramFee,
+        depositPercentage: depositPercentage,
+        depositAmount,
+        remainingBalance,
+        numberOfDays,
+      })
+
+      // Update existing activated form with patient's signature fields, payment method, and snapshot
       const { data, error } = await supabase
         .from('service_agreements')
         .update({
@@ -157,6 +180,7 @@ export const submitServiceAgreement = authActionClient
           patient_signature_data: parsedInput.patient_signature_data || null,
           uploaded_file_url: parsedInput.uploaded_file_url || null,
           uploaded_file_name: parsedInput.uploaded_file_name || null,
+          agreement_content_snapshot: agreementContentSnapshot,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingForm.id)
@@ -383,14 +407,26 @@ export const submitServiceAgreement = authActionClient
       if (programType) {
         insertData.program_type = programType
       }
+      let insertNumberOfDays: number | undefined
       if (parsedInput.number_of_days !== undefined && parsedInput.number_of_days !== null) {
-        const days = typeof parsedInput.number_of_days === 'number' 
-          ? parsedInput.number_of_days 
+        const days = typeof parsedInput.number_of_days === 'number'
+          ? parsedInput.number_of_days
           : parseInt(String(parsedInput.number_of_days), 10)
         if (!isNaN(days) && days > 0) {
           insertData.number_of_days = days
+          insertNumberOfDays = days
         }
       }
+      // Snapshot agreement text when inserting a completed form so viewing shows what was agreed to
+      const insertSnapshot = getServiceAgreementText({
+        programType: programType ?? 'neurological',
+        totalProgramFee,
+        depositPercentage,
+        depositAmount,
+        remainingBalance,
+        numberOfDays: insertNumberOfDays ?? insertData.number_of_days ?? 14,
+      })
+      insertData.agreement_content_snapshot = insertSnapshot
 
       const { data, error } = await supabase
         .from('service_agreements')
