@@ -325,6 +325,7 @@ export function DailyMedicalUpdateForm({
         night_vital_signs: initialData.night_vital_signs || '',
         night_symptoms: initialData.night_symptoms || '',
         night_evolution: initialData.night_evolution || '',
+        ibogaine_given: initialData.ibogaine_given ?? (initialData.ibogaine_doses && Array.isArray(initialData.ibogaine_doses) && initialData.ibogaine_doses.length > 0 && initialData.ibogaine_doses.some((d: { dose?: number }) => (d.dose ?? 0) > 0) ? 'yes' : (initialData.ibogaine_dose && initialData.ibogaine_dose > 0 ? 'yes' : 'no')),
         ibogaine_doses: initialData.ibogaine_doses 
           ? (Array.isArray(initialData.ibogaine_doses) ? initialData.ibogaine_doses : [])
           : (initialData.ibogaine_dose && initialData.ibogaine_time 

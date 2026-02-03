@@ -1,4 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { SignJWT } from 'npm:jose@5.9.6'
+import { importPKCS8 } from 'npm:jose@5.9.6'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,6 +32,7 @@ interface EmailTemplateRequest {
   recipientEmail?: string
   recipientName?: string
   schedulingLink?: string
+  onboardingId?: string
   // Add other fields as needed
 }
 
@@ -61,6 +64,46 @@ async function getAccessToken(): Promise<string> {
   return data.access_token
 }
 
+// Check if service account auth is configured (then we impersonate users; no refresh token needed)
+function isServiceAccountConfigured(): boolean {
+  return !!(Deno.env.get('GMAIL_SERVICE_ACCOUNT_CLIENT_EMAIL') && Deno.env.get('GMAIL_SERVICE_ACCOUNT_PRIVATE_KEY'))
+}
+
+// Get access token via service account JWT (domain-wide delegation: impersonate a user in the domain)
+async function getAccessTokenForUser(impersonateUserEmail: string): Promise<string> {
+  const clientEmail = Deno.env.get('GMAIL_SERVICE_ACCOUNT_CLIENT_EMAIL')
+  const privateKeyPem = Deno.env.get('GMAIL_SERVICE_ACCOUNT_PRIVATE_KEY')
+  if (!clientEmail || !privateKeyPem) {
+    throw new Error('GMAIL_SERVICE_ACCOUNT_CLIENT_EMAIL and GMAIL_SERVICE_ACCOUNT_PRIVATE_KEY must be set')
+  }
+  // Env may store newlines as literal \n
+  const pem = privateKeyPem.replace(/\\n/g, '\n')
+  const privateKey = await importPKCS8(pem, 'RS256')
+  const gmailSendScope = 'https://www.googleapis.com/auth/gmail.send'
+  const jwt = await new SignJWT({ scope: gmailSendScope })
+    .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
+    .setIssuer(clientEmail)
+    .setSubject(impersonateUserEmail)
+    .setAudience('https://oauth2.googleapis.com/token')
+    .setIssuedAt()
+    .setExpirationTime('1h')
+    .sign(privateKey)
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }),
+  })
+  const data = await response.json()
+  if (!response.ok) {
+    throw new Error(`Service account token exchange failed: ${JSON.stringify(data)}`)
+  }
+  return data.access_token
+}
+
 // Base64 URL encode for Gmail API
 function base64UrlEncode(str: string): string {
   const encoder = new TextEncoder()
@@ -69,9 +112,23 @@ function base64UrlEncode(str: string): string {
   return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-// Send email via Gmail API
-async function sendGmailEmail(accessToken: string, to: string, subject: string, body: string) {
-  const fromEmail = Deno.env.get('GMAIL_FROM_EMAIL')
+// Default "from" for all emails. Override per type in FROM_EMAIL_BY_TYPE when needed.
+const DEFAULT_FROM_EMAIL = 'contactus@theibogainstitute.org'
+
+// Only these types use a different from address; all others use DEFAULT_FROM_EMAIL (contactus).
+const FROM_EMAIL_BY_TYPE: Partial<Record<string, string>> = {
+  service_agreement_confirmation: 'guy@theibogainstitute.org',
+}
+
+// Send email via Gmail API (fromEmailOverride: which address to send from)
+async function sendGmailEmail(
+  accessToken: string,
+  to: string,
+  subject: string,
+  body: string,
+  fromEmailOverride?: string
+) {
+  const fromEmail = fromEmailOverride ?? Deno.env.get('GMAIL_FROM_EMAIL')
 
   const emailContent = [
     `From: Iboga Wellness Institute <${fromEmail}>`,
@@ -887,6 +944,81 @@ function generateIbogaineConsentConfirmationEmail(
   }
 }
 
+function generateOnboardingFormsEmail(
+  firstName: string,
+  lastName: string,
+  onboardingId: string
+): { subject: string; body: string } {
+  const baseUrl = getBaseUrl()
+  const formLink = `${baseUrl}/onboarding-forms/${onboardingId}`
+  const displayName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'there'
+
+  return {
+    subject: `Complete Your 3 Onboarding Forms | Iboga Wellness Institute`,
+    body: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          ${commonStyles}
+          .info-box {
+            background: #f9f9f9;
+            border-left: 4px solid #5D7A5F;
+            padding: 20px;
+            margin: 20px 0;
+          }
+          .cta-button {
+            display: inline-block;
+            background: #5D7A5F;
+            color: white !important;
+            padding: 16px 32px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            margin: 20px 0;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Iboga Wellness Institute</h1>
+          </div>
+          <div class="content">
+            <h2>Onboarding Forms – Please Complete</h2>
+            <p>Hello ${displayName},</p>
+            <p>You have been moved to the onboarding stage. <strong>3 forms are now activated for you. Please finish them</strong> before we can assign your treatment date.</p>
+            <div class="info-box">
+              <p><strong>Forms to complete:</strong></p>
+              <ul>
+                <li><strong>Release Form</strong> – Legal release and acknowledgment</li>
+                <li><strong>Outing Consent Form</strong> – Permission for therapeutic outings</li>
+                <li><strong>Internal Regulations Form</strong> – Facility rules and guidelines</li>
+              </ul>
+            </div>
+            <p style="text-align: center;">
+              <a href="${formLink}" class="cta-button">Complete Your 3 Forms</a>
+            </p>
+            <p><strong>Important:</strong> These forms must be completed before we can assign your treatment date. Please complete them as soon as possible.</p>
+            <p>If you have any questions, please contact us:</p>
+            <p>
+              <strong>Phone:</strong> +1 (800) 604-7294<br>
+              <strong>Email:</strong> contactus@theibogainstitute.org
+            </p>
+            <p>Thank you,<br><strong>The Iboga Wellness Institute Team</strong></p>
+          </div>
+          <div class="footer">
+            <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+            <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+  }
+}
+
 // Main serve function
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -1022,6 +1154,20 @@ serve(async (req) => {
         )
         break
 
+      case 'onboarding_forms':
+        if (!request.onboardingId) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Missing required field for onboarding_forms: onboardingId' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        emailContent = generateOnboardingFormsEmail(
+          request.firstName || 'there',
+          request.lastName || '',
+          request.onboardingId
+        )
+        break
+
       default:
         return new Response(
           JSON.stringify({ success: false, error: `Invalid email type: ${request.type}` }),
@@ -1029,9 +1175,21 @@ serve(async (req) => {
         )
     }
 
-    // Get access token and send email directly via Gmail API
-    const accessToken = await getAccessToken()
-    const result = await sendGmailEmail(accessToken, request.to, emailContent.subject, emailContent.body)
+    // Resolve "from" address: contactus for all, except service agreement uses guy
+    const fromEmail = FROM_EMAIL_BY_TYPE[request.type] ?? DEFAULT_FROM_EMAIL
+
+    // Get access token: service account (impersonate fromEmail) or refresh token
+    const accessToken = isServiceAccountConfigured()
+      ? await getAccessTokenForUser(fromEmail)
+      : await getAccessToken()
+
+    const result = await sendGmailEmail(
+      accessToken,
+      request.to,
+      emailContent.subject,
+      emailContent.body,
+      fromEmail
+    )
 
     console.log('[send-email-template] Email sent successfully:', result.id)
 
