@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { uploadDocument } from '@/lib/supabase/document-storage'
-import { sendEmailDirect } from './email.action'
+import { sendEmailDirect, sendOnboardingFormsEmail } from './email.action'
 import {
   releaseFormSchema,
   outingConsentFormSchema,
@@ -207,6 +207,22 @@ export const movePatientToOnboarding = authActionClient
       return { success: false, error: handleSupabaseError(error, 'Failed to create onboarding') }
     }
 
+    // Send onboarding forms email (3 forms) from contactus – fire and forget
+    const adminClient = createAdminClient()
+    const { data: onboardingRow } = await adminClient
+      .from('patient_onboarding')
+      .select('email, first_name, last_name')
+      .eq('id', onboardingId)
+      .single()
+    if (onboardingRow?.email) {
+      sendOnboardingFormsEmail(
+        onboardingRow.email,
+        onboardingRow.first_name ?? 'there',
+        onboardingRow.last_name ?? '',
+        onboardingId as string
+      ).catch((err) => console.error('[movePatientToOnboarding] Failed to send onboarding email:', err))
+    }
+
     revalidatePath('/onboarding')
     revalidatePath('/patient-pipeline')
 
@@ -246,6 +262,22 @@ export const movePatientToOnboardingByEmail = authActionClient
     if (error) {
       console.error('[movePatientToOnboardingByEmail] RPC error:', error)
       return { success: false, error: handleSupabaseError(error, 'Failed to create onboarding') }
+    }
+
+    // Send onboarding forms email (3 forms) from contactus – fire and forget
+    const adminClient = createAdminClient()
+    const { data: onboardingRow } = await adminClient
+      .from('patient_onboarding')
+      .select('email, first_name, last_name')
+      .eq('id', onboardingId)
+      .single()
+    if (onboardingRow?.email) {
+      sendOnboardingFormsEmail(
+        onboardingRow.email,
+        onboardingRow.first_name ?? 'there',
+        onboardingRow.last_name ?? '',
+        onboardingId as string
+      ).catch((err) => console.error('[movePatientToOnboardingByEmail] Failed to send onboarding email:', err))
     }
 
     revalidatePath('/onboarding')
