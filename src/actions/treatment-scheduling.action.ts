@@ -13,6 +13,20 @@ function isAdminStaffRole(role: string): boolean {
   return ['owner', 'admin', 'manager'].includes(role)
 }
 
+/** Format date as yyyy-MM-dd in local time (avoids UTC off-by-one for occupancy). */
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** Parse yyyy-MM-dd as local calendar day. */
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 // ============================================================================
 // Schemas
 // ============================================================================
@@ -128,12 +142,12 @@ export const getAvailableTreatmentDates = authActionClient
         }
         patientsByDate.get(p.treatment_date)!.push(patientInfo)
 
-        // Calculate all days this patient will be in the facility
-        const arrivalDate = new Date(p.treatment_date)
+        // Calculate all days this patient will be in the facility (local date to avoid off-by-one)
+        const arrivalDate = parseLocalDate(p.treatment_date)
         for (let i = 0; i < numberOfDays; i++) {
           const currentDay = new Date(arrivalDate)
           currentDay.setDate(currentDay.getDate() + i)
-          const dayStr = currentDay.toISOString().split('T')[0]
+          const dayStr = toLocalDateStr(currentDay)
 
           // Only count if within our date range
           if (dayStr >= startDate && dayStr <= endDate) {
@@ -163,26 +177,20 @@ export const getAvailableTreatmentDates = authActionClient
         }
         patientsByDate.get(p.arrival_date)!.push(patientInfo)
 
-        // Calculate all days this patient is/was in the facility
-        // If patient was discharged early, use discharged_at date instead of full program duration
-        const arrivalDate = new Date(p.arrival_date)
+        // Calculate all days this patient is/was in the facility (local date to avoid off-by-one)
+        const arrivalDate = parseLocalDate(p.arrival_date)
         let actualEndDate: Date
 
         if (p.status === 'discharged' && p.discharged_at) {
-          // Patient was discharged - use actual discharge date
-          actualEndDate = new Date(p.discharged_at)
+          actualEndDate = parseLocalDate(p.discharged_at)
         } else {
-          // Patient still active or no discharge date - use expected end based on program duration
           actualEndDate = new Date(arrivalDate)
           actualEndDate.setDate(actualEndDate.getDate() + numberOfDays - 1)
         }
 
-        // Calculate occupancy from arrival to actual end date
         const currentDay = new Date(arrivalDate)
         while (currentDay <= actualEndDate) {
-          const dayStr = currentDay.toISOString().split('T')[0]
-
-          // Only count if within our date range
+          const dayStr = toLocalDateStr(currentDay)
           if (dayStr >= startDate && dayStr <= endDate) {
             occupancyByDate.set(dayStr, (occupancyByDate.get(dayStr) || 0) + 1)
           }

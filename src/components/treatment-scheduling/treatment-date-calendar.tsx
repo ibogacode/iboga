@@ -68,56 +68,66 @@ export function TreatmentDateCalendar({
       })
 
       if (result?.data?.success && result.data.data) {
-        // Build date capacities map using total occupancy (includes all days of patient stays)
+        // Build date capacities from computed occupancy and patients (single source of truth).
+        // Do NOT use treatment_schedule.capacity_used for display - it is not updated when
+        // assigning a patient, so it would show stale counts (e.g. day still showing empty
+        // after assignment). Use occupancyByDate = total facility occupancy, patientsByDate
+        // for the list and for "full" (max 4 new arrivals per day).
         const capacities = new Map<string, DateCapacity>()
         const schedule = result.data.data.schedule || []
         const patientsByDate = result.data.data.patientsByDate || {}
         const occupancyByDate = result.data.data.occupancyByDate || {}
 
-        // First, add schedule entries (for NEW arrivals capacity tracking)
-        schedule.forEach((s: any) => {
-          const status =
-            s.capacity_used >= s.capacity_max
-              ? 'full'
-              : s.capacity_used >= 2
-              ? 'limited'
-              : 'available'
+        const capacityMax = 4
 
-          capacities.set(s.treatment_date, {
-            date: s.treatment_date,
-            capacityUsed: s.capacity_used,
-            capacityMax: s.capacity_max,
-            status,
-            patients: patientsByDate[s.treatment_date] || [],
+        function getStatus(date: string): 'available' | 'limited' | 'full' {
+          const newArrivalsCount = (patientsByDate[date] || []).length
+          if (newArrivalsCount >= capacityMax) return 'full'
+          const totalOccupancy = (occupancyByDate[date] as number) ?? 0
+          if (totalOccupancy >= capacityMax) return 'full'
+          if (totalOccupancy >= 2 || newArrivalsCount >= 2) return 'limited'
+          return 'available'
+        }
+
+        // Add all dates from schedule (so we show every date we have a row for)
+        schedule.forEach((s: { treatment_date: string; capacity_max?: number }) => {
+          const date = s.treatment_date
+          const totalOccupancy = (occupancyByDate[date] as number) ?? (patientsByDate[date]?.length ?? 0)
+          const patients = patientsByDate[date] || []
+          capacities.set(date, {
+            date,
+            capacityUsed: totalOccupancy,
+            capacityMax: s.capacity_max ?? capacityMax,
+            status: getStatus(date),
+            patients,
           })
         })
 
-        // Add dates with patients but no schedule entry yet (arrival dates)
+        // Add dates with patients but no schedule entry (arrival dates without a schedule row)
         Object.keys(patientsByDate).forEach((date) => {
           if (!capacities.has(date)) {
             const patients = patientsByDate[date]
+            const totalOccupancy = (occupancyByDate[date] as number) ?? patients.length
             capacities.set(date, {
               date,
-              capacityUsed: patients.length,
-              capacityMax: 4,
-              status: patients.length >= 4 ? 'full' : patients.length >= 2 ? 'limited' : 'available',
+              capacityUsed: totalOccupancy,
+              capacityMax,
+              status: getStatus(date),
               patients,
             })
           }
         })
 
-        // Add ALL occupied days (including days when patients are staying but not arriving)
-        // This shows the full facility occupancy for each day
+        // Add days with occupancy but no new arrivals (patients staying from earlier arrival)
         Object.entries(occupancyByDate).forEach(([date, occupancy]) => {
           if (!capacities.has(date)) {
-            // This is a day when patients are in facility but no NEW arrivals
             const totalOccupancy = occupancy as number
             capacities.set(date, {
               date,
               capacityUsed: totalOccupancy,
-              capacityMax: 4,
+              capacityMax,
               status: totalOccupancy >= 4 ? 'full' : totalOccupancy >= 2 ? 'limited' : 'available',
-              patients: [], // No new arrivals on this day, but patients are staying
+              patients: [],
             })
           }
         })

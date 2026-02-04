@@ -59,7 +59,14 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
           { title: 'Consult Scheduling', href: '/patient-pipeline/consult-scheduling', icon: Calendar },
         ],
       },
-      { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
+      {
+        title: 'Onboarding',
+        href: '/onboarding',
+        icon: UserPlus,
+        children: [
+          { title: 'Facility Occupancy', href: '/onboarding/facility-occupancy', icon: Calendar },
+        ],
+      },
       { title: 'Client Management', href: '/patient-management', icon: UserCheck },
       { title: 'Research', href: '/research', icon: Search },
       {
@@ -90,7 +97,14 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
           { title: 'Consult Scheduling', href: '/patient-pipeline/consult-scheduling', icon: Calendar },
         ],
       },
-      { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
+      {
+        title: 'Onboarding',
+        href: '/onboarding',
+        icon: UserPlus,
+        children: [
+          { title: 'Facility Occupancy', href: '/onboarding/facility-occupancy', icon: Calendar },
+        ],
+      },
       { title: 'Client Management', href: '/patient-management', icon: UserCheck },
       { title: 'Research', href: '/research', icon: Search },
       {
@@ -114,7 +128,14 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
       { title: 'Dashboard', href: '/manager', icon: LayoutDashboard },
       { title: 'Client Pipeline', href: '/patient-pipeline', icon: Users },
       { title: 'Client Management', href: '/patient-management', icon: UserCheck },
-      { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
+      {
+        title: 'Onboarding',
+        href: '/onboarding',
+        icon: UserPlus,
+        children: [
+          { title: 'Facility Occupancy', href: '/onboarding/facility-occupancy', icon: Calendar },
+        ],
+      },
       {
         title: 'Marketing',
         icon: Megaphone,
@@ -134,7 +155,14 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   },
   doctor: {
     mainNav: [
-      { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
+      {
+        title: 'Onboarding',
+        href: '/onboarding',
+        icon: UserPlus,
+        children: [
+          { title: 'Facility Occupancy', href: '/onboarding/facility-occupancy', icon: Calendar },
+        ],
+      },
       { title: 'Client Management', href: '/patient-management', icon: UserCheck },
       {
         title: 'Marketing',
@@ -153,7 +181,14 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   },
   psych: {
     mainNav: [
-      { title: 'Onboarding', href: '/onboarding', icon: UserPlus },
+      {
+        title: 'Onboarding',
+        href: '/onboarding',
+        icon: UserPlus,
+        children: [
+          { title: 'Facility Occupancy', href: '/onboarding/facility-occupancy', icon: Calendar },
+        ],
+      },
       { title: 'Client Management', href: '/patient-management', icon: UserCheck },
       {
         title: 'Marketing',

@@ -212,15 +212,20 @@ export const getPartialIntakeForms = authActionClient
     }
 
     // Filter out patients who have moved to onboarding or management stages
-    // Get all patient emails that are already in onboarding or management
-    const partialFormEmails = (partialForms || []).map((pf: any) => pf.email?.toLowerCase().trim()).filter(Boolean)
+    // Collect both email and recipient_email so we check onboarding for all relevant contacts
+    const allContactEmails = [...new Set(
+      (partialForms || []).flatMap((pf: any) => [
+        pf.email?.toLowerCase().trim(),
+        pf.recipient_email?.toLowerCase().trim()
+      ].filter(Boolean))
+    )]
     let movedPatientsEmails = new Set<string>()
 
-    if (partialFormEmails.length > 0) {
+    if (allContactEmails.length > 0) {
       // Check patient_onboarding table in chunks to avoid query size limits
       const chunkSize = 100
-      for (let i = 0; i < partialFormEmails.length; i += chunkSize) {
-        const emailChunk = partialFormEmails.slice(i, i + chunkSize)
+      for (let i = 0; i < allContactEmails.length; i += chunkSize) {
+        const emailChunk = allContactEmails.slice(i, i + chunkSize)
         const { data: onboardingPatients } = await supabase
           .from('patient_onboarding')
           .select('email')
@@ -234,10 +239,15 @@ export const getPartialIntakeForms = authActionClient
       }
     }
 
-    // Filter out patients who are already in onboarding or management
+    // Filter out forms whose patient is already in onboarding. Include forms that have
+    // only recipient_email (invite sent, not yet started) or both; exclude only when
+    // the relevant contact is already in onboarding.
     const filteredPartialForms = (partialForms || []).filter((pf: any) => {
       const email = pf.email?.toLowerCase().trim()
-      return email && !movedPatientsEmails.has(email)
+      const recipientEmail = pf.recipient_email?.toLowerCase().trim()
+      const primaryEmail = email || recipientEmail
+      if (!primaryEmail) return false
+      return !movedPatientsEmails.has(primaryEmail)
     })
 
     // Fetch creator profiles for partial forms
