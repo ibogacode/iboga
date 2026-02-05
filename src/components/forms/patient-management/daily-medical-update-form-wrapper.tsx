@@ -15,6 +15,8 @@ interface DailyMedicalUpdateFormWrapperProps {
   isCompleted?: boolean
   isStarted?: boolean
   onSuccess?: () => void
+  /** When true (e.g. discharged patient review), form is read-only and Edit is hidden */
+  reviewOnly?: boolean
 }
 
 export function DailyMedicalUpdateFormWrapper({
@@ -27,6 +29,7 @@ export function DailyMedicalUpdateFormWrapper({
   isCompleted,
   isStarted,
   onSuccess,
+  reviewOnly = false,
 }: DailyMedicalUpdateFormWrapperProps) {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -36,7 +39,7 @@ export function DailyMedicalUpdateFormWrapper({
     onSuccess?.()
   }
 
-  if (isSubmitted) {
+  if (isSubmitted && !reviewOnly) {
     return (
       <div className="text-center py-12">
         <div className="mb-6">
@@ -79,6 +82,7 @@ export function DailyMedicalUpdateFormWrapper({
           isCompleted={isCompleted}
           isStarted={isStarted}
           onSuccess={handleSuccess}
+          reviewOnly={reviewOnly}
         />
       </div>
     </div>

@@ -115,22 +115,7 @@ export default function DailyFormsPage() {
     )
   }
 
-  if (management.status !== 'active') {
-    return (
-      <div className="p-6">
-        <Button variant="ghost" onClick={() => router.back()} className="mb-4">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
-        <div className="text-center py-12 bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-          <p className="text-yellow-800">
-            Daily forms can only be filled for patients with 'active' status. 
-            Current status: {management.status}
-          </p>
-        </div>
-      </div>
-    )
-  }
+  const isReviewOnly = management.status !== 'active'
 
   const psychStatus = getFormStatus(psychologicalForms, selectedDate)
   const medStatus = getFormStatus(medicalForms, selectedDate)
@@ -161,6 +146,11 @@ export default function DailyFormsPage() {
         <p className="text-gray-900 mt-2 text-lg sm:text-xl font-semibold">
           {management.first_name} {management.last_name}
         </p>
+        {isReviewOnly && (
+          <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2 text-sm">
+            View only — submitted daily forms for review. No new forms can be added for discharged clients.
+          </p>
+        )}
       </div>
 
       {/* Date Selection */}

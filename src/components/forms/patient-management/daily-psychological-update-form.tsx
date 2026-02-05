@@ -40,6 +40,8 @@ interface DailyPsychologicalUpdateFormProps {
   isCompleted?: boolean
   isStarted?: boolean
   onSuccess?: () => void
+  /** When true (e.g. discharged patient review), form is read-only and Edit is hidden */
+  reviewOnly?: boolean
 }
 
 export function DailyPsychologicalUpdateForm({ 
@@ -51,7 +53,8 @@ export function DailyPsychologicalUpdateForm({
   initialData, 
   isCompleted,
   isStarted,
-  onSuccess 
+  onSuccess,
+  reviewOnly = false,
 }: DailyPsychologicalUpdateFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
@@ -59,8 +62,8 @@ export function DailyPsychologicalUpdateForm({
   const [showEditHistory, setShowEditHistory] = useState(false)
   const { profile } = useUser()
 
-  // Check if user can edit (Owner, Admin, Manager)
-  const canEdit = profile?.role && ['owner', 'admin', 'manager'].includes(profile.role)
+  // Check if user can edit (Owner, Admin, Manager). Disabled when reviewOnly (e.g. discharged).
+  const canEdit = !reviewOnly && !!profile?.role && ['owner', 'admin', 'manager'].includes(profile.role)
 
   // Get logged-in user's full name for display
   const currentUserName = profile?.first_name && profile?.last_name 

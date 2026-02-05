@@ -107,12 +107,13 @@ export default function DailyMedicalFormPage() {
     )
   }
 
-  if (management.status !== 'active') {
+  const isReviewOnly = management.status !== 'active'
+  if (isReviewOnly && !formData) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center max-w-md">
           <p className="text-gray-500 mb-4">
-            Daily forms can only be filled for patients with 'active' status.
+            No submitted daily medical form for this date. Use the Daily Forms list to open a date with a completed form.
           </p>
           <Button onClick={() => router.push(`/patient-management/${managementId}/daily-forms`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -148,10 +149,11 @@ export default function DailyMedicalFormPage() {
         patientLastName={management.last_name}
         formDate={dateParam}
         programType={management.program_type}
-        isCompleted={formData?.is_completed}
+        isCompleted={formData?.is_completed ?? isReviewOnly}
         isStarted={!!formData}
         initialData={formData}
         onSuccess={handleSuccess}
+        reviewOnly={isReviewOnly}
       />
     </div>
   )

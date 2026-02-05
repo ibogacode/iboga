@@ -40,6 +40,8 @@ interface DailyOOWSFormProps {
   isCompleted?: boolean
   isStarted?: boolean
   onSuccess?: () => void
+  /** When true (e.g. discharged patient review), form is read-only and Edit is hidden */
+  reviewOnly?: boolean
 }
 
 // OOWS Symptoms list with descriptions
@@ -143,7 +145,8 @@ export function DailyOOWSForm({
   initialData, 
   isCompleted,
   isStarted,
-  onSuccess 
+  onSuccess,
+  reviewOnly = false,
 }: DailyOOWSFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
@@ -151,8 +154,8 @@ export function DailyOOWSForm({
   const [showEditHistory, setShowEditHistory] = useState(false)
   const { profile } = useUser()
 
-  // Check if user can edit (Owner, Admin, Manager)
-  const canEdit = profile?.role && ['owner', 'admin', 'manager'].includes(profile.role)
+  // Check if user can edit (Owner, Admin, Manager). Disabled when reviewOnly (e.g. discharged).
+  const canEdit = !reviewOnly && !!profile?.role && ['owner', 'admin', 'manager'].includes(profile.role)
 
   const form = useForm<DailyOOWSInput>({
     resolver: zodResolver(dailyOOWSSchema) as any,
