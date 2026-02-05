@@ -385,27 +385,27 @@ export default function PatientManagementPage() {
                                 {allOneTimeFormsCompleted ? 'One-Time Forms: done' : 'One-Time Forms'}
                               </span>
                             </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => router.push(`/patient-management/${patient.id}/daily-forms`)}
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            >
+                              <ClipboardList className="h-4 w-4 mr-1" />
+                              <span className="hidden sm:inline">
+                                {patient.status === 'active' ? 'Daily Forms' : 'Daily Forms (review)'}
+                              </span>
+                            </Button>
                             {patient.status === 'active' && (
-                              <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => router.push(`/patient-management/${patient.id}/daily-forms`)}
-                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                >
-                                  <ClipboardList className="h-4 w-4 mr-1" />
-                                  <span className="hidden sm:inline">Daily Forms</span>
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleDischargeClick(patient)}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  <LogOut className="h-4 w-4 mr-1" />
-                                  <span className="hidden sm:inline">Discharge</span>
-                                </Button>
-                              </>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDischargeClick(patient)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <LogOut className="h-4 w-4 mr-1" />
+                                <span className="hidden sm:inline">Discharge</span>
+                              </Button>
                             )}
                           </div>
                         </td>
