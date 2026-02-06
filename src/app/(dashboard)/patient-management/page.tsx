@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { getPatientManagementList, dischargePatient } from '@/actions/patient-management.action'
 import {
   Loader2, Users, CheckCircle2, Clock, Calendar, FileCheck,
-  Stethoscope, FileText, Activity, AlertCircle, UserCheck, ClipboardList, LogOut
+  Stethoscope, FileText, Activity, AlertCircle, UserCheck, ClipboardList, LogOut, Eye
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +20,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { useUser } from '@/hooks/use-user.hook'
+import { hasOwnerAccess } from '@/lib/utils'
 
 interface PatientManagementRecord {
   id: string
@@ -41,6 +43,8 @@ interface PatientManagementRecord {
 
 export default function PatientManagementPage() {
   const router = useRouter()
+  const { profile } = useUser()
+  const canViewPatientProfile = hasOwnerAccess(profile?.role)
   const [patients, setPatients] = useState<PatientManagementRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<'active' | 'discharged' | 'transferred' | 'all'>('active')
@@ -374,6 +378,17 @@ export default function PatientManagementPage() {
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {canViewPatientProfile && patient.patient_id && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => router.push(`/patient-pipeline/patient-profile/${patient.patient_id}`)}
+                                className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                <span className="hidden sm:inline">View</span>
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
