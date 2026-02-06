@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { User } from '@/types'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { ChevronRight, User as UserIcon } from 'lucide-react'
-import { useUnreadMessages } from '@/hooks/use-unread-messages.hook'
+import { useUnreadMessagesContext } from '@/contexts/unread-messages-context'
 import { useTour } from '@/contexts/tour-context'
 
 interface SidebarProps {
@@ -52,7 +52,7 @@ const EXPANDED_WIDTH = 280
 export function Sidebar({ role = 'patient', user, profile, isMobile = false }: SidebarProps) {
   const pathname = usePathname()
   const [isExpanded, setIsExpanded] = useState(false)
-  const { unreadCount } = useUnreadMessages()
+  const { unreadCount } = useUnreadMessagesContext()
   const { startTour, restartTour, isActive } = useTour()
 
   // Get navigation items based on role

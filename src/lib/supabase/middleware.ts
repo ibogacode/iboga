@@ -94,6 +94,10 @@ export async function updateSession(request: NextRequest) {
       url.searchParams.set('redirectTo', request.nextUrl.pathname)
       return NextResponse.redirect(url)
     }
+
+    // Pass verified user ID to downstream via request header
+    // This allows layouts/pages to skip redundant getUser() calls
+    supabaseResponse.headers.set('x-user-id', user.id)
   }
 
   return supabaseResponse

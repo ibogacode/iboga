@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Search, Bell, Menu, MessageSquare, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useUnreadMessages } from '@/hooks/use-unread-messages.hook'
+import { useUnreadMessagesContext } from '@/contexts/unread-messages-context'
 import { useState, useEffect } from 'react'
 import { getUserConversations } from '@/app/(dashboard)/messages/actions'
 import {
@@ -62,7 +62,7 @@ interface NavbarProps {
 
 export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
   const router = useRouter()
-  const { unreadCount } = useUnreadMessages()
+  const { unreadCount } = useUnreadMessagesContext()
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
   const [conversations, setConversations] = useState<any[]>([])
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
