@@ -14,7 +14,7 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 import type { PatientOnboardingWithProgress } from '@/types'
 import { useUser } from '@/hooks/use-user.hook'
-import { hasStaffAccess } from '@/lib/utils'
+import { hasStaffAccess, parseDateString } from '@/lib/utils'
 import { TreatmentDateCalendar } from '@/components/treatment-scheduling/treatment-date-calendar'
 
 // Onboarding forms
@@ -82,7 +82,7 @@ export default function OnboardingPage() {
 
   function formatDate(dateString: string) {
     try {
-      return format(new Date(dateString), 'MMM dd, yyyy')
+      return format(parseDateString(dateString), 'MMM dd, yyyy')
     } catch {
       return dateString
     }

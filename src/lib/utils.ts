@@ -14,10 +14,11 @@ export function cn(...inputs: ClassValue[]) {
 const EST_TIMEZONE = 'America/New_York'
 
 /**
- * Parse a date string (YYYY-MM-DD) as a local date without timezone shift
- * This prevents the issue where "2025-01-06" becomes "2025-01-05" due to UTC interpretation
+ * Parse a date string (YYYY-MM-DD) as a local date without timezone shift.
+ * Use this when displaying date-only values (e.g. treatment_date, arrival_date) so they
+ * show the intended calendar day regardless of user timezone.
  */
-function parseDateString(dateString: string): Date {
+export function parseDateString(dateString: string): Date {
   // If it's a date-only string (YYYY-MM-DD), parse it as local date
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
     const [year, month, day] = dateString.split('-').map(Number)

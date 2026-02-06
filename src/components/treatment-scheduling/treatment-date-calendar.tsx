@@ -5,8 +5,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Calendar, Users, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
-import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, parseISO, isBefore, startOfDay } from 'date-fns'
+import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isBefore, startOfDay } from 'date-fns'
 import { assignTreatmentDate, getAvailableTreatmentDates } from '@/actions/treatment-scheduling.action'
+import { parseDateString } from '@/lib/utils'
 import { toast } from 'sonner'
 
 interface TreatmentDateCalendarProps {
@@ -146,7 +147,7 @@ export function TreatmentDateCalendar({
     const capacity = dateCapacities.get(date)
 
     // Don't allow selecting dates in the past
-    if (isBefore(parseISO(date), startOfDay(new Date()))) {
+    if (isBefore(parseDateString(date), startOfDay(new Date()))) {
       toast.error('Cannot select a date in the past')
       return
     }
@@ -318,7 +319,7 @@ export function TreatmentDateCalendar({
           {/* Selected date info */}
           {selectedDate && (
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h4 className="font-semibold mb-2">Selected Date: {format(parseISO(selectedDate), 'MMMM d, yyyy')}</h4>
+              <h4 className="font-semibold mb-2">Selected Date: {format(parseDateString(selectedDate), 'MMMM d, yyyy')}</h4>
               {dateCapacities.get(selectedDate) && (
                 <div>
                   <p className="text-sm text-gray-600">
