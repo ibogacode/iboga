@@ -76,8 +76,8 @@ export function DashboardShell({ children, user, profile, userRole }: DashboardS
           {/* Tour Overlay - Renders when tour is active */}
           <TourOverlay />
           
-          {/* Tour Help Button - Always visible in bottom right */}
-          <TourHelpButton />
+          {/* Tour Help Button - Bottom right, only for patient role */}
+          {userRole === 'patient' && <TourHelpButton />}
         </div>
       </TourProvider>
     </UnreadMessagesProvider>
