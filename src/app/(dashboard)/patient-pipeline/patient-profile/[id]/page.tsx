@@ -1158,50 +1158,38 @@ export default function PatientProfilePage() {
             <FlaskConical className="h-4 w-4" />
             Request Labs
           </Button>
-          {isAdminOrOwner && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2 relative bg-gray-100 hover:bg-gray-200 border-gray-200"
-                disabled={!profileData.serviceAgreement?.id || profileData.serviceAgreement?.is_activated}
-                onClick={() => {
-                  if (profileData.serviceAgreement?.id && !profileData.serviceAgreement?.is_activated) {
-                    handleActivateForm('service', profileData.serviceAgreement.id, true)
-                  }
-                }}
-              >
-                Activate Service Agreement
-                {serviceAgreementNeedsActivation && (
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                    !
-                  </span>
-                )}
-              </Button>
-              {profileData.serviceAgreement?.id && profileData.serviceAgreement?.is_activated && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 bg-gray-100 hover:bg-gray-200 border-gray-200"
-                  onClick={() => {
-                    const sa = profileData.serviceAgreement
-                    if (!sa) return
-                    setUpgradeAgreementForm({
-                      formId: sa.id,
-                      number_of_days: String(sa.number_of_days ?? ''),
-                      total_program_fee: String(sa.total_program_fee ?? ''),
-                      deposit_amount: String(sa.deposit_amount ?? ''),
-                      deposit_percentage: String(sa.deposit_percentage ?? ''),
-                      remaining_balance: String(sa.remaining_balance ?? ''),
-                      payment_method: sa.payment_method ?? '',
-                    })
-                    setUpgradeAgreementOpen(true)
-                  }}
-                >
-                  Upgrade Agreement
-                </Button>
+          {isAdminOrOwner && profileData.serviceAgreement?.id && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 relative bg-gray-100 hover:bg-gray-200 border-gray-200"
+              disabled={!profileData.serviceAgreement?.id}
+              onClick={() => {
+                const sa = profileData.serviceAgreement
+                if (!sa) return
+                if (!sa.is_activated) {
+                  handleActivateForm('service', sa.id, true)
+                } else {
+                  setUpgradeAgreementForm({
+                    formId: sa.id,
+                    number_of_days: String(sa.number_of_days ?? ''),
+                    total_program_fee: String(sa.total_program_fee ?? ''),
+                    deposit_amount: String(sa.deposit_amount ?? ''),
+                    deposit_percentage: String(sa.deposit_percentage ?? ''),
+                    remaining_balance: String(sa.remaining_balance ?? ''),
+                    payment_method: sa.payment_method ?? '',
+                  })
+                  setUpgradeAgreementOpen(true)
+                }
+              }}
+            >
+              {profileData.serviceAgreement?.is_activated ? 'Upgrade Agreement' : 'Activate Service Agreement'}
+              {!profileData.serviceAgreement?.is_activated && serviceAgreementNeedsActivation && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                  !
+                </span>
               )}
-            </>
+            </Button>
           )}
           {!isEditing ? (
             <Button variant="outline" onClick={() => setIsEditing(true)} className="gap-2" size="sm">
@@ -2766,21 +2754,34 @@ export default function PatientProfilePage() {
               <p className="text-sm text-[#777777]">Next follow-ups for this lead</p>
             </div>
 
-            {isAdminOrOwner && (
+            {isAdminOrOwner && profileData?.serviceAgreement?.id && (
               <button
                 type="button"
                 className="text-left rounded-[10px] border border-[#D6D2C8] px-3.5 py-2.5 flex flex-col gap-0.5 hover:bg-[#F5F4F0] transition-colors"
                 onClick={() => {
-                  if (profileData?.serviceAgreement?.id && !profileData?.serviceAgreement?.is_activated) {
-                    handleActivateForm('service', profileData.serviceAgreement.id, true)
+                  const sa = profileData.serviceAgreement
+                  if (!sa) return
+                  if (!sa.is_activated) {
+                    handleActivateForm('service', sa.id, true)
                   } else {
-                    setActiveTab('details')
+                    setUpgradeAgreementForm({
+                      formId: sa.id,
+                      number_of_days: String(sa.number_of_days ?? ''),
+                      total_program_fee: String(sa.total_program_fee ?? ''),
+                      deposit_amount: String(sa.deposit_amount ?? ''),
+                      deposit_percentage: String(sa.deposit_percentage ?? ''),
+                      remaining_balance: String(sa.remaining_balance ?? ''),
+                      payment_method: sa.payment_method ?? '',
+                    })
+                    setUpgradeAgreementOpen(true)
                   }
                 }}
               >
-                <span className="text-sm font-semibold text-[#2B2820]">Activate Service Agreement</span>
+                <span className="text-sm font-semibold text-[#2B2820]">
+                  {profileData.serviceAgreement?.is_activated ? 'Upgrade Agreement' : 'Activate Service Agreement'}
+                </span>
                 <span className="text-sm text-[#777777]">
-                  {serviceAgreementNeedsActivation ? 'Due • Pending' : 'Done'}
+                  {profileData.serviceAgreement?.is_activated ? 'Update terms / fees' : (serviceAgreementNeedsActivation ? 'Due • Pending' : 'Done')}
                 </span>
               </button>
             )}
