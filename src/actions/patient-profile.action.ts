@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import { authActionClient } from '@/lib/safe-action'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { hasOwnerAccess } from '@/lib/utils'
+import { hasOwnerAccess, isStaffRole } from '@/lib/utils'
 
 // Schema for getting patient profile
 const getPatientProfileSchema = z.object({
@@ -32,8 +32,8 @@ export const getPatientProfile = authActionClient
       .eq('id', user.id)
       .single()
     
-    if (!profile || !hasOwnerAccess(profile.role)) {
-      return { success: false, error: 'Unauthorized - Owner or Admin access required' }
+    if (!profile || !isStaffRole(profile.role)) {
+      return { success: false, error: 'Unauthorized - Staff access required' }
     }
 
     let patientData: any = null
@@ -344,22 +344,22 @@ export const getPatientProfile = authActionClient
         .maybeSingle()
 
       if (onboarding) {
-        // Get onboarding forms
+        // Get onboarding forms (tables: onboarding_release_forms, etc.)
         const [releaseForm, outingForm, regulationsForm] = await Promise.all([
           adminClient
-            .from('release_forms')
+            .from('onboarding_release_forms')
             .select('*')
             .eq('onboarding_id', onboarding.id)
             .maybeSingle()
             .then(r => r.data),
           adminClient
-            .from('outing_consent_forms')
+            .from('onboarding_outing_consent_forms')
             .select('*')
             .eq('onboarding_id', onboarding.id)
             .maybeSingle()
             .then(r => r.data),
           adminClient
-            .from('internal_regulations_forms')
+            .from('onboarding_internal_regulations_forms')
             .select('*')
             .eq('onboarding_id', onboarding.id)
             .maybeSingle()
@@ -385,22 +385,22 @@ export const getPatientProfile = authActionClient
         .maybeSingle()
 
       if (onboarding) {
-        // Get onboarding forms
+        // Get onboarding forms (tables: onboarding_release_forms, etc.)
         const [releaseForm, outingForm, regulationsForm] = await Promise.all([
           adminClient
-            .from('release_forms')
+            .from('onboarding_release_forms')
             .select('*')
             .eq('onboarding_id', onboarding.id)
             .maybeSingle()
             .then(r => r.data),
           adminClient
-            .from('outing_consent_forms')
+            .from('onboarding_outing_consent_forms')
             .select('*')
             .eq('onboarding_id', onboarding.id)
             .maybeSingle()
             .then(r => r.data),
           adminClient
-            .from('internal_regulations_forms')
+            .from('onboarding_internal_regulations_forms')
             .select('*')
             .eq('onboarding_id', onboarding.id)
             .maybeSingle()

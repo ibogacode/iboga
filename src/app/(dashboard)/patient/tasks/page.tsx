@@ -119,6 +119,12 @@ export default function PatientTasksPage() {
   })
 
   const handleTaskAction = async (task: PatientTask) => {
+    // Onboarding EKG/Bloodwork uploads: go to Documents page
+    if (task.type === 'onboarding_ekg_upload' || task.type === 'onboarding_bloodwork_upload') {
+      router.push('/patient/documents')
+      return
+    }
+
     // Prevent action on locked tasks
     if (task.status === 'locked') {
       toast.error('This form is not yet activated. Please wait for admin activation.')

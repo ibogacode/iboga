@@ -5,8 +5,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById, activateServiceAgreement, activateIbogaineConsent, createServiceAgreementForPatient } from '@/actions/patient-profile.action'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { sendFormEmail } from '@/actions/send-form-email.action'
-import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding, uploadOnboardingFormDocument } from '@/actions/onboarding-forms.action'
-import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload } from 'lucide-react'
+import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding, uploadOnboardingFormDocument, moveToPatientManagement } from '@/actions/onboarding-forms.action'
+import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload, ClipboardList, Stethoscope, LayoutGrid, ChevronDown, FlaskConical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
-import { updateServiceAgreementAdminFields, updateIbogaineConsentAdminFields, getServiceAgreementForAdminEdit, getIbogaineConsentForAdminEdit } from '@/actions/admin-form-edit.action'
+import { updateServiceAgreementAdminFields, updateIbogaineConsentAdminFields, getServiceAgreementForAdminEdit, getIbogaineConsentForAdminEdit, upgradeServiceAgreement } from '@/actions/admin-form-edit.action'
 import { PatientIntakeFormView } from '@/components/admin/patient-intake-form-view'
 import { MedicalHistoryFormView } from '@/components/admin/medical-history-form-view'
 import { ServiceAgreementFormView } from '@/components/admin/service-agreement-form-view'
@@ -23,6 +23,28 @@ import { uploadExistingPatientDocument } from '@/actions/existing-patient.action
 import { useUser } from '@/hooks/use-user.hook'
 import { uploadDocumentClient } from '@/lib/supabase/client-storage'
 import { PDFDownloadButton } from '@/components/ui/pdf-download-button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { getPatientManagementByPatientId, getDailyFormsByManagementId, getPatientManagementWithForms, dischargePatient } from '@/actions/patient-management.action'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { recordBillingPayment, getBillingPayments, turnOffBillingReminder, updateBillingPayment } from '@/actions/patient-billing.action'
+import { TreatmentDateCalendar } from '@/components/treatment-scheduling/treatment-date-calendar'
+import { getTaperingScheduleByOnboarding } from '@/actions/tapering-schedule.action'
+import {
+  getLeadTasks,
+  createLeadTask,
+  updateLeadTask,
+  updateLeadTaskStatus,
+  deleteLeadTask,
+  getStaffForAssign,
+  type LeadTaskRow,
+} from '@/actions/lead-tasks.action'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface PatientProfileData {
   patient: any
@@ -66,6 +88,7 @@ export default function PatientProfilePage() {
   const [profileData, setProfileData] = useState<PatientProfileData | null>(null)
   const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | null>(null)
   const [viewFormData, setViewFormData] = useState<any>(null)
+  const [viewFormIframe, setViewFormIframe] = useState<{ url: string; title: string } | null>(null)
   const [loadingViewForm, setLoadingViewForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | null>(null)
   const [activatingForm, setActivatingForm] = useState<'service' | 'ibogaine' | null>(null)
   const [creatingServiceAgreement, setCreatingServiceAgreement] = useState(false)
@@ -77,6 +100,28 @@ export default function PatientProfilePage() {
     formData: any
   } | null>(null)
   const [isSavingActivationFields, setIsSavingActivationFields] = useState(false)
+  const [upgradeAgreementOpen, setUpgradeAgreementOpen] = useState(false)
+  const [upgradeAgreementSaving, setUpgradeAgreementSaving] = useState(false)
+  const [upgradeAgreementForm, setUpgradeAgreementForm] = useState<{
+    formId: string
+    number_of_days: string
+    total_program_fee: string
+    deposit_amount: string
+    deposit_percentage: string
+    remaining_balance: string
+    payment_method: string
+  } | null>(null)
+  const [leadTasks, setLeadTasks] = useState<LeadTaskRow[]>([])
+  const [loadingLeadTasks, setLoadingLeadTasks] = useState(false)
+  const [showAddTaskInline, setShowAddTaskInline] = useState(false)
+  const [viewAllTasksOpen, setViewAllTasksOpen] = useState(false)
+  const [showAddTaskInDialog, setShowAddTaskInDialog] = useState(false)
+  const [staffList, setStaffList] = useState<{ id: string; name: string }[]>([])
+  const [newTaskForm, setNewTaskForm] = useState({ title: '', description: '', due_date: '', assigned_to_id: '' })
+  const [savingLeadTask, setSavingLeadTask] = useState(false)
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [editTaskForm, setEditTaskForm] = useState<{ title: string; description: string; due_date: string; assigned_to_id: string } | null>(null)
+  const [updatingStatusTaskId, setUpdatingStatusTaskId] = useState<string | null>(null)
   const [showConfirmationModal, setShowConfirmationModal] = useState(false)
   const [confirmationModalData, setConfirmationModalData] = useState<{
     formType: 'ibogaine'
@@ -93,14 +138,93 @@ export default function PatientProfilePage() {
   } | null>(null)
   const [isSavingConfirmationFields, setIsSavingConfirmationFields] = useState(false)
   const [isMovingToOnboarding, setIsMovingToOnboarding] = useState(false)
+  const [isMovingToManagement, setIsMovingToManagement] = useState(false)
+  const [openTreatmentDateCalendar, setOpenTreatmentDateCalendar] = useState(false)
   const [loadingOnboarding, setLoadingOnboarding] = useState(false)
   const [uploadingDocument, setUploadingDocument] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   const [uploadingOnboardingForm, setUploadingOnboardingForm] = useState<{ onboardingId: string; formType: string } | null>(null)
   const onboardingFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const onboardingFormContentRef = useRef<HTMLDivElement>(null)
+  const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'billing' | 'travel' | 'notes'>('overview')
+  const [quickNote, setQuickNote] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
+  const [billingPayments, setBillingPayments] = useState<Array<{
+    id: string
+    amount_received: number
+    is_full_payment: boolean
+    payment_received_at: string
+    next_reminder_date: string | null
+    balance_reminder_sent_at: string | null
+  }>>([])
+  const [loadingBillingPayments, setLoadingBillingPayments] = useState(false)
+  const [savingBilling, setSavingBilling] = useState(false)
+  const [billingForm, setBillingForm] = useState({
+    amountReceived: '',
+    isFullPayment: false,
+    receivedDate: format(new Date(), 'yyyy-MM-dd'),
+    receivedTime: format(new Date(), 'HH:mm'),
+    nextReminderDate: '',
+    sendReminderNow: true,
+  })
+  const [billingEditRecord, setBillingEditRecord] = useState<{
+    id: string
+    amount_received: number
+    is_full_payment: boolean
+    payment_received_at: string
+    next_reminder_date: string | null
+  } | null>(null)
+  const [billingEditForm, setBillingEditForm] = useState({
+    amountReceived: '',
+    isFullPayment: false,
+    receivedDate: '',
+    receivedTime: '',
+    turnOffReminder: false,
+  })
+  const [savingBillingUpdate, setSavingBillingUpdate] = useState(false)
+  const [turningOffReminderId, setTurningOffReminderId] = useState<string | null>(null)
+  const [managementRecord, setManagementRecord] = useState<{
+    id: string
+    patient_id: string | null
+    first_name: string
+    last_name: string
+    program_type: string
+    status: string
+    arrival_date: string
+    expected_departure_date: string | null
+    intake_report_completed?: boolean
+    parkinsons_psychological_report_completed?: boolean
+    parkinsons_mortality_scales_completed?: boolean
+  } | null>(null)
+  const [dailyFormsCount, setDailyFormsCount] = useState<number>(0)
+  const [dailyFormsBreakdown, setDailyFormsBreakdown] = useState<{ psychological: number; medical: number; sows: number; oows: number }>({ psychological: 0, medical: 0, sows: 0, oows: 0 })
+  const [dailyFormsArrays, setDailyFormsArrays] = useState<{
+    psychological: Array<{ form_date: string; submitted_at: string | null }>
+    medical: Array<{ form_date: string; submitted_at: string | null }>
+    sows: Array<{ form_date: string; submitted_at: string | null }>
+    oows: Array<{ form_date: string; submitted_at: string | null }>
+  }>({ psychological: [], medical: [], sows: [], oows: [] })
+  const [oneTimeFormsData, setOneTimeFormsData] = useState<{
+    intakeReport: any
+    medicalIntakeReport: any
+    parkinsonsPsychologicalReport: any
+    parkinsonsMortalityScales: any
+  } | null>(null)
+  const [loadingManagement, setLoadingManagement] = useState(false)
+  const [taperingSchedule, setTaperingSchedule] = useState<{
+    id: string
+    status: 'draft' | 'sent' | 'acknowledged'
+    starting_dose: string
+    total_days: number
+    schedule_days: Array<{ day: number; dose: string; notes?: string; label?: string }>
+    additional_notes?: string
+    created_at: string
+    sent_at?: string
+  } | null>(null)
+  const [loadingTaperingSchedule, setLoadingTaperingSchedule] = useState(false)
   
   const isAdminOrOwner = profile?.role === 'admin' || profile?.role === 'owner'
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'manager'
+  const isStaff = isAdmin || profile?.role === 'doctor' || profile?.role === 'psych' || profile?.role === 'nurse'
   
   // Form state for editing
   const [formData, setFormData] = useState({
@@ -120,6 +244,152 @@ export default function PatientProfilePage() {
   useEffect(() => {
     loadPatientProfile()
   }, [id])
+
+  // Load billing payments when service agreement is activated (for Billing tab and right-sidebar payment status)
+  useEffect(() => {
+    const agreementId = profileData?.serviceAgreement?.id
+    const isActivated = profileData?.serviceAgreement?.is_activated
+    if (!agreementId || !isActivated) return
+    setLoadingBillingPayments(true)
+    getBillingPayments({ service_agreement_id: agreementId })
+      .then((res) => {
+        if (res?.data?.success && res.data.data) {
+          setBillingPayments(res.data.data)
+        }
+      })
+      .finally(() => setLoadingBillingPayments(false))
+  }, [profileData?.serviceAgreement?.id, profileData?.serviceAgreement?.is_activated])
+
+  // Fetch active patient management (clinical stay) when profile is loaded and user is staff
+  useEffect(() => {
+    const patientId = profileData?.patient?.id
+    if (!patientId || !isStaff) {
+      setManagementRecord(null)
+      return
+    }
+    let cancelled = false
+    setLoadingManagement(true)
+    getPatientManagementByPatientId({ patient_id: patientId })
+      .then((result) => {
+        if (cancelled) return
+        if (result?.data?.success && result.data.data) {
+          setManagementRecord(result.data.data as typeof managementRecord)
+        } else {
+          setManagementRecord(null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setManagementRecord(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingManagement(false)
+      })
+    return () => { cancelled = true }
+  }, [profileData?.patient?.id, isStaff])
+
+  // Fetch daily forms when management record exists (for Overview & Forms & Docs)
+  useEffect(() => {
+    if (!managementRecord?.id || !isStaff) {
+      setDailyFormsCount(0)
+      setDailyFormsBreakdown({ psychological: 0, medical: 0, sows: 0, oows: 0 })
+      setDailyFormsArrays({ psychological: [], medical: [], sows: [], oows: [] })
+      return
+    }
+    getDailyFormsByManagementId({ management_id: managementRecord.id })
+      .then((result) => {
+        if (result?.data?.success && result.data.data) {
+          const d = result.data.data as {
+            psychological?: Array<{ form_date?: string; submitted_at?: string | null }>
+            medical?: Array<{ form_date?: string; submitted_at?: string | null }>
+            sows?: Array<{ form_date?: string; submitted_at?: string | null }>
+            oows?: Array<{ form_date?: string; submitted_at?: string | null }>
+          }
+          const toRow = (arr: Array<{ form_date?: string; submitted_at?: string | null }> | undefined) =>
+            (arr ?? []).map((f) => ({ form_date: f.form_date ?? '', submitted_at: f.submitted_at ?? null }))
+          const psych = d.psychological ?? []
+          const med = d.medical ?? []
+          const sows = d.sows ?? []
+          const oows = d.oows ?? []
+          setDailyFormsCount(psych.length + med.length + sows.length + oows.length)
+          setDailyFormsBreakdown({ psychological: psych.length, medical: med.length, sows: sows.length, oows: oows.length })
+          setDailyFormsArrays({
+            psychological: toRow(psych),
+            medical: toRow(med),
+            sows: toRow(sows),
+            oows: toRow(oows),
+          })
+        } else {
+          setDailyFormsCount(0)
+          setDailyFormsBreakdown({ psychological: 0, medical: 0, sows: 0, oows: 0 })
+          setDailyFormsArrays({ psychological: [], medical: [], sows: [], oows: [] })
+        }
+      })
+      .catch(() => {
+        setDailyFormsCount(0)
+        setDailyFormsBreakdown({ psychological: 0, medical: 0, sows: 0, oows: 0 })
+        setDailyFormsArrays({ psychological: [], medical: [], sows: [], oows: [] })
+      })
+  }, [managementRecord?.id, isStaff])
+
+  // Fetch one-time forms when management record exists (for Forms & Docs table with dates and View)
+  useEffect(() => {
+    if (!managementRecord?.id || !isStaff) {
+      setOneTimeFormsData(null)
+      return
+    }
+    getPatientManagementWithForms({ management_id: managementRecord.id })
+      .then((result) => {
+        if (result?.data?.success && result.data.data?.forms) {
+          setOneTimeFormsData(result.data.data.forms)
+        } else {
+          setOneTimeFormsData(null)
+        }
+      })
+      .catch(() => setOneTimeFormsData(null))
+  }, [managementRecord?.id, isStaff])
+
+  // Fetch tapering schedule when onboarding exists
+  useEffect(() => {
+    const onboardingId = profileData?.onboarding?.onboarding?.id
+    if (!onboardingId || !isStaff) {
+      setTaperingSchedule(null)
+      return
+    }
+    setLoadingTaperingSchedule(true)
+    getTaperingScheduleByOnboarding({ onboarding_id: onboardingId })
+      .then((result) => {
+        if (result?.data?.success && result.data.data) {
+          setTaperingSchedule(result.data.data as typeof taperingSchedule)
+        } else {
+          setTaperingSchedule(null)
+        }
+      })
+      .catch(() => setTaperingSchedule(null))
+      .finally(() => setLoadingTaperingSchedule(false))
+  }, [profileData?.onboarding?.onboarding?.id, isStaff])
+
+  function loadLeadTasks() {
+    if (!id || !isStaff) return
+    setLoadingLeadTasks(true)
+    getLeadTasks({ leadId: id })
+      .then((res) => {
+        if (res?.data?.success && res.data.data) setLeadTasks(res.data.data)
+        else setLeadTasks([])
+      })
+      .catch(() => setLeadTasks([]))
+      .finally(() => setLoadingLeadTasks(false))
+  }
+
+  useEffect(() => {
+    loadLeadTasks()
+  }, [id, isStaff])
+
+  useEffect(() => {
+    if (!isStaff) return
+    getStaffForAssign({}).then((res) => {
+      if (res?.data?.success && res.data.data) setStaffList(res.data.data)
+    })
+  }, [isStaff])
 
   async function loadPatientProfile() {
     setIsLoading(true)
@@ -593,6 +863,55 @@ export default function PatientProfilePage() {
     }
   }
 
+  /** Only show a date when the form is completed (not for auto-created records). */
+  function getFormSubmittedDate(formKey: 'intake' | 'medical' | 'service' | 'ibogaine'): string | null {
+    if (!profileData) return null
+    switch (formKey) {
+      case 'intake':
+        if (profileData.formStatuses.intake !== 'completed') return null
+        const intakeAt = profileData.intakeForm?.created_at || profileData.partialForm?.created_at
+        return intakeAt ? format(new Date(intakeAt), 'MMM d') : null
+      case 'medical':
+        if (profileData.formStatuses.medicalHistory !== 'completed') return null
+        const medAt = profileData.medicalHistoryForm?.updated_at || profileData.medicalHistoryForm?.created_at
+        return medAt ? format(new Date(medAt), 'MMM d') : null
+      case 'service':
+        if (profileData.formStatuses.serviceAgreement !== 'completed') return null
+        const saAt = profileData.serviceAgreement?.updated_at || profileData.serviceAgreement?.patient_signature_date
+        return saAt ? format(new Date(saAt + (saAt.includes('T') ? '' : 'T12:00:00')), 'MMM d') : null
+      case 'ibogaine':
+        if (profileData.formStatuses.ibogaineConsent !== 'completed') return null
+        const ibAt = profileData.ibogaineConsentForm?.updated_at || profileData.ibogaineConsentForm?.signature_date
+        return ibAt ? format(new Date(ibAt + (ibAt.includes('T') ? '' : 'T12:00:00')), 'MMM d') : null
+      default:
+        return null
+    }
+  }
+
+  /** Only show a date when the onboarding form is completed (not for auto-created records). */
+  function getOnboardingFormSubmittedDate(formKey: 'releaseForm' | 'outingForm' | 'regulationsForm'): string | null {
+    if (!profileData) return null
+    const ob = profileData.onboarding?.onboarding
+    const forms = profileData.onboarding?.forms
+    if (!ob || !forms) return null
+    const completed =
+      formKey === 'releaseForm' ? !!ob.release_form_completed
+      : formKey === 'outingForm' ? !!ob.outing_consent_completed
+      : !!ob.internal_regulations_completed
+    if (!completed) return null
+    const f = forms[formKey]
+    const at = f?.updated_at || f?.created_at
+    return at ? format(new Date(at), 'MMM d') : null
+  }
+
+  function getOneTimeFormSubmittedDate(formKey: 'intakeReport' | 'medicalIntakeReport' | 'parkinsonsPsychologicalReport' | 'parkinsonsMortalityScales'): string | null {
+    const forms = oneTimeFormsData
+    if (!forms) return null
+    const f = forms[formKey]
+    const at = (f as any)?.submitted_at ?? (f as any)?.completed_at ?? (f as any)?.updated_at ?? (f as any)?.created_at
+    return at ? format(new Date(at + (typeof at === 'string' && !at.includes('T') ? 'T12:00:00' : '')), 'MMM d, yyyy • h:mm a') : null
+  }
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
@@ -616,893 +935,1366 @@ export default function PatientProfilePage() {
 
   const patient = profileData.patient
   const displayName = `${patient?.first_name || ''} ${patient?.last_name || ''}`.trim() || 'Unknown Patient'
+  const initials = (() => {
+    const first = (patient?.first_name || '').trim()[0] || ''
+    const last = (patient?.last_name || '').trim()[0] || ''
+    if (first || last) return `${first}${last}`.toUpperCase()
+    return (patient?.email || 'U').charAt(0).toUpperCase()
+  })()
+  const sourceLabel =
+    patient?.source === 'admin_owner_added' ? 'Admin/Owner added' : 'Public'
+  const currentStageLabel = managementRecord
+    ? 'Management'
+    : profileData.onboarding
+    ? 'Onboarding'
+    : 'Pipeline'
+  const leadId = patient?.id ? `L-${patient.id.slice(0, 8).toUpperCase().replace(/-/g, '')}` : '—'
+  const inquiryDate =
+    profileData.intakeForm?.created_at || profileData.partialForm?.created_at
+      ? format(
+          new Date((profileData.intakeForm?.created_at || profileData.partialForm?.created_at) as string),
+          'MMM dd, yyyy'
+        )
+      : '—'
+  const onboardingTreatmentDate = profileData?.onboarding?.onboarding?.treatment_date
+  const plannedArrival =
+    managementRecord?.expected_departure_date
+      ? format(new Date(managementRecord.expected_departure_date + 'T00:00:00'), 'MMM dd, yyyy')
+      : managementRecord?.arrival_date
+        ? format(new Date(managementRecord.arrival_date + 'T00:00:00'), 'MMM dd, yyyy')
+        : onboardingTreatmentDate
+          ? format(new Date(onboardingTreatmentDate + 'T00:00:00'), 'MMM dd, yyyy')
+          : '—'
+  const serviceAgreementNeedsActivation =
+    profileData.serviceAgreement?.id && !profileData.serviceAgreement?.is_activated
+
+  const allPreArrivalFormsComplete =
+    profileData.formStatuses.intake === 'completed' &&
+    profileData.formStatuses.medicalHistory === 'completed' &&
+    profileData.formStatuses.serviceAgreement === 'completed' &&
+    profileData.formStatuses.ibogaineConsent === 'completed'
+  const onboardingRecord = profileData?.onboarding?.onboarding
+  const allOnboardingFormsComplete =
+    !!onboardingRecord?.release_form_completed &&
+    !!onboardingRecord?.outing_consent_completed &&
+    !!onboardingRecord?.internal_regulations_completed
+  const hasArrivalDateAssigned = !!onboardingRecord?.treatment_date
+  const canMoveToManagement =
+    !!profileData.onboarding && allOnboardingFormsComplete && hasArrivalDateAssigned
+  const isInActiveManagement = managementRecord?.status === 'active'
+  const isReadyForNextStage =
+    profileData.onboarding || allPreArrivalFormsComplete || isInActiveManagement
+  const nextStageLabel =
+    isInActiveManagement
+      ? 'Discharge'
+      : !profileData.onboarding && allPreArrivalFormsComplete
+        ? 'Onboarding'
+        : profileData.onboarding && canMoveToManagement
+          ? 'Management'
+          : null
+  const moveStageNeedsAction = isReadyForNextStage && !!nextStageLabel
+
+  const formsCompletedCount = [
+    profileData.formStatuses.intake,
+    profileData.formStatuses.medicalHistory,
+    profileData.formStatuses.serviceAgreement,
+    profileData.formStatuses.ibogaineConsent,
+  ].filter((s) => s === 'completed').length
+  const readinessScore = Math.round((formsCompletedCount / 4) * 100)
+  const lastUpdatedAt =
+    patient?.updated_at || profileData?.intakeForm?.updated_at || profileData?.partialForm?.updated_at
+  const lastUpdatedLabel = lastUpdatedAt
+    ? format(new Date(lastUpdatedAt), 'MMM dd, yyyy • h:mm a')
+    : '—'
+
+  function formatProgramLabel(programType: string) {
+    const map: Record<string, string> = {
+      neurological: 'Neurological',
+      mental_health: 'Mental Health',
+      addiction: 'Addiction',
+    }
+    return map[programType] || programType
+  }
 
   return (
     <div className="p-6">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 
-            style={{ 
-              fontFamily: 'var(--font-instrument-serif), serif',
-              fontSize: '44px',
-              fontWeight: 400,
-              color: 'black',
-            }}
-          >
-            {displayName}
-          </h1>
-          <p className="text-gray-600 mt-1">{patient?.email || 'No email'}</p>
+      {/* Header: avatar + name/contact (same height as avatar) | actions */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-4 min-h-[96px]">
+          <Avatar className="h-24 w-24 shrink-0 rounded-full border-2 border-gray-200 bg-gray-100">
+            <AvatarImage src={patient?.avatar_url || undefined} alt={displayName} className="object-cover" />
+            <AvatarFallback className="rounded-full bg-gray-200 text-gray-600 text-2xl font-medium">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col justify-center min-h-[96px] py-1">
+            <h1
+              style={{
+                fontFamily: 'var(--font-instrument-serif), serif',
+                fontSize: '28px',
+                fontWeight: 600,
+                color: 'black',
+                lineHeight: 1.2,
+              }}
+            >
+              {displayName}
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {[patient?.email || 'No email', patient?.phone || 'No phone', `Source: ${sourceLabel}`].join(' · ')}
+            </p>
+          </div>
         </div>
-        {!isEditing ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 relative bg-gray-100 hover:bg-gray-200 border-gray-200 disabled:opacity-50 disabled:pointer-events-none"
+                disabled={!isReadyForNextStage}
+                title={!isReadyForNextStage ? 'Complete all pre-arrival forms (Intake, Medical History, Service Agreement, Ibogaine Consent) to move stage' : undefined}
+              >
+                Move Stage
+                <ChevronDown className="h-4 w-4" />
+                {moveStageNeedsAction && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                    !
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {nextStageLabel === 'Onboarding' && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    const intakeFormId = profileData.intakeForm?.id
+                    const partialFormId = profileData.partialForm?.id
+                    movePatientToOnboarding({
+                      intake_form_id: intakeFormId || undefined,
+                      partial_intake_form_id: partialFormId || undefined,
+                    }).then((result) => {
+                      if (result?.data?.success) {
+                        toast.success(result.data.data?.message || 'Moved to onboarding')
+                        loadPatientProfile()
+                      } else {
+                        toast.error(result?.data?.error || 'Failed to move to onboarding')
+                      }
+                    })
+                  }}
+                >
+                  Onboarding
+                </DropdownMenuItem>
+              )}
+              {nextStageLabel === 'Management' && (
+                <DropdownMenuItem
+                  disabled={isMovingToManagement}
+                  onClick={async () => {
+                    if (managementRecord) {
+                      router.push(`/patient-management/${managementRecord.id}/daily-forms`)
+                      return
+                    }
+                    if (canMoveToManagement && profileData?.onboarding?.onboarding?.id) {
+                      setIsMovingToManagement(true)
+                      try {
+                        const result = await moveToPatientManagement({
+                          onboarding_id: profileData.onboarding.onboarding.id,
+                        })
+                        if (result?.data?.success) {
+                          toast.success(result.data.message ?? 'Moved to Management')
+                          await loadPatientProfile()
+                          const res = await getPatientManagementByPatientId({
+                            patient_id: profileData.patient?.id,
+                          })
+                          const newRecord = res?.data?.success ? res.data.data : null
+                          if (newRecord?.id) {
+                            setManagementRecord(newRecord as unknown as typeof managementRecord)
+                            router.push(`/patient-management/${(newRecord as { id: string }).id}/daily-forms`)
+                          }
+                        } else {
+                          toast.error(result?.data?.error ?? 'Failed to move to Management')
+                        }
+                      } finally {
+                        setIsMovingToManagement(false)
+                      }
+                      return
+                    }
+                    toast.info('Complete onboarding forms and assign arrival date to move to Management.')
+                    router.push('/patient-management')
+                  }}
+                >
+                  {isMovingToManagement ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Management'
+                  )}
+                </DropdownMenuItem>
+              )}
+              {nextStageLabel === 'Discharge' && managementRecord && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    dischargePatient({ management_id: managementRecord.id }).then((result) => {
+                      if (result?.data?.success) {
+                        toast.success(result.data.message ?? 'Patient discharged')
+                        getPatientManagementByPatientId({ patient_id: profileData.patient?.id }).then((res) => {
+                          if (res?.data?.success && res.data.data) setManagementRecord(res.data.data as typeof managementRecord)
+                        })
+                      } else {
+                        toast.error(result?.data?.error ?? 'Failed to discharge')
+                      }
+                    })
+                  }}
+                >
+                  Discharge
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline"
-            onClick={() => setIsEditing(true)}
-            className="gap-2"
+            size="sm"
+            className="gap-2 bg-gray-100 hover:bg-gray-200 border-gray-200"
+            onClick={() => toast.info('Request Labs – coming soon')}
           >
-            <Edit2 className="h-4 w-4" />
-            Edit Details
+            <FlaskConical className="h-4 w-4" />
+            Request Labs
           </Button>
-        ) : (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsEditing(false)
-                // Reset form data
-                loadPatientProfile()
-              }}
-              className="gap-2"
-            >
-              <X className="h-4 w-4" />
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="gap-2"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  Save
-                </>
+          {isAdminOrOwner && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 relative bg-gray-100 hover:bg-gray-200 border-gray-200"
+                disabled={!profileData.serviceAgreement?.id || profileData.serviceAgreement?.is_activated}
+                onClick={() => {
+                  if (profileData.serviceAgreement?.id && !profileData.serviceAgreement?.is_activated) {
+                    handleActivateForm('service', profileData.serviceAgreement.id, true)
+                  }
+                }}
+              >
+                Activate Service Agreement
+                {serviceAgreementNeedsActivation && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                    !
+                  </span>
+                )}
+              </Button>
+              {profileData.serviceAgreement?.id && profileData.serviceAgreement?.is_activated && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 bg-gray-100 hover:bg-gray-200 border-gray-200"
+                  onClick={() => {
+                    const sa = profileData.serviceAgreement
+                    if (!sa) return
+                    setUpgradeAgreementForm({
+                      formId: sa.id,
+                      number_of_days: String(sa.number_of_days ?? ''),
+                      total_program_fee: String(sa.total_program_fee ?? ''),
+                      deposit_amount: String(sa.deposit_amount ?? ''),
+                      deposit_percentage: String(sa.deposit_percentage ?? ''),
+                      remaining_balance: String(sa.remaining_balance ?? ''),
+                      payment_method: sa.payment_method ?? '',
+                    })
+                    setUpgradeAgreementOpen(true)
+                  }}
+                >
+                  Upgrade Agreement
+                </Button>
               )}
+            </>
+          )}
+          {!isEditing ? (
+            <Button variant="outline" onClick={() => setIsEditing(true)} className="gap-2" size="sm">
+              <Edit2 className="h-4 w-4" />
+              Edit Details
             </Button>
-          </div>
-        )}
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsEditing(false)
+                  loadPatientProfile()
+                }}
+                className="gap-2"
+              >
+                <X className="h-4 w-4" />
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={isSaving} className="gap-2">
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Save
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
-      <div className="space-y-6">
-        {/* Client Details */}
-        <div className="space-y-6">
-          {/* Client Information Card */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Client Information</h2>
-            
-            {isEditing ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="first_name">First Name</Label>
-                    <Input
-                      id="first_name"
-                      value={formData.first_name}
-                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="last_name">Last Name</Label>
-                    <Input
-                      id="last_name"
-                      value={formData.last_name}
-                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input
-                      id="phone"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="date_of_birth">Date of Birth</Label>
-                    <Input
-                      id="date_of_birth"
-                      type="date"
-                      value={formData.date_of_birth}
-                      onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="gender">Gender</Label>
-                    <Input
-                      id="gender"
-                      value={formData.gender}
-                      onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                      className="mt-1"
-                      placeholder="male, female, other"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="address">Address</Label>
-                  <Input
-                    id="address"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="mt-1"
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="city">City</Label>
-                    <Input
-                      id="city"
-                      value={formData.city}
-                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="state">State</Label>
-                    <Input
-                      id="state"
-                      value={formData.state}
-                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="zip_code">Zip Code</Label>
-                    <Input
-                      id="zip_code"
-                      value={formData.zip_code}
-                      onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
+      {/* Left sidebar card (Figma Frame 5871) + main content */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        <aside className="w-full lg:w-[311px] shrink-0">
+          <div className="rounded-2xl border border-[#D6D2C8] bg-white p-5 flex flex-col gap-5 shadow-sm">
+            {/* Avatar + Name + Lead ID */}
+            <div className="flex items-center gap-3">
+              <Avatar className="h-9 w-9 shrink-0 rounded-full border border-[#D8D9D4] bg-[#D8D9D4]">
+                <AvatarImage src={patient?.avatar_url || undefined} alt={displayName} className="object-cover" />
+                <AvatarFallback className="rounded-full bg-[#D8D9D4] text-[#898C81] text-sm font-medium">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col justify-center gap-0.5 min-w-0">
+                <p className="text-base text-[#2B2820] font-normal truncate">{displayName}</p>
+                <p className="text-xs text-[#777777]">Lead ID: {leadId}</p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-start gap-3">
-                    <User className="h-5 w-5 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-gray-500">Name</p>
-                      <p className="text-base font-medium text-gray-900">{displayName}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Mail className="h-5 w-5 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-gray-500">Email</p>
-                      <p className="text-base font-medium text-gray-900">{patient?.email || 'N/A'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <Phone className="h-5 w-5 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-gray-500">Phone</p>
-                      <p className="text-base font-medium text-gray-900">{patient?.phone || 'N/A'}</p>
-                    </div>
-                  </div>
-                  {patient?.date_of_birth && (
-                    <div className="flex items-start gap-3">
-                      <Calendar className="h-5 w-5 text-gray-400 mt-0.5" />
-                      <div>
-                        <p className="text-sm text-gray-500">Date of Birth</p>
-                        <p className="text-base font-medium text-gray-900">
-                          {format(new Date(patient.date_of_birth), 'MMM dd, yyyy')}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {patient?.address && (
-                    <div className="flex items-start gap-3 md:col-span-2">
-                      <MapPin className="h-5 w-5 text-gray-400 mt-0.5" />
-                      <div>
-                        <p className="text-sm text-gray-500">Address</p>
-                        <p className="text-base font-medium text-gray-900">
-                          {[patient.address, patient.city, patient.state, patient.zip_code].filter(Boolean).join(', ')}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+            </div>
+            {/* Current Stage */}
+            <div className="flex flex-col gap-2.5">
+              <p className="text-xs text-[#777777]">Current Stage</p>
+              <span className="inline-flex items-center justify-center self-start px-3 py-1.5 rounded-[10px] text-sm bg-[#FFFBD4] text-[#F59E0B]">
+                {currentStageLabel}
+              </span>
+            </div>
+            {/* Key Dates */}
+            <div className="flex flex-col gap-2.5">
+              <p className="text-xs text-[#777777]">Key Dates</p>
+              <div className="rounded-[10px] border border-[#D6D2C8] bg-[#F5F4F0] p-3.5 flex flex-col gap-2.5">
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-xs text-[#777777]">Inquiry</span>
+                  <span className="text-xs text-[#2B2820]">{inquiryDate}</span>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Forms Status Card */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Forms Status</h2>
-            
-            <div className="space-y-4">
-              {/* Intake Form */}
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-gray-400" />
-                  <div>
-                    <p className="font-medium text-gray-900">Application Form</p>
-                    <p className="text-sm text-gray-500">Client intake application</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {getStatusBadge(profileData.formStatuses.intake)}
-                  {profileData.formStatuses.intake === 'not_started' ? (
-                    <div className="flex gap-2">
-                      {isAdminOrOwner && (
-                        <label className="cursor-pointer">
-                          <input
-                            type="file"
-                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                            className="hidden"
-                            onChange={(e) => handleFileInputChange('intake', e)}
-                            disabled={uploadingDocument !== null}
-                          />
+                <div className="flex justify-between items-center gap-2">
+                  <span className="text-xs text-[#777777]">Planned Arrival</span>
+                  {profileData?.onboarding && isStaff && profileData?.onboarding?.onboarding?.id ? (
+                    <div className="flex items-center gap-1.5">
+                      {onboardingTreatmentDate ? (
+                        <>
+                          <span className="text-sm text-[#2B2820]">{plannedArrival}</span>
                           <Button
-                            type="button"
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            disabled={uploadingDocument !== null}
-                            className="gap-2"
+                            className="h-6 px-2 text-xs text-[#6E7A46] hover:bg-[#6E7A46]/10"
+                            onClick={() => setOpenTreatmentDateCalendar(true)}
                           >
-                            {uploadingDocument === 'intake' ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Upload className="h-4 w-4" />
-                            )}
-                            Upload
+                            Change
                           </Button>
-                        </label>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleTriggerForm('intake')}
-                        disabled={triggeringForm !== null}
-                        className="gap-2"
-                      >
-                        {triggeringForm === 'intake' ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                        Send Form
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        // Check if there's an uploaded document for this form
-                        const uploadedDoc = profileData.existingPatientDocuments?.find(
-                          doc => doc.form_type === 'intake'
-                        )
-                        
-                        if (uploadedDoc) {
-                          // Show uploaded document
-                          setViewFormData({ 
-                            type: 'uploaded_document',
-                            document_url: uploadedDoc.document_url,
-                            document_name: uploadedDoc.document_name || 'Intake Form Document',
-                            form_type: 'intake'
-                          })
-                          setViewingForm('intake')
-                        } else {
-                          // Load and view intake form
-                          const intakeFormId = profileData.intakeForm?.id
-                          if (intakeFormId) {
-                            setLoadingViewForm('intake')
-                            try {
-                              const result = await getIntakeFormById({ formId: intakeFormId })
-                              
-                              if (result?.data?.success && result.data.data) {
-                                setViewFormData(result.data.data)
-                                setViewingForm('intake')
-                              } else {
-                                toast.error(result?.data?.error || 'Failed to load form data')
-                              }
-                            } catch (error) {
-                              console.error('Error loading form:', error)
-                              toast.error('Failed to load form data')
-                            } finally {
-                              setLoadingViewForm(null)
-                            }
-                          }
-                        }
-                      }}
-                      className="gap-2"
-                      disabled={loadingViewForm === 'intake'}
-                    >
-                      {loadingViewForm === 'intake' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        </>
                       ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                      View
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Medical History Form */}
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-gray-400" />
-                  <div>
-                    <p className="font-medium text-gray-900">Medical Health History</p>
-                    <p className="text-sm text-gray-500">Medical history and health information</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {getStatusBadge(profileData.formStatuses.medicalHistory)}
-                  {profileData.formStatuses.medicalHistory === 'not_started' ? (
-                    <div className="flex gap-2">
-                      {isAdminOrOwner && (
-                        <label className="cursor-pointer">
-                          <input
-                            type="file"
-                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                            className="hidden"
-                            onChange={(e) => handleFileInputChange('medical', e)}
-                            disabled={uploadingDocument !== null}
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={uploadingDocument !== null}
-                            className="gap-2"
-                          >
-                            {uploadingDocument === 'medical' ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Upload className="h-4 w-4" />
-                            )}
-                            Upload
-                          </Button>
-                        </label>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          // Navigate to medical history form with intake form ID if available
-                          const intakeFormId = profileData.intakeForm?.id
-                          const url = intakeFormId 
-                            ? `/medical-history?intake_form_id=${intakeFormId}&admin=true`
-                            : '/medical-history?admin=true'
-                          router.push(url)
-                        }}
-                        className="gap-2"
-                      >
-                        <FileText className="h-4 w-4" />
-                        Fill
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleTriggerForm('medical')}
-                        disabled={triggeringForm !== null}
-                        className="gap-2"
-                      >
-                        {triggeringForm === 'medical' ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                        Send Form
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        // Check if there's an uploaded document for this form
-                        const uploadedDoc = profileData.existingPatientDocuments?.find(
-                          doc => doc.form_type === 'medical'
-                        )
-                        
-                        if (uploadedDoc) {
-                          // Show uploaded document
-                          setViewFormData({ 
-                            type: 'uploaded_document',
-                            document_url: uploadedDoc.document_url,
-                            document_name: uploadedDoc.document_name || 'Medical History Document',
-                            form_type: 'medical'
-                          })
-                          setViewingForm('medical')
-                        } else {
-                          // Load and view medical history form
-                          const medicalFormId = profileData.medicalHistoryForm?.id
-                          if (medicalFormId) {
-                            setLoadingViewForm('medical')
-                            try {
-                              const result = await getMedicalHistoryFormById({ formId: medicalFormId })
-                              
-                              if (result?.data?.success && result.data.data) {
-                                setViewFormData(result.data.data)
-                                setViewingForm('medical')
-                              } else {
-                                toast.error(result?.data?.error || 'Failed to load form data')
-                              }
-                            } catch (error) {
-                              console.error('Error loading form:', error)
-                              toast.error('Failed to load form data')
-                            } finally {
-                              setLoadingViewForm(null)
-                            }
-                          }
-                        }
-                      }}
-                      className="gap-2"
-                      disabled={loadingViewForm === 'medical'}
-                    >
-                      {loadingViewForm === 'medical' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                      View
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Service Agreement */}
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-gray-400" />
-                  <div>
-                    <p className="font-medium text-gray-900">Service Agreement</p>
-                    <p className="text-sm text-gray-500">Service agreement and payment terms</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {getStatusBadge(profileData.formStatuses.serviceAgreement)}
-                  {profileData.serviceAgreement?.id && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
-                        <Label htmlFor="service-activate" className="text-sm font-medium text-gray-700">
-                          {profileData.serviceAgreement?.is_activated ? 'Activated' : 'Inactive'}
-                        </Label>
-                        {activatingForm === 'service' ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                        ) : (
-                          <Switch
-                            id="service-activate"
-                            checked={profileData.serviceAgreement?.is_activated || false}
-                            disabled={activatingForm !== null || isFormCompleted('service')}
-                            onCheckedChange={(checked) => {
-                              const formId = profileData.serviceAgreement?.id
-                              console.log('[Switch] Service Agreement toggle:', { formId, checked, serviceAgreement: profileData.serviceAgreement })
-                              if (formId) {
-                                handleActivateForm('service', formId, checked)
-                              } else {
-                                console.error('[Switch] No form ID found:', profileData.serviceAgreement)
-                                toast.error('Form ID not found. Please refresh the page.')
-                              }
-                            }}
-                          />
-                        )}
-                      </div>
-                  )}
-                  {profileData.formStatuses.serviceAgreement === 'not_started' ? (
-                    <div className="flex gap-2">
-                      {/* Create button if no service agreement exists */}
-                      {!profileData.serviceAgreement?.id && isAdminOrOwner && (
                         <Button
-                          variant="default"
+                          variant="outline"
                           size="sm"
-                          onClick={handleCreateServiceAgreement}
-                          disabled={creatingServiceAgreement}
-                          className="gap-2 bg-[#7c9a5e] hover:bg-[#6b8a4e]"
+                          className="h-7 text-xs gap-1 border-[#D6D2C8] text-[#2B2820]"
+                          onClick={() => setOpenTreatmentDateCalendar(true)}
                         >
-                          {creatingServiceAgreement ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <FileText className="h-4 w-4" />
+                          <Calendar className="h-3 w-3" />
+                          Set arrival date
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-sm text-[#2B2820]">{plannedArrival}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* Quick Note */}
+            <div className="flex flex-col gap-2.5">
+              <p className="text-xs text-[#777777]">Quick Note</p>
+              <textarea
+                placeholder="Add a note about this lead..."
+                value={quickNote}
+                onChange={(e) => setQuickNote(e.target.value)}
+                className="min-h-[106px] w-full rounded-[10px] border border-[#D6D2C8] bg-[#F5F4F0] px-3.5 py-3.5 text-xs text-[#2B2820] placeholder:text-[#777777] focus:outline-none focus:ring-2 focus:ring-[#6E7A46]/20 focus:border-[#6E7A46] resize-none"
+                rows={4}
+              />
+              <div className="flex gap-3">
+                <Button
+                  size="sm"
+                  className="flex-1 rounded-3xl bg-[#6E7A46] hover:bg-[#5c6840] text-white text-sm shadow-sm"
+                  disabled={savingNote}
+                  onClick={() => {
+                    setSavingNote(true)
+                    toast.info('Save Note – coming soon')
+                    setTimeout(() => setSavingNote(false), 500)
+                  }}
+                >
+                  {savingNote ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Save Note'
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 rounded-3xl border-[#D6D2C8] bg-white text-sm text-[#777777] hover:bg-[#F5F4F0]"
+                  onClick={() => setViewAllTasksOpen(true)}
+                >
+                  Add task
+                </Button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <div className="flex-1 min-w-0">
+      <div className="rounded-2xl border border-[#D6D2C8] bg-white p-5 shadow-sm">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-7" style={{ minWidth: 0 }}>
+        <TabsList className="h-10 w-full max-w-full justify-between rounded-full bg-[#F5F4F0] p-1">
+          <TabsTrigger
+            value="overview"
+            className="rounded-full px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-[#6E7A46] data-[state=active]:shadow-md data-[state=inactive]:text-[#090909]"
+          >
+            Overview
+          </TabsTrigger>
+          <TabsTrigger
+            value="details"
+            className="rounded-full px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-[#6E7A46] data-[state=active]:shadow-md data-[state=inactive]:text-[#090909]"
+          >
+            Forms & Docs
+          </TabsTrigger>
+          {isAdminOrOwner && (
+            <TabsTrigger
+              value="billing"
+              disabled={!profileData.serviceAgreement?.is_activated}
+              title={!profileData.serviceAgreement?.is_activated ? 'Activate Service Agreement to access Billing' : undefined}
+              className="rounded-full px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-[#6E7A46] data-[state=active]:shadow-md data-[state=inactive]:text-[#090909] disabled:opacity-50 disabled:pointer-events-none"
+            >
+              Billing
+            </TabsTrigger>
+          )}
+          <TabsTrigger
+            value="travel"
+            className="rounded-full px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-[#6E7A46] data-[state=active]:shadow-md data-[state=inactive]:text-[#090909]"
+          >
+            Travel
+          </TabsTrigger>
+          <TabsTrigger
+            value="notes"
+            className="rounded-full px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-[#6E7A46] data-[state=active]:shadow-md data-[state=inactive]:text-[#090909]"
+          >
+            Notes
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-0">
+          {/* Activity section (Figma 727-12856) */}
+          <div className="flex items-center gap-2.5 mb-6">
+            <h3 className="text-lg font-medium text-black">Activity</h3>
+            <div className="h-[15px] w-px bg-[#6B7280]" />
+            <p className="text-sm text-[#777777]">Showing All Activity</p>
+          </div>
+          <div className="relative flex flex-col gap-0">
+            {/* Timeline items */}
+            {(() => {
+              const appSubmittedAt = profileData.intakeForm?.created_at || profileData.partialForm?.created_at
+              const activityItems: Array<{
+                id: string
+                title: string
+                time: string
+                body: string
+                bullets?: string[]
+                formRows?: { label: string; completed: boolean; completedAt: string | null }[]
+                isNext?: boolean
+                isPending?: boolean
+                managementSection?: boolean
+                managementOneTimeRows?: { label: string; completed: boolean; submittedAt: string | null }[]
+                managementDailyCounts?: { psychological: number; medical: number; sows: number; oows: number }
+                managementId?: string
+              }> = []
+              if (appSubmittedAt) {
+                activityItems.push({
+                  id: 'app',
+                  title: 'Application submitted',
+                  time:
+                    profileData.formStatuses.intake === 'completed'
+                      ? format(new Date(appSubmittedAt), 'MMM dd, yyyy • h:mm a')
+                      : '—',
+                  body: patient?.source === 'admin_owner_added' ? 'Lead created by admin/owner.' : 'Lead created from Direct Public Application form.',
+                })
+              }
+              if (formsCompletedCount >= 1) {
+                const applicationCompletedAt = profileData.formStatuses.intake === 'completed' ? (profileData.intakeForm?.created_at || profileData.partialForm?.created_at) : null
+                const formRows: { label: string; completed: boolean; completedAt: string | null }[] = [
+                  {
+                    label: 'Application',
+                    completed: profileData.formStatuses.intake === 'completed',
+                    completedAt: applicationCompletedAt ? format(new Date(applicationCompletedAt), 'MMM d, yyyy • h:mm a') : null,
+                  },
+                  {
+                    label: 'Medical Health History',
+                    completed: profileData.formStatuses.medicalHistory === 'completed',
+                    completedAt:
+                      profileData.formStatuses.medicalHistory === 'completed' &&
+                      (profileData.medicalHistoryForm?.updated_at || profileData.medicalHistoryForm?.created_at)
+                        ? format(new Date(profileData.medicalHistoryForm.updated_at || profileData.medicalHistoryForm.created_at), 'MMM d, yyyy • h:mm a')
+                        : null,
+                  },
+                  {
+                    label: 'Service Agreement',
+                    completed: profileData.formStatuses.serviceAgreement === 'completed',
+                    completedAt:
+                      profileData.formStatuses.serviceAgreement === 'completed' &&
+                      (profileData.serviceAgreement?.updated_at || profileData.serviceAgreement?.patient_signature_date)
+                        ? profileData.serviceAgreement.updated_at
+                          ? format(new Date(profileData.serviceAgreement.updated_at), 'MMM d, yyyy • h:mm a')
+                          : profileData.serviceAgreement.patient_signature_date
+                            ? format(new Date(profileData.serviceAgreement.patient_signature_date + 'T12:00:00'), 'MMM d, yyyy')
+                            : null
+                        : null,
+                  },
+                  {
+                    label: 'Ibogaine Consent',
+                    completed: profileData.formStatuses.ibogaineConsent === 'completed',
+                    completedAt:
+                      profileData.formStatuses.ibogaineConsent === 'completed' &&
+                      (profileData.ibogaineConsentForm?.updated_at || profileData.ibogaineConsentForm?.signature_date)
+                        ? profileData.ibogaineConsentForm.updated_at
+                          ? format(new Date(profileData.ibogaineConsentForm.updated_at), 'MMM d, yyyy • h:mm a')
+                          : profileData.ibogaineConsentForm.signature_date
+                            ? format(new Date(profileData.ibogaineConsentForm.signature_date + 'T12:00:00'), 'MMM d, yyyy')
+                            : null
+                        : null,
+                  },
+                ]
+                const completedFormRows = formRows.filter((r) => r.completed)
+                const lastFormCompletedAt = formsCompletedCount === 4 ? formRows[3].completedAt : null
+                activityItems.push({
+                  id: 'forms',
+                  title: `Forms completed (${formsCompletedCount}/4)`,
+                  time: lastFormCompletedAt ?? (inquiryDate !== '—' ? `${inquiryDate} • —` : '—'),
+                  body: formsCompletedCount === 4 ? 'All required forms completed.' : `${completedFormRows.length} of 4 forms completed.`,
+                  formRows,
+                })
+              }
+              if (profileData.onboarding?.onboarding) {
+                const ob = profileData.onboarding.onboarding
+                const forms = profileData.onboarding.forms
+                const taperingComplete = taperingSchedule && (taperingSchedule.status === 'sent' || taperingSchedule.status === 'acknowledged')
+                const onboardingFormRows: { label: string; completed: boolean; completedAt: string | null }[] = [
+                  {
+                    label: 'Release Form',
+                    completed: !!ob.release_form_completed,
+                    completedAt:
+                      !!ob.release_form_completed && (forms?.releaseForm?.updated_at || forms?.releaseForm?.created_at)
+                        ? format(new Date(forms.releaseForm.updated_at || forms.releaseForm.created_at), 'MMM d, yyyy • h:mm a')
+                        : null,
+                  },
+                  {
+                    label: 'Outing/Transfer Consent',
+                    completed: !!ob.outing_consent_completed,
+                    completedAt:
+                      !!ob.outing_consent_completed && (forms?.outingForm?.updated_at || forms?.outingForm?.created_at)
+                        ? format(new Date(forms.outingForm.updated_at || forms.outingForm.created_at), 'MMM d, yyyy • h:mm a')
+                        : null,
+                  },
+                  {
+                    label: 'Internal Regulations',
+                    completed: !!ob.internal_regulations_completed,
+                    completedAt:
+                      !!ob.internal_regulations_completed && (forms?.regulationsForm?.updated_at || forms?.regulationsForm?.created_at)
+                        ? format(new Date(forms.regulationsForm.updated_at || forms.regulationsForm.created_at), 'MMM d, yyyy • h:mm a')
+                        : null,
+                  },
+                  {
+                    label: 'Tapering Schedule',
+                    completed: !!taperingComplete,
+                    completedAt:
+                      taperingComplete && taperingSchedule?.sent_at
+                        ? format(new Date(taperingSchedule.sent_at), 'MMM d, yyyy • h:mm a')
+                        : null,
+                  },
+                ]
+                const onboardingCount = onboardingFormRows.filter((r) => r.completed).length
+                const lastOnboardingCompletedAt = onboardingCount === 4 ? (onboardingFormRows[3].completedAt ?? onboardingFormRows[2].completedAt) : null
+                activityItems.push({
+                  id: 'onboarding',
+                  title: `Onboarding (${onboardingCount}/4)`,
+                  time: lastOnboardingCompletedAt ?? '',
+                  body: onboardingCount === 4 ? 'All onboarding forms completed.' : `${onboardingCount} of 4 onboarding forms completed.`,
+                  formRows: onboardingFormRows,
+                })
+              }
+              if (managementRecord) {
+                const arrivalDate = new Date(managementRecord.arrival_date + 'T12:00:00')
+                const today = new Date()
+                today.setHours(0, 0, 0, 0)
+                const arrivalDay = new Date(arrivalDate)
+                arrivalDay.setHours(0, 0, 0, 0)
+                const hasArrived = arrivalDay <= today
+                activityItems.push({
+                  id: 'arrival',
+                  title: 'Arrival',
+                  time: format(arrivalDate, 'MMM d, yyyy'),
+                  body: hasArrived
+                    ? 'Client arrived at the institute.'
+                    : 'Client is about to arrive at the institute.',
+                })
+                const mid = managementRecord.id
+                const oneTimeRows = managementRecord.program_type === 'neurological'
+                  ? [
+                      { label: "Parkinson's Psychological Report", completed: !!managementRecord.parkinsons_psychological_report_completed || !!getOneTimeFormSubmittedDate('parkinsonsPsychologicalReport'), submittedAt: getOneTimeFormSubmittedDate('parkinsonsPsychologicalReport'), viewPath: `/patient-management/${mid}/one-time-forms/parkinsons-psychological` },
+                      { label: "Parkinson's Mortality Scales", completed: !!managementRecord.parkinsons_mortality_scales_completed || !!getOneTimeFormSubmittedDate('parkinsonsMortalityScales'), submittedAt: getOneTimeFormSubmittedDate('parkinsonsMortalityScales'), viewPath: `/patient-management/${mid}/one-time-forms/parkinsons-mortality` },
+                      { label: 'Medical Intake Report', completed: !!(oneTimeFormsData?.medicalIntakeReport as any)?.is_completed || !!getOneTimeFormSubmittedDate('medicalIntakeReport'), submittedAt: getOneTimeFormSubmittedDate('medicalIntakeReport'), viewPath: `/patient-management/${mid}/one-time-forms/medical-intake-report` },
+                    ]
+                  : [
+                      { label: 'Psychological Intake Report', completed: !!managementRecord.intake_report_completed || !!getOneTimeFormSubmittedDate('intakeReport'), submittedAt: getOneTimeFormSubmittedDate('intakeReport'), viewPath: `/patient-management/${mid}/one-time-forms/intake-report` },
+                      { label: 'Medical Intake Report', completed: !!(oneTimeFormsData?.medicalIntakeReport as any)?.is_completed || !!getOneTimeFormSubmittedDate('medicalIntakeReport'), submittedAt: getOneTimeFormSubmittedDate('medicalIntakeReport'), viewPath: `/patient-management/${mid}/one-time-forms/medical-intake-report` },
+                    ]
+                const managementDailyCounts = {
+                  psychological: dailyFormsArrays.psychological.length,
+                  medical: dailyFormsArrays.medical.length,
+                  sows: dailyFormsArrays.sows.length,
+                  oows: dailyFormsArrays.oows.length,
+                }
+                activityItems.push({
+                  id: 'management',
+                  title: 'Management',
+                  time: '',
+                  body: '',
+                  managementSection: true,
+                  managementOneTimeRows: oneTimeRows.map(({ label, completed, submittedAt }) => ({ label, completed, submittedAt })),
+                  managementDailyCounts,
+                  managementId: mid,
+                })
+              }
+              return activityItems.map((item, idx) => (
+                <div key={item.id} className="relative flex gap-4 pb-6 last:pb-0">
+                  <div className="flex flex-col items-center shrink-0">
+                    <div
+                      className={`mt-2 h-3 w-3 shrink-0 rounded-full border-2 ${
+                        item.isNext ? 'border-[#CAE081] bg-white shadow-[0_0_0_2px_rgba(208,135,0,1)]' : item.isPending ? 'border-white bg-[#99A1AF]' : 'border-white bg-[#0A0A0A]'
+                      }`}
+                    />
+                    {idx < activityItems.length - 1 && (
+                      <div className="mt-0.5 w-0.5 flex-1 min-h-[60px] bg-[#E5E7EB]" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 pt-0">
+                    <div className="rounded-[14px] bg-[#F5F4F0] p-6">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <h4 className="text-base font-semibold text-[#0A0A0A]">{item.title}</h4>
+                        {item.time && <span className="text-sm text-[#777777]">{item.time}</span>}
+                      </div>
+                      {item.body ? <p className="text-sm text-[#777777]">{item.body}</p> : null}
+                      {item.managementSection && item.managementId && (
+                        <div className="mt-3 space-y-4">
+                          {item.managementOneTimeRows && item.managementOneTimeRows.length > 0 && (
+                            <div>
+                              <p className="text-sm font-medium text-[#777777] mb-1.5">One-time forms</p>
+                              <ul className="space-y-2 text-sm text-[#2B2820]">
+                                {item.managementOneTimeRows.map((row: { label: string; completed: boolean; submittedAt: string | null }, i: number) => (
+                                  <li key={i} className="flex flex-wrap items-center gap-2">
+                                    {row.completed ? (
+                                      <>
+                                        <span className="text-[#10B981]">✓</span>
+                                        <span>{row.label}</span>
+                                        <span className="text-[#777777]">— {row.submittedAt ?? '—'}</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>—</span>
+                                        <span>{row.label}</span>
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">Incomplete</span>
+                                      </>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
                           )}
-                          Create
+                          {item.managementDailyCounts && (
+                            <div>
+                              <p className="text-sm font-medium text-[#777777] mb-1.5">Daily forms</p>
+                              <ul className="space-y-1 text-sm text-[#2B2820]">
+                                <li>Daily Psychological: {item.managementDailyCounts.psychological} completed</li>
+                                <li>Daily Medical: {item.managementDailyCounts.medical} completed</li>
+                                {item.managementDailyCounts.sows > 0 || item.managementDailyCounts.oows > 0 ? (
+                                  <>
+                                    <li>SOWS: {item.managementDailyCounts.sows} completed</li>
+                                    <li>OOWS: {item.managementDailyCounts.oows} completed</li>
+                                  </>
+                                ) : null}
+                                <li className="font-medium text-[#777777] pt-1">
+                                  Daily forms total: {item.managementDailyCounts.psychological + item.managementDailyCounts.medical + item.managementDailyCounts.sows + item.managementDailyCounts.oows}
+                                </li>
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {item.formRows && item.formRows.length > 0 && (
+                        <ul className="mt-3 space-y-2 text-sm text-[#777777]">
+                          {item.formRows.map((row, i) => (
+                            <li key={i} className="flex flex-wrap items-center gap-2">
+                              {row.completed ? (
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-[#10B981]" aria-hidden />
+                              ) : (
+                                <span className="inline-block h-4 w-4 shrink-0 rounded-full border border-[#D6D2C8] bg-white" aria-hidden />
+                              )}
+                              <span className={row.completed ? 'text-[#2B2820]' : ''}>{row.label}</span>
+                              {row.completedAt && (
+                                <span className="text-[#777777]">— {row.completedAt}</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {item.bullets && item.bullets.length > 0 && !item.formRows && (
+                        <ul className="mt-3 space-y-1 text-sm text-[#777777]">
+                          {item.bullets.map((b, i) => (
+                            <li key={i}>{b}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {item.isNext && (
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          <Button
+                            size="sm"
+                            className="rounded-3xl bg-[#6E7A46] hover:bg-[#5c6840] text-white text-sm shadow-sm"
+                            onClick={() => toast.info('Schedule Consult – coming soon')}
+                          >
+                            Schedule Consult
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-3xl border-[#D6D2C8] bg-white text-sm text-[#777777] hover:bg-[#F5F4F0]"
+                            onClick={() => toast.info('Send Message – coming soon')}
+                          >
+                            Send Message
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            })()}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="details" className="mt-4 space-y-6">
+        <div className="space-y-6">
+          {/* Forms & Docs – table layout per Figma (no Reviewed by) */}
+          <div className="rounded-[16px] border border-[#D6D2C8] bg-white px-5 py-5">
+            <div className="flex flex-col">
+              {/* Table header */}
+              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 border-b border-[#D6D2C8] py-2 pr-0">
+                <div className="text-sm text-[#777777] font-normal py-2">Form</div>
+                <div className="text-sm text-[#777777] font-normal py-2 px-3 min-w-[90px]">Status</div>
+                <div className="text-sm text-[#777777] font-normal py-2 px-3 min-w-[80px]">Submitted</div>
+                <div className="text-sm text-[#777777] font-normal py-2 px-3 min-w-[100px]">Actions</div>
+              </div>
+              {/* Application Form row */}
+              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0">
+                <div className="text-sm text-[#2B2820] py-2">Application Form</div>
+                <div className="py-2 px-3">
+                  {profileData.formStatuses.intake === 'completed' ? (
+                    <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Submitted</span>
+                  ) : (
+                    getStatusBadge(profileData.formStatuses.intake)
+                  )}
+                </div>
+                <div className="text-sm text-[#2B2820] py-2 px-3">{getFormSubmittedDate('intake') ?? '—'}</div>
+                <div className="py-2 px-3 flex gap-2 flex-wrap">
+                  {profileData.formStatuses.intake === 'not_started' ? (
+                    <>
+                      {isAdminOrOwner && (
+                        <label className="cursor-pointer">
+                          <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={(e) => handleFileInputChange('intake', e)} disabled={uploadingDocument !== null} />
+                          <Button type="button" variant="outline" size="sm" disabled={uploadingDocument !== null} className="gap-1.5 h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white border-0">
+                            {uploadingDocument === 'intake' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                            Upload
+                          </Button>
+                        </label>
+                      )}
+                      <Button variant="outline" size="sm" onClick={() => handleTriggerForm('intake')} disabled={triggeringForm !== null} className="gap-1.5 h-[22px] px-4 rounded-full text-xs">
+                        {triggeringForm === 'intake' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                        Send
+                      </Button>
+                    </>
+                  ) : (
+                    <Button size="sm" className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm" onClick={async () => {
+                      const uploadedDoc = profileData.existingPatientDocuments?.find(doc => doc.form_type === 'intake')
+                      if (uploadedDoc) {
+                        setViewFormData({ type: 'uploaded_document', document_url: uploadedDoc.document_url, document_name: uploadedDoc.document_name || 'Intake Form Document', form_type: 'intake' })
+                        setViewingForm('intake')
+                      } else {
+                        const intakeFormId = profileData.intakeForm?.id
+                        if (intakeFormId) {
+                          setLoadingViewForm('intake')
+                          try {
+                            const result = await getIntakeFormById({ formId: intakeFormId })
+                            if (result?.data?.success && result.data.data) { setViewFormData(result.data.data); setViewingForm('intake') }
+                            else toast.error(result?.data?.error || 'Failed to load form data')
+                          } catch { toast.error('Failed to load form data') }
+                          finally { setLoadingViewForm(null) }
+                        }
+                      }
+                    }} disabled={loadingViewForm === 'intake'}>
+                      {loadingViewForm === 'intake' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'View'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Medical Health History row */}
+              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0">
+                <div className="text-sm text-[#2B2820] py-2">Medical Health History</div>
+                <div className="py-2 px-3">
+                  {profileData.formStatuses.medicalHistory === 'completed' ? (
+                    <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Submitted</span>
+                  ) : (
+                    getStatusBadge(profileData.formStatuses.medicalHistory)
+                  )}
+                </div>
+                <div className="text-sm text-[#2B2820] py-2 px-3">{getFormSubmittedDate('medical') ?? '—'}</div>
+                <div className="py-2 px-3 flex gap-2 flex-wrap">
+                  {profileData.formStatuses.medicalHistory === 'not_started' ? (
+                    <>
+                      {isAdminOrOwner && (
+                        <label className="cursor-pointer">
+                          <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={(e) => handleFileInputChange('medical', e)} disabled={uploadingDocument !== null} />
+                          <Button type="button" variant="outline" size="sm" disabled={uploadingDocument !== null} className="gap-1.5 h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white border-0">
+                            {uploadingDocument === 'medical' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                            Upload
+                          </Button>
+                        </label>
+                      )}
+                      <Button variant="outline" size="sm" className="gap-1.5 h-[22px] px-4 rounded-full text-xs" onClick={() => router.push(profileData.intakeForm?.id ? `/medical-history?intake_form_id=${profileData.intakeForm.id}&admin=true` : '/medical-history?admin=true')}>
+                        <FileText className="h-3 w-3" /> Fill
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleTriggerForm('medical')} disabled={triggeringForm !== null} className="gap-1.5 h-[22px] px-4 rounded-full text-xs">
+                        {triggeringForm === 'medical' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                        Send
+                      </Button>
+                    </>
+                  ) : (
+                    <Button size="sm" className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm" onClick={async () => {
+                      const uploadedDoc = profileData.existingPatientDocuments?.find(doc => doc.form_type === 'medical')
+                      if (uploadedDoc) {
+                        setViewFormData({ type: 'uploaded_document', document_url: uploadedDoc.document_url, document_name: uploadedDoc.document_name || 'Medical History Document', form_type: 'medical' })
+                        setViewingForm('medical')
+                      } else {
+                        const medicalFormId = profileData.medicalHistoryForm?.id
+                        if (medicalFormId) {
+                          setLoadingViewForm('medical')
+                          try {
+                            const result = await getMedicalHistoryFormById({ formId: medicalFormId })
+                            if (result?.data?.success && result.data.data) { setViewFormData(result.data.data); setViewingForm('medical') }
+                            else toast.error(result?.data?.error || 'Failed to load form data')
+                          } catch { toast.error('Failed to load form data') }
+                          finally { setLoadingViewForm(null) }
+                        }
+                      }
+                    }} disabled={loadingViewForm === 'medical'}>
+                      {loadingViewForm === 'medical' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'View'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Service Agreement row */}
+              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0">
+                <div className="text-sm text-[#2B2820] py-2">Service Agreement</div>
+                <div className="py-2 px-3 flex items-center gap-2">
+                  {profileData.formStatuses.serviceAgreement === 'completed' ? (
+                    <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Submitted</span>
+                  ) : (
+                    getStatusBadge(profileData.formStatuses.serviceAgreement)
+                  )}
+                  {profileData.serviceAgreement?.id && isAdminOrOwner && (
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="service-activate" className="text-xs text-[#777777]">
+                        {profileData.serviceAgreement?.is_activated ? 'Activated' : 'Inactive'}
+                      </Label>
+                      {activatingForm === 'service' ? (
+                        <Loader2 className="h-3 w-3 animate-spin text-[#777777]" />
+                      ) : (
+                        <Switch
+                          id="service-activate"
+                          checked={profileData.serviceAgreement?.is_activated || false}
+                          disabled={activatingForm !== null || isFormCompleted('service')}
+                          onCheckedChange={(checked) => {
+                            const formId = profileData.serviceAgreement?.id
+                            if (formId) handleActivateForm('service', formId, checked)
+                            else toast.error('Form ID not found. Please refresh the page.')
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="text-sm text-[#2B2820] py-2 px-3">{getFormSubmittedDate('service') ?? '—'}</div>
+                <div className="py-2 px-3 flex gap-2 flex-wrap">
+                  {profileData.formStatuses.serviceAgreement === 'not_started' ? (
+                    <>
+                      {!profileData.serviceAgreement?.id && isAdminOrOwner && (
+                        <Button size="sm" onClick={handleCreateServiceAgreement} disabled={creatingServiceAgreement} className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white">
+                          {creatingServiceAgreement ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Create'}
                         </Button>
                       )}
                       {isAdminOrOwner && (
                         <label className="cursor-pointer">
-                          <input
-                            type="file"
-                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                            className="hidden"
-                            onChange={(e) => handleFileInputChange('service', e)}
-                            disabled={uploadingDocument !== null}
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={uploadingDocument !== null}
-                            className="gap-2"
-                          >
-                            {uploadingDocument === 'service' ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Upload className="h-4 w-4" />
-                            )}
+                          <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={(e) => handleFileInputChange('service', e)} disabled={uploadingDocument !== null} />
+                          <Button type="button" variant="outline" size="sm" disabled={uploadingDocument !== null} className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white border-0">
+                            {uploadingDocument === 'service' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
                             Upload
                           </Button>
                         </label>
                       )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleTriggerForm('service')}
-                        disabled={triggeringForm !== null}
-                        className="gap-2"
-                      >
-                        {triggeringForm === 'service' ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                        Send Form
+                      <Button variant="outline" size="sm" onClick={() => handleTriggerForm('service')} disabled={triggeringForm !== null} className="h-[22px] px-4 rounded-full text-xs">
+                        {triggeringForm === 'service' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                        Send
                       </Button>
-                    </div>
+                    </>
                   ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        // Check if there's an uploaded document for this form
-                        const uploadedDoc = profileData.existingPatientDocuments?.find(
-                          doc => doc.form_type === 'service'
-                        )
-                        
-                        if (uploadedDoc) {
-                          // Show uploaded document
-                          setViewFormData({ 
-                            type: 'uploaded_document',
-                            document_url: uploadedDoc.document_url,
-                            document_name: uploadedDoc.document_name || 'Service Agreement Document',
-                            form_type: 'service'
-                          })
-                          setViewingForm('service')
-                        } else {
-                          // Load and view service agreement
-                          const serviceAgreementId = profileData.serviceAgreement?.id
-                          if (serviceAgreementId) {
-                            setLoadingViewForm('service')
-                            try {
-                              const result = await getServiceAgreementById({ formId: serviceAgreementId })
-                              
-                              if (result?.data?.success && result.data.data) {
-                                setViewFormData(result.data.data)
-                                setViewingForm('service')
-                              } else {
-                                toast.error(result?.data?.error || 'Failed to load form data')
-                              }
-                            } catch (error) {
-                              console.error('Error loading form:', error)
-                              toast.error('Failed to load form data')
-                            } finally {
-                              setLoadingViewForm(null)
+                    <>
+                      {isAdminOrOwner ? (
+                        <Button size="sm" className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm" onClick={async () => {
+                          const uploadedDoc = profileData.existingPatientDocuments?.find(doc => doc.form_type === 'service')
+                          if (uploadedDoc) {
+                            setViewFormData({ type: 'uploaded_document', document_url: uploadedDoc.document_url, document_name: uploadedDoc.document_name || 'Service Agreement Document', form_type: 'service' })
+                            setViewingForm('service')
+                          } else {
+                            const serviceAgreementId = profileData.serviceAgreement?.id
+                            if (serviceAgreementId) {
+                              setLoadingViewForm('service')
+                              try {
+                                const result = await getServiceAgreementById({ formId: serviceAgreementId })
+                                if (result?.data?.success && result.data.data) { setViewFormData(result.data.data); setViewingForm('service') }
+                                else toast.error(result?.data?.error || 'Failed to load form data')
+                              } catch { toast.error('Failed to load form data') }
+                              finally { setLoadingViewForm(null) }
                             }
                           }
-                        }
-                      }}
-                      className="gap-2"
-                      disabled={loadingViewForm === 'service'}
-                    >
-                      {loadingViewForm === 'service' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        }} disabled={loadingViewForm === 'service'}>
+                          {loadingViewForm === 'service' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'View'}
+                        </Button>
                       ) : (
-                        <Eye className="h-4 w-4" />
+                        <Button size="sm" variant="outline" className="h-[22px] px-4 rounded-full text-xs opacity-50 cursor-not-allowed" disabled>
+                          View
+                        </Button>
                       )}
-                      View
-                    </Button>
+                      {isAdminOrOwner && profileData.serviceAgreement?.id && profileData.serviceAgreement?.is_activated && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-[22px] px-4 rounded-full text-xs"
+                          onClick={() => {
+                            const sa = profileData.serviceAgreement
+                            if (!sa) return
+                            setUpgradeAgreementForm({
+                              formId: sa.id,
+                              number_of_days: String(sa.number_of_days ?? ''),
+                              total_program_fee: String(sa.total_program_fee ?? ''),
+                              deposit_amount: String(sa.deposit_amount ?? ''),
+                              deposit_percentage: String(sa.deposit_percentage ?? ''),
+                              remaining_balance: String(sa.remaining_balance ?? ''),
+                              payment_method: sa.payment_method ?? '',
+                            })
+                            setUpgradeAgreementOpen(true)
+                          }}
+                        >
+                          Upgrade Agreement
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
 
-              {/* Ibogaine Therapy Consent Form */}
-              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-gray-400" />
-                  <div>
-                    <p className="font-medium text-gray-900">Ibogaine Therapy Consent Form</p>
-                    <p className="text-sm text-gray-500">Consent form for Ibogaine therapy treatment</p>
-                  </div>
+              {/* Ibogaine Consent row */}
+              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0 last:border-b-0">
+                <div className="text-sm text-[#2B2820] py-2">Ibogaine Consent</div>
+                <div className="py-2 px-3">
+                  {profileData.formStatuses.ibogaineConsent === 'completed' ? (
+                    <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Submitted</span>
+                  ) : (
+                    getStatusBadge(profileData.formStatuses.ibogaineConsent)
+                  )}
                 </div>
-                <div className="flex items-center gap-3">
-                  {getStatusBadge(profileData.formStatuses.ibogaineConsent)}
-                  {/* Activation toggle removed - form is now auto-activated after Service Agreement completion */}
+                <div className="text-sm text-[#2B2820] py-2 px-3">{getFormSubmittedDate('ibogaine') ?? '—'}</div>
+                <div className="py-2 px-3 flex gap-2 flex-wrap">
                   {profileData.formStatuses.ibogaineConsent === 'not_started' ? (
-                    <div className="flex gap-2">
+                    <>
                       {isAdminOrOwner && (
                         <label className="cursor-pointer">
-                          <input
-                            type="file"
-                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                            className="hidden"
-                            onChange={(e) => handleFileInputChange('ibogaine', e)}
-                            disabled={uploadingDocument !== null}
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={uploadingDocument !== null}
-                            className="gap-2"
-                          >
-                            {uploadingDocument === 'ibogaine' ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Upload className="h-4 w-4" />
-                            )}
+                          <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={(e) => handleFileInputChange('ibogaine', e)} disabled={uploadingDocument !== null} />
+                          <Button type="button" variant="outline" size="sm" disabled={uploadingDocument !== null} className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white border-0">
+                            {uploadingDocument === 'ibogaine' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
                             Upload
                           </Button>
                         </label>
                       )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          // Navigate to ibogaine consent form with intake form ID if available
-                          const intakeFormId = profileData.intakeForm?.id
-                          const url = intakeFormId 
-                            ? `/ibogaine-consent?intake_form_id=${intakeFormId}&admin=true`
-                            : '/ibogaine-consent?admin=true'
-                          router.push(url)
-                        }}
-                        className="gap-2"
-                      >
-                        <FileText className="h-4 w-4" />
-                        Fill
+                      <Button variant="outline" size="sm" className="h-[22px] px-4 rounded-full text-xs" onClick={() => router.push(profileData.intakeForm?.id ? `/ibogaine-consent?intake_form_id=${profileData.intakeForm.id}&admin=true` : '/ibogaine-consent?admin=true')}>
+                        <FileText className="h-3 w-3" /> Fill
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleTriggerForm('ibogaine')}
-                        disabled={triggeringForm !== null}
-                        className="gap-2"
-                      >
-                        {triggeringForm === 'ibogaine' ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                        Send Form
+                      <Button variant="outline" size="sm" onClick={() => handleTriggerForm('ibogaine')} disabled={triggeringForm !== null} className="h-[22px] px-4 rounded-full text-xs">
+                        {triggeringForm === 'ibogaine' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                        Send
                       </Button>
-                    </div>
+                    </>
                   ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        // Check if there's an uploaded document for this form
-                        const uploadedDoc = profileData.existingPatientDocuments?.find(
-                          doc => doc.form_type === 'ibogaine'
-                        )
-                        
-                        if (uploadedDoc) {
-                          // Show uploaded document
-                          setViewFormData({ 
-                            type: 'uploaded_document',
-                            document_url: uploadedDoc.document_url,
-                            document_name: uploadedDoc.document_name || 'Ibogaine Consent Form Document',
-                            form_type: 'ibogaine'
-                          })
-                          setViewingForm('ibogaine')
-                        } else {
-                          // Load and view ibogaine consent form
-                          const ibogaineConsentFormId = profileData.ibogaineConsentForm?.id
-                          if (ibogaineConsentFormId) {
-                            setLoadingViewForm('ibogaine')
-                            try {
-                              const result = await getIbogaineConsentFormById({ formId: ibogaineConsentFormId })
-                              
-                              if (result?.data?.success && result.data.data) {
-                                setViewFormData(result.data.data)
-                                setViewingForm('ibogaine')
-                              } else {
-                                toast.error(result?.data?.error || 'Failed to load form data')
-                              }
-                            } catch (error) {
-                              console.error('Error loading form:', error)
-                              toast.error('Failed to load form data')
-                            } finally {
-                              setLoadingViewForm(null)
-                            }
-                          }
+                    <Button size="sm" className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm" onClick={async () => {
+                      const uploadedDoc = profileData.existingPatientDocuments?.find(doc => doc.form_type === 'ibogaine')
+                      if (uploadedDoc) {
+                        setViewFormData({ type: 'uploaded_document', document_url: uploadedDoc.document_url, document_name: uploadedDoc.document_name || 'Ibogaine Consent Form Document', form_type: 'ibogaine' })
+                        setViewingForm('ibogaine')
+                      } else {
+                        const ibogaineConsentFormId = profileData.ibogaineConsentForm?.id
+                        if (ibogaineConsentFormId) {
+                          setLoadingViewForm('ibogaine')
+                          try {
+                            const result = await getIbogaineConsentFormById({ formId: ibogaineConsentFormId })
+                            if (result?.data?.success && result.data.data) { setViewFormData(result.data.data); setViewingForm('ibogaine') }
+                            else toast.error(result?.data?.error || 'Failed to load form data')
+                          } catch { toast.error('Failed to load form data') }
+                          finally { setLoadingViewForm(null) }
                         }
-                      }}
-                      className="gap-2"
-                      disabled={loadingViewForm === 'ibogaine'}
-                    >
-                      {loadingViewForm === 'ibogaine' ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                      View
+                      }
+                    }} disabled={loadingViewForm === 'ibogaine'}>
+                      {loadingViewForm === 'ibogaine' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'View'}
                     </Button>
                   )}
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Onboarding Forms Section - Show if patient is in onboarding */}
+            {/* Onboarding Forms – same table design as pre-arrival forms */}
             {profileData.onboarding && (
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Onboarding Forms</h2>
-                <div className="space-y-4">
-                  {[
-                    { key: 'releaseForm', label: 'Release Form', icon: FileSignature, completed: profileData.onboarding.onboarding.release_form_completed, formType: 'release' as const },
-                    { key: 'outingForm', label: 'Outing/Transfer Consent', icon: Plane, completed: profileData.onboarding.onboarding.outing_consent_completed, formType: 'outing' as const },
-                    { key: 'regulationsForm', label: 'Internal Regulations', icon: BookOpen, completed: profileData.onboarding.onboarding.internal_regulations_completed, formType: 'regulations' as const },
-                  ].map((form) => {
-                    const FormIcon = form.icon
-                    const formData = profileData.onboarding?.forms[form.key as keyof typeof profileData.onboarding.forms]
-                    const status: 'completed' | 'pending' | 'not_started' = form.completed ? 'completed' : (formData ? 'pending' : 'not_started')
-                    const onboardingId = profileData.onboarding?.onboarding.id
-                    const inputKey = onboardingId ? `${onboardingId}-${form.formType}` : ''
-                    const isUploading = uploadingOnboardingForm?.onboardingId === onboardingId && uploadingOnboardingForm?.formType === form.formType
-                    
-                    return (
-                      <div key={form.key} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <FormIcon className="h-5 w-5 text-gray-400" />
-                          <div>
-                            <p className="font-medium text-gray-900">{form.label}</p>
-                            <p className="text-sm text-gray-500">Onboarding form</p>
+              <div className="mt-6">
+                <div className="rounded-[16px] border border-[#D6D2C8] bg-white px-5 py-5">
+                  <div className="flex flex-col">
+                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 border-b border-[#D6D2C8] py-2 pr-0">
+                      <div className="text-sm text-[#777777] font-normal py-2">Form</div>
+                      <div className="text-sm text-[#777777] font-normal py-2 px-3 min-w-[90px]">Status</div>
+                      <div className="text-sm text-[#777777] font-normal py-2 px-3 min-w-[80px]">Submitted</div>
+                      <div className="text-sm text-[#777777] font-normal py-2 px-3 min-w-[100px]">Actions</div>
+                    </div>
+                    {[
+                      { key: 'releaseForm', label: 'Release Form', completed: profileData.onboarding.onboarding.release_form_completed, formType: 'release' as const },
+                      { key: 'outingForm', label: 'Outing/Transfer Consent', completed: profileData.onboarding.onboarding.outing_consent_completed, formType: 'outing' as const },
+                      { key: 'regulationsForm', label: 'Internal Regulations', completed: profileData.onboarding.onboarding.internal_regulations_completed, formType: 'regulations' as const },
+                    ].map((form) => {
+                      const formData = profileData.onboarding?.forms[form.key as keyof typeof profileData.onboarding.forms]
+                      const status: 'completed' | 'pending' | 'not_started' = form.completed ? 'completed' : (formData ? 'pending' : 'not_started')
+                      const onboardingId = profileData.onboarding?.onboarding.id
+                      const inputKey = onboardingId ? `${onboardingId}-${form.formType}` : ''
+                      const isUploading = uploadingOnboardingForm?.onboardingId === onboardingId && uploadingOnboardingForm?.formType === form.formType
+                      const formTypeMap: Record<string, { type: 'release' | 'outing' | 'regulations', viewState: typeof viewingForm }> = {
+                        releaseForm: { type: 'release', viewState: 'onboarding_release' },
+                        outingForm: { type: 'outing', viewState: 'onboarding_outing' },
+                        regulationsForm: { type: 'regulations', viewState: 'onboarding_regulations' },
+                      }
+                      const mapping = formTypeMap[form.key]
+                      return (
+                        <div key={form.key} className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0 last:border-b-0">
+                          <div className="text-sm text-[#2B2820] py-2">{form.label}</div>
+                          <div className="py-2 px-3">
+                            {form.completed ? (
+                              <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Submitted</span>
+                            ) : (
+                              getStatusBadge(status)
+                            )}
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {getStatusBadge(status)}
-                          {isAdmin && !form.completed && onboardingId && (
-                            <>
-                              <input
-                                ref={(el) => {
-                                  if (inputKey) onboardingFileInputRefs.current[inputKey] = el
-                                }}
-                                type="file"
-                                accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx"
-                                className="hidden"
-                                onChange={(e) => handleOnboardingFileChange(e, onboardingId, form.formType)}
-                                disabled={isUploading}
-                              />
+                          <div className="text-sm text-[#2B2820] py-2 px-3">{getOnboardingFormSubmittedDate(form.key as 'releaseForm' | 'outingForm' | 'regulationsForm') ?? '—'}</div>
+                          <div className="py-2 px-3 flex gap-2 flex-wrap">
+                            {isAdmin && !form.completed && onboardingId && (
+                              <>
+                                <input
+                                  ref={(el) => { if (inputKey) onboardingFileInputRefs.current[inputKey] = el }}
+                                  type="file"
+                                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx"
+                                  className="hidden"
+                                  onChange={(e) => handleOnboardingFileChange(e, onboardingId, form.formType)}
+                                  disabled={isUploading}
+                                />
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleOnboardingUploadClick(onboardingId, form.formType)}
+                                  disabled={isUploading}
+                                  className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white border-0"
+                                >
+                                  {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                                  Upload
+                                </Button>
+                              </>
+                            )}
+                            {form.completed && mapping && onboardingId && (
                               <Button
-                                variant="outline"
                                 size="sm"
-                                onClick={() => handleOnboardingUploadClick(onboardingId, form.formType)}
-                                disabled={isUploading}
-                                className="gap-2"
-                                title={`Upload ${form.label}`}
-                              >
-                                {isUploading ? (
-                                  <>
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    Uploading...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Upload className="h-4 w-4" />
-                                    Upload
-                                  </>
-                                )}
-                              </Button>
-                            </>
-                          )}
-                          {status === 'completed' && (() => {
-                            // Map form keys to form types and viewing form states
-                            const formTypeMap: Record<string, { type: 'release' | 'outing' | 'regulations', viewState: typeof viewingForm }> = {
-                              'releaseForm': { type: 'release', viewState: 'onboarding_release' },
-                              'outingForm': { type: 'outing', viewState: 'onboarding_outing' },
-                              'regulationsForm': { type: 'regulations', viewState: 'onboarding_regulations' },
-                            }
-                            
-                            const mapping = formTypeMap[form.key]
-                            const currentViewState = mapping?.viewState || null
-                            
-                            return (
-                              <Button
-                                variant="outline"
-                                size="sm"
+                                className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm"
                                 onClick={async () => {
-                                  if (!mapping || !onboardingId) return
-                                  
-                                  setLoadingViewForm(currentViewState)
+                                  setLoadingViewForm(mapping.viewState)
                                   try {
-                                    const result = await getFormByOnboarding({
-                                      onboarding_id: onboardingId,
-                                      form_type: mapping.type,
-                                    })
-                                    
+                                    const result = await getFormByOnboarding({ onboarding_id: onboardingId, form_type: mapping.type })
                                     if (result?.data?.success && result.data.data) {
-                                      // Check if form has uploaded document
                                       const responseData = result.data.data
-                                      const formData = responseData.form || responseData
-                                      
-                                      // If form has document_url, show it; otherwise show form fields
-                                      if (formData.document_url) {
-                                        setViewFormData({ 
-                                          type: 'uploaded_document',
-                                          document_url: formData.document_url,
-                                          document_name: `${form.label} Document`,
-                                          form_type: mapping.type,
-                                          uploaded_at: formData.uploaded_at,
-                                          uploaded_by: formData.uploaded_by,
-                                        })
+                                      const data = responseData.form || responseData
+                                      if (data.document_url) {
+                                        setViewFormData({ type: 'uploaded_document', document_url: data.document_url, document_name: `${form.label} Document`, form_type: mapping.type, uploaded_at: data.uploaded_at, uploaded_by: data.uploaded_by })
                                       } else {
-                                        setViewFormData(formData)
+                                        setViewFormData(data)
                                       }
                                       setViewingForm(mapping.viewState)
                                     } else {
                                       toast.error(result?.data?.error || 'Failed to load form data')
                                     }
-                                  } catch (error) {
-                                    console.error('Error loading onboarding form:', error)
+                                  } catch {
                                     toast.error('Failed to load form data')
                                   } finally {
                                     setLoadingViewForm(null)
                                   }
                                 }}
-                                className="gap-2"
                                 disabled={loadingViewForm !== null}
                               >
-                                {loadingViewForm === currentViewState ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <>
-                                    <Eye className="h-4 w-4" />
-                                    View
-                                  </>
-                                )}
+                                {loadingViewForm === mapping.viewState ? <Loader2 className="h-3 w-3 animate-spin" /> : 'View'}
                               </Button>
-                            )
-                          })()}
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    {/* Tapering Schedule row - visible to all staff, Create/Edit for admin/manager only */}
+                    {isStaff && (
+                      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0 last:border-b-0">
+                        <div className="text-sm text-[#2B2820] py-2 flex items-center gap-2">
+                          <FlaskConical className="h-4 w-4 text-[#6E7A46]" />
+                          Tapering Schedule
+                        </div>
+                        <div className="py-2 px-3">
+                          {loadingTaperingSchedule ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                          ) : taperingSchedule?.status === 'sent' || taperingSchedule?.status === 'acknowledged' ? (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Submitted</span>
+                          ) : taperingSchedule?.status === 'draft' ? (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-yellow-100 text-yellow-700">Draft</span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-gray-100 text-gray-500">Not Created</span>
+                          )}
+                        </div>
+                        <div className="text-sm text-[#2B2820] py-2 px-3">
+                          {taperingSchedule?.sent_at 
+                            ? format(new Date(taperingSchedule.sent_at), 'MMM d, yyyy')
+                            : '—'}
+                        </div>
+                        <div className="py-2 px-3 flex gap-2 flex-wrap">
+                          {profileData?.onboarding?.onboarding?.id && (
+                            <>
+                              {/* View button for all staff when schedule exists and is sent */}
+                              {taperingSchedule && (taperingSchedule.status === 'sent' || taperingSchedule.status === 'acknowledged') && (
+                                <Button
+                                  size="sm"
+                                  className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm"
+                                  onClick={() => router.push(`/patient-pipeline/patient-profile/${id}/tapering-schedule`)}
+                                >
+                                  View
+                                </Button>
+                              )}
+                              {/* Create/Edit button for admin/manager only */}
+                              {isAdmin && (!taperingSchedule || taperingSchedule.status === 'draft') && (
+                                <Button
+                                  size="sm"
+                                  className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm"
+                                  onClick={() => router.push(`/patient-pipeline/patient-profile/${id}/tapering-schedule`)}
+                                >
+                                  {taperingSchedule ? 'Edit' : 'Create'}
+                                </Button>
+                              )}
+                            </>
+                          )}
                         </div>
                       </div>
-                    )
-                  })}
+                    )}
+                  </div>
                 </div>
-                
-                {/* Onboarding Status Info */}
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    <strong>Status:</strong> {profileData.onboarding.onboarding.status === 'in_progress' ? 'In Progress' : profileData.onboarding.onboarding.status === 'completed' ? 'Completed' : 'Moved to Management'}
-                  </p>
-                  <p className="text-sm text-blue-700 mt-1">
-                    Forms completed: {[
-                      profileData.onboarding.onboarding.release_form_completed,
-                      profileData.onboarding.onboarding.outing_consent_completed,
-                      profileData.onboarding.onboarding.internal_regulations_completed,
-                    ].filter(Boolean).length} / 3
-                  </p>
-                </div>
+
+                {/* One-time forms & Daily forms (when client is in management) */}
+                {managementRecord && (
+                  <div className="mt-4 space-y-4">
+                    {/* One-time forms – responsive: card list on mobile, table on md+ */}
+                    <div className="rounded-[16px] border border-[#D6D2C8] bg-white px-4 py-5 sm:px-5">
+                      <h3 className="text-sm font-medium text-[#777777] mb-4">One-time forms</h3>
+                      {(() => {
+                        const oneTimeRows = managementRecord.program_type === 'neurological'
+                          ? [
+                              { label: "Parkinson's Psychological Report", completed: !!managementRecord.parkinsons_psychological_report_completed, dateKey: 'parkinsonsPsychologicalReport' as const, path: `/patient-management/${managementRecord.id}/one-time-forms/parkinsons-psychological` },
+                              { label: "Parkinson's Mortality Scales", completed: !!managementRecord.parkinsons_mortality_scales_completed, dateKey: 'parkinsonsMortalityScales' as const, path: `/patient-management/${managementRecord.id}/one-time-forms/parkinsons-mortality` },
+                              { label: 'Medical Intake Report', completed: !!(oneTimeFormsData?.medicalIntakeReport as any)?.is_completed, dateKey: 'medicalIntakeReport' as const, path: `/patient-management/${managementRecord.id}/one-time-forms/medical-intake-report` },
+                            ]
+                          : [
+                              { label: 'Psychological Intake Report', completed: !!managementRecord.intake_report_completed, dateKey: 'intakeReport' as const, path: `/patient-management/${managementRecord.id}/one-time-forms/intake-report` },
+                              { label: 'Medical Intake Report', completed: !!(oneTimeFormsData?.medicalIntakeReport as any)?.is_completed, dateKey: 'medicalIntakeReport' as const, path: `/patient-management/${managementRecord.id}/one-time-forms/medical-intake-report` },
+                            ]
+                        return (
+                          <>
+                            {/* Mobile: card per form with clear labels */}
+                            <div className="block md:hidden space-y-3">
+                              {oneTimeRows.map((row) => {
+                                const hasSubmittedDate = !!getOneTimeFormSubmittedDate(row.dateKey)
+                                const showSubmitted = row.completed || hasSubmittedDate
+                                return (
+                                  <div key={row.label} className="rounded-xl border border-[#D6D2C8] p-4 space-y-3">
+                                    <p className="text-sm font-medium text-[#2B2820]">{row.label}</p>
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                                      <span className="text-[#777777]">Status:</span>
+                                      {showSubmitted ? (
+                                        <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Submitted</span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700">Incomplete</span>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                                      <span className="text-[#777777]">Submitted:</span>
+                                      <span className="text-[#2B2820]">{getOneTimeFormSubmittedDate(row.dateKey) ?? '—'}</span>
+                                    </div>
+                                    {showSubmitted && (
+                                      <div className="pt-1">
+                                        <Button
+                                          size="sm"
+                                          className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm"
+                                          onClick={() => setViewFormIframe({ url: row.path, title: row.label })}
+                                        >
+                                          View
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            {/* Desktop: table with header row */}
+                            <div className="hidden md:block border border-[#D6D2C8] rounded-[16px] overflow-hidden">
+                              <div className="grid grid-cols-[1fr_120px_minmax(140px,1fr)_100px] gap-4 items-center border-b border-[#D6D2C8] py-3 px-4 bg-[#F5F4F0] text-sm font-medium text-[#2B2820]">
+                                <div>Form</div>
+                                <div className="text-[#777777] font-normal">Status</div>
+                                <div className="text-[#777777] font-normal">Submitted</div>
+                                <div className="text-[#777777] font-normal">Actions</div>
+                              </div>
+                              {oneTimeRows.map((row) => {
+                                const hasSubmittedDate = !!getOneTimeFormSubmittedDate(row.dateKey)
+                                const showSubmitted = row.completed || hasSubmittedDate
+                                return (
+                                  <div key={row.label} className="grid grid-cols-[1fr_120px_minmax(140px,1fr)_100px] gap-4 items-center border-b border-[#D6D2C8] py-3 px-4 last:border-b-0 bg-white">
+                                    <div className="text-sm text-[#2B2820] min-w-0">{row.label}</div>
+                                    <div>
+                                      {showSubmitted ? (
+                                        <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Submitted</span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700">Incomplete</span>
+                                      )}
+                                    </div>
+                                    <div className="text-sm text-[#2B2820] min-w-0">{getOneTimeFormSubmittedDate(row.dateKey) ?? '—'}</div>
+                                    <div>
+                                      {showSubmitted && (
+                                        <Button
+                                          size="sm"
+                                          className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm"
+                                          onClick={() => setViewFormIframe({ url: row.path, title: row.label })}
+                                        >
+                                          View
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </>
+                        )
+                      })()}
+                    </div>
+
+                    {/* Daily forms – 2x2: (Psychological + OOWS) | (Medical + SOWS); View opens in popup */}
+                    <div className="rounded-[16px] border border-[#D6D2C8] bg-white px-4 py-5 sm:px-5">
+                      <h3 className="text-sm font-medium text-[#777777] mb-4">Daily forms</h3>
+                      {(() => {
+                        const isAddiction = managementRecord.program_type === 'addiction'
+                        const mid = managementRecord.id
+                        const renderDailyColumn = (key: 'psychological' | 'medical' | 'sows' | 'oows', label: string) => {
+                          const arr = dailyFormsArrays[key]
+                          return (
+                            <div key={key} className="rounded-xl border border-[#D6D2C8] p-4">
+                              <p className="text-sm font-medium text-[#2B2820] mb-3">{label}</p>
+                              {arr.length === 0 ? (
+                                <p className="text-sm text-[#777777]">No forms yet</p>
+                              ) : (
+                                <ul className="space-y-3">
+                                  {arr.map((entry, i) => {
+                                    const submittedAt = entry.submitted_at
+                                      ? format(new Date(entry.submitted_at + (entry.submitted_at.includes('T') ? '' : 'T12:00:00')), 'MMM d, yyyy • h:mm a')
+                                      : entry.form_date
+                                        ? format(new Date(entry.form_date + 'T12:00:00'), 'MMM d, yyyy')
+                                        : '—'
+                                    const embedType = key === 'psychological' ? 'daily_psychological' : key === 'medical' ? 'daily_medical' : key === 'sows' ? 'daily_sows' : 'daily_oows'
+                                    const embedUrl = `/embed/form?type=${embedType}&managementId=${mid}&date=${entry.form_date}`
+                                    return (
+                                          <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+                                            <span className="text-[#2B2820]">{submittedAt}</span>
+                                            <Button
+                                              size="sm"
+                                              className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm"
+                                              onClick={() => setViewFormIframe({ url: embedUrl, title: `${label} – ${submittedAt}` })}
+                                        >
+                                          View
+                                        </Button>
+                                      </li>
+                                    )
+                                  })}
+                                </ul>
+                              )}
+                            </div>
+                          )
+                        }
+                        return (
+                          <>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-4">
+                                {renderDailyColumn('psychological', 'Daily Psychological')}
+                                {isAddiction && renderDailyColumn('oows', 'OOWS')}
+                              </div>
+                              <div className="space-y-4">
+                                {renderDailyColumn('medical', 'Daily Medical')}
+                                {isAddiction && renderDailyColumn('sows', 'SOWS')}
+                              </div>
+                            </div>
+                            <div className="mt-4 pt-4 border-t border-[#D6D2C8] flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full border-[#D6D2C8] text-sm h-[22px] px-4"
+                                onClick={() => setViewFormIframe({ url: `/patient-management/${mid}/one-time-forms`, title: 'One-time forms' })}
+                              >
+                                One-time forms
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full border-[#D6D2C8] text-sm h-[22px] px-4"
+                                onClick={() => setViewFormIframe({ url: `/patient-management/${mid}/daily-forms`, title: 'Daily forms' })}
+                              >
+                                Daily forms
+                              </Button>
+                            </div>
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1567,9 +2359,780 @@ export default function PatientProfilePage() {
                 </div>
               </div>
             )}
-          </div>
         </div>
+        </TabsContent>
+
+        <TabsContent value="billing" className="mt-0">
+          {!isAdminOrOwner ? (
+            <div className="rounded-[14px] bg-[#F5F4F0] border border-[#D6D2C8] p-6">
+              <p className="text-sm text-[#777777]">You do not have permission to view billing information.</p>
+            </div>
+          ) : !profileData.serviceAgreement?.is_activated ? (
+            <div className="rounded-[14px] bg-[#F5F4F0] border border-[#D6D2C8] p-6">
+              <p className="text-sm text-[#777777]">Activate the Service Agreement to record payments and manage billing.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Agreement summary from Service Agreement */}
+              <div className="rounded-[14px] bg-[#F5F4F0] border border-[#D6D2C8] p-6">
+                <h3 className="text-lg font-medium text-black mb-4">Service agreement – payment terms</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-[#777777]">Total program fee</span>
+                    <p className="font-medium text-[#2B2820]">
+                      ${Number(profileData.serviceAgreement?.total_program_fee ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[#777777]">Deposit</span>
+                    <p className="font-medium text-[#2B2820]">
+                      ${Number(profileData.serviceAgreement?.deposit_amount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}{' '}
+                      ({Number(profileData.serviceAgreement?.deposit_percentage ?? 0).toFixed(1)}%)
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[#777777]">Remaining balance</span>
+                    <p className="font-medium text-[#2B2820]">
+                      ${Number(profileData.serviceAgreement?.remaining_balance ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[#777777]">Payment method</span>
+                    <p className="font-medium text-[#2B2820]">{profileData.serviceAgreement?.payment_method ?? '—'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Record payment */}
+              {(() => {
+                const totalAmount = Number(profileData.serviceAgreement?.total_program_fee ?? 0)
+                const totalReceived = billingPayments.reduce((sum, p) => sum + Number(p.amount_received), 0)
+                const balanceDue = Math.max(0, totalAmount - totalReceived)
+                return (
+              <div className="rounded-[14px] bg-[#F5F4F0] border border-[#D6D2C8] p-6">
+                <h3 className="text-lg font-medium text-black mb-4">Record payment received</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-[#2B2820]">Amount received ($)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={billingForm.amountReceived}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        const num = value === '' ? NaN : Number(value)
+                        const isFull = balanceDue > 0 && !Number.isNaN(num) && num >= balanceDue - 0.01
+                        setBillingForm((f) => ({ ...f, amountReceived: value, isFullPayment: isFull }))
+                      }}
+                      className="mt-1 bg-white border-[#D6D2C8]"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[#2B2820]">Date & time</Label>
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        type="date"
+                        value={billingForm.receivedDate}
+                        onChange={(e) => setBillingForm((f) => ({ ...f, receivedDate: e.target.value }))}
+                        className="bg-white border-[#D6D2C8]"
+                      />
+                      <Input
+                        type="time"
+                        value={billingForm.receivedTime}
+                        onChange={(e) => setBillingForm((f) => ({ ...f, receivedTime: e.target.value }))}
+                        className="bg-white border-[#D6D2C8]"
+                      />
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="billing-full"
+                      checked={billingForm.isFullPayment}
+                      onChange={(e) => setBillingForm((f) => ({ ...f, isFullPayment: e.target.checked }))}
+                      className="rounded border-[#D6D2C8]"
+                    />
+                    <Label htmlFor="billing-full" className="font-normal text-[#2B2820]">Full payment</Label>
+                  </div>
+                  {!billingForm.isFullPayment && (
+                    <>
+                      <div>
+                        <Label className="text-[#2B2820]">Next payment reminder date</Label>
+                        <Input
+                          type="date"
+                          value={billingForm.nextReminderDate}
+                          onChange={(e) => setBillingForm((f) => ({ ...f, nextReminderDate: e.target.value }))}
+                          className="mt-1 bg-white border-[#D6D2C8]"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="billing-send-reminder"
+                            checked={billingForm.sendReminderNow}
+                            onChange={(e) => setBillingForm((f) => ({ ...f, sendReminderNow: e.target.checked }))}
+                            className="rounded border-[#D6D2C8]"
+                          />
+                          <Label htmlFor="billing-send-reminder" className="font-normal text-[#2B2820]">Send balance reminder email to client</Label>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <Button
+                  className="mt-4 rounded-2xl bg-[#6E7A46] hover:bg-[#5c6840] text-white"
+                  disabled={savingBilling || !billingForm.amountReceived || Number(billingForm.amountReceived) < 0}
+                  onClick={async () => {
+                    const amount = Number(billingForm.amountReceived)
+                    if (!profileData.patient?.id || !profileData.serviceAgreement?.id || isNaN(amount) || amount < 0) {
+                      toast.error('Invalid amount or missing data')
+                      return
+                    }
+                    const receivedAt = new Date(`${billingForm.receivedDate}T${billingForm.receivedTime}`).toISOString()
+                    setSavingBilling(true)
+                    try {
+                      const res = await recordBillingPayment({
+                        patient_id: profileData.patient.id,
+                        service_agreement_id: profileData.serviceAgreement.id,
+                        amount_received: amount,
+                        is_full_payment: billingForm.isFullPayment,
+                        payment_received_at: receivedAt,
+                        next_reminder_date: billingForm.nextReminderDate || undefined,
+                        send_reminder_now: !billingForm.isFullPayment ? billingForm.sendReminderNow : undefined,
+                      })
+                      if (res?.data?.success) {
+                        toast.success('Payment recorded' + (billingForm.sendReminderNow && !billingForm.isFullPayment ? ' and reminder email sent' : ''))
+                        setBillingForm({
+                          amountReceived: '',
+                          isFullPayment: false,
+                          receivedDate: format(new Date(), 'yyyy-MM-dd'),
+                          receivedTime: format(new Date(), 'HH:mm'),
+                          nextReminderDate: '',
+                          sendReminderNow: true,
+                        })
+                        const listRes = await getBillingPayments({ service_agreement_id: profileData.serviceAgreement.id })
+                        if (listRes?.data?.success && listRes.data.data) {
+                          setBillingPayments(listRes.data.data)
+                        }
+                        loadPatientProfile()
+                      } else {
+                        toast.error(res?.data?.error || 'Failed to record payment')
+                      }
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : 'Failed to record payment')
+                    } finally {
+                      setSavingBilling(false)
+                    }
+                  }}
+                >
+                  {savingBilling ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Record payment'}
+                </Button>
+              </div>
+                )
+              })()}
+
+              {/* Payment history */}
+              <div className="rounded-[14px] bg-[#F5F4F0] border border-[#D6D2C8] p-6">
+                <h3 className="text-lg font-medium text-black mb-4">Payment history</h3>
+                {loadingBillingPayments ? (
+                  <div className="flex items-center gap-2 text-[#777777]">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-sm">Loading…</span>
+                  </div>
+                ) : billingPayments.length === 0 ? (
+                  <p className="text-sm text-[#777777]">No payments recorded yet.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {billingPayments.map((p) => (
+                      <li
+                        key={p.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#D6D2C8] bg-white px-4 py-3 text-sm"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-[#2B2820]">
+                            ${Number(p.amount_received).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {p.is_full_payment && ' (full)'}
+                          </span>
+                          <span className="text-[#777777]">
+                            {format(new Date(p.payment_received_at), 'MMM d, yyyy • h:mm a')}
+                          </span>
+                          {p.next_reminder_date && (
+                            <span className="text-xs text-[#777777]">
+                              Next reminder: {format(new Date(p.next_reminder_date + 'T00:00:00'), 'MMM d, yyyy')}
+                            </span>
+                          )}
+                          {p.balance_reminder_sent_at && (
+                            <span className="text-xs text-[#10B981]">Reminder sent</span>
+                          )}
+                        </div>
+                        {isAdminOrOwner && (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl border-[#D6D2C8] text-xs"
+                              onClick={() => {
+                                setBillingEditRecord(p)
+                                const d = new Date(p.payment_received_at)
+                                setBillingEditForm({
+                                  amountReceived: String(p.amount_received),
+                                  isFullPayment: p.is_full_payment,
+                                  receivedDate: format(d, 'yyyy-MM-dd'),
+                                  receivedTime: format(d, 'HH:mm'),
+                                  turnOffReminder: false,
+                                })
+                              }}
+                            >
+                              Update payment
+                            </Button>
+                            {p.next_reminder_date && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50 text-xs"
+                                disabled={turningOffReminderId === p.id}
+                                onClick={async () => {
+                                  setTurningOffReminderId(p.id)
+                                  try {
+                                    const res = await turnOffBillingReminder({ payment_record_id: p.id })
+                                    if (res?.data?.success) {
+                                      toast.success('Reminder turned off')
+                                      const listRes = await getBillingPayments({ service_agreement_id: profileData.serviceAgreement!.id })
+                                      if (listRes?.data?.success && listRes.data.data) setBillingPayments(listRes.data.data)
+                                    } else {
+                                      toast.error(res?.data?.error || 'Failed to turn off reminder')
+                                    }
+                                  } finally {
+                                    setTurningOffReminderId(null)
+                                  }
+                                }}
+                              >
+                                {turningOffReminderId === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Turn off reminder'}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* Update payment dialog (admin/owner) */}
+              <Dialog open={!!billingEditRecord} onOpenChange={(open) => !open && setBillingEditRecord(null)}>
+                <DialogContent className="rounded-2xl border-[#D6D2C8] max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Update payment</DialogTitle>
+                    <DialogDescription>Change amount, date, or turn off the reminder for this payment.</DialogDescription>
+                  </DialogHeader>
+                  {billingEditRecord && (() => {
+                    const totalAmount = Number(profileData.serviceAgreement?.total_program_fee ?? 0)
+                    const totalReceived = billingPayments.reduce((sum, p) => sum + Number(p.amount_received), 0)
+                    const totalExcludingThis = totalReceived - billingEditRecord.amount_received
+                    const balanceDueForThisPayment = Math.max(0, totalAmount - totalExcludingThis)
+                    return (
+                    <div className="grid gap-4 py-2">
+                      <div>
+                        <Label>Amount received ($)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={billingEditForm.amountReceived}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            const num = value === '' ? NaN : Number(value)
+                            const isFull = balanceDueForThisPayment > 0 && !Number.isNaN(num) && num >= balanceDueForThisPayment - 0.01
+                            setBillingEditForm((f) => ({ ...f, amountReceived: value, isFullPayment: isFull }))
+                          }}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label>Date</Label>
+                          <Input
+                            type="date"
+                            value={billingEditForm.receivedDate}
+                            onChange={(e) => setBillingEditForm((f) => ({ ...f, receivedDate: e.target.value }))}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label>Time</Label>
+                          <Input
+                            type="time"
+                            value={billingEditForm.receivedTime}
+                            onChange={(e) => setBillingEditForm((f) => ({ ...f, receivedTime: e.target.value }))}
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="edit-full"
+                          checked={billingEditForm.isFullPayment}
+                          onChange={(e) => setBillingEditForm((f) => ({ ...f, isFullPayment: e.target.checked }))}
+                          className="rounded border-[#D6D2C8]"
+                        />
+                        <Label htmlFor="edit-full" className="font-normal">Full payment</Label>
+                      </div>
+                      {billingEditRecord.next_reminder_date && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="edit-turn-off"
+                            checked={billingEditForm.turnOffReminder}
+                            onChange={(e) => setBillingEditForm((f) => ({ ...f, turnOffReminder: e.target.checked }))}
+                            className="rounded border-[#D6D2C8]"
+                          />
+                          <Label htmlFor="edit-turn-off" className="font-normal">Turn off reminder for this payment</Label>
+                        </div>
+                      )}
+                    </div>
+                    );
+                  })()}
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setBillingEditRecord(null)}>Cancel</Button>
+                    <Button
+                      className="bg-[#6E7A46] hover:bg-[#5c6840]"
+                      disabled={savingBillingUpdate || !billingEditRecord || !billingEditForm.amountReceived}
+                      onClick={async () => {
+                        if (!billingEditRecord || !profileData.serviceAgreement?.id) return
+                        const amount = Number(billingEditForm.amountReceived)
+                        if (isNaN(amount) || amount < 0) {
+                          toast.error('Invalid amount')
+                          return
+                        }
+                        const receivedAt = new Date(`${billingEditForm.receivedDate}T${billingEditForm.receivedTime}`).toISOString()
+                        setSavingBillingUpdate(true)
+                        try {
+                          const res = await updateBillingPayment({
+                            payment_record_id: billingEditRecord.id,
+                            amount_received: amount,
+                            is_full_payment: billingEditForm.isFullPayment,
+                            payment_received_at: receivedAt,
+                            turn_off_reminder: billingEditForm.turnOffReminder,
+                          })
+                          if (res?.data?.success) {
+                            toast.success('Payment updated')
+                            setBillingEditRecord(null)
+                            const listRes = await getBillingPayments({ service_agreement_id: profileData.serviceAgreement.id })
+                            if (listRes?.data?.success && listRes.data.data) setBillingPayments(listRes.data.data)
+                            loadPatientProfile()
+                          } else {
+                            toast.error(res?.data?.error || 'Failed to update payment')
+                          }
+                        } finally {
+                          setSavingBillingUpdate(false)
+                        }
+                      }}
+                    >
+                      {savingBillingUpdate ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="travel" className="mt-0">
+          <div className="rounded-[14px] bg-[#F5F4F0] p-6">
+            <h3 className="text-lg font-medium text-black mb-2">Travel</h3>
+            <p className="text-sm text-[#777777]">Travel details will appear here.</p>
+          </div>
+        </TabsContent>
+        <TabsContent value="notes" className="mt-0">
+          <div className="rounded-[14px] bg-[#F5F4F0] p-6">
+            <h3 className="text-lg font-medium text-black mb-2">Notes</h3>
+            <p className="text-sm text-[#777777]">Notes about this lead will appear here.</p>
+          </div>
+        </TabsContent>
+      </Tabs>
       </div>
+        </div>
+
+        {/* Right sidebar: Tasks + Readiness */}
+        <aside className="w-full lg:w-[313px] shrink-0 flex flex-col gap-6">
+          {/* Tasks card */}
+          <div className="rounded-2xl border border-[#D6D2C8] bg-white p-5 flex flex-col gap-5 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-lg font-medium text-black">Tasks</h3>
+              <div className="h-[15px] w-px bg-[#6B7280]" />
+              <p className="text-sm text-[#777777]">Next follow-ups for this lead</p>
+            </div>
+
+            {isAdminOrOwner && (
+              <button
+                type="button"
+                className="text-left rounded-[10px] border border-[#D6D2C8] px-3.5 py-2.5 flex flex-col gap-0.5 hover:bg-[#F5F4F0] transition-colors"
+                onClick={() => {
+                  if (profileData?.serviceAgreement?.id && !profileData?.serviceAgreement?.is_activated) {
+                    handleActivateForm('service', profileData.serviceAgreement.id, true)
+                  } else {
+                    setActiveTab('details')
+                  }
+                }}
+              >
+                <span className="text-sm font-semibold text-[#2B2820]">Activate Service Agreement</span>
+                <span className="text-sm text-[#777777]">
+                  {serviceAgreementNeedsActivation ? 'Due • Pending' : 'Done'}
+                </span>
+              </button>
+            )}
+
+            <div className="flex flex-col gap-2.5 max-h-[220px] overflow-y-auto">
+              {loadingLeadTasks ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#777777]" />
+                </div>
+              ) : (
+                leadTasks.slice(0, 5).map((task) => (
+                  <div
+                    key={task.id}
+                    className="rounded-[10px] border border-[#D6D2C8] px-3.5 py-2.5 flex flex-col gap-1.5 hover:bg-[#F5F4F0] transition-colors"
+                  >
+                    {editingTaskId === task.id && editTaskForm ? (
+                      <div className="space-y-2">
+                        <Input
+                          placeholder="Task title"
+                          value={editTaskForm.title}
+                          onChange={(e) => setEditTaskForm((f) => f ? { ...f, title: e.target.value } : null)}
+                          className="text-sm"
+                        />
+                        <Input
+                          placeholder="Description (optional)"
+                          value={editTaskForm.description}
+                          onChange={(e) => setEditTaskForm((f) => f ? { ...f, description: e.target.value } : null)}
+                          className="text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <Input
+                            type="date"
+                            value={editTaskForm.due_date}
+                            onChange={(e) => setEditTaskForm((f) => f ? { ...f, due_date: e.target.value } : null)}
+                            className="text-sm flex-1"
+                          />
+                          <Select
+                            value={editTaskForm.assigned_to_id || 'none'}
+                            onValueChange={(v: string) => setEditTaskForm((f) => f ? { ...f, assigned_to_id: v === 'none' ? '' : v } : null)}
+                          >
+                            <SelectTrigger className="text-sm w-[120px]">
+                              <SelectValue placeholder="Assign to" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Unassigned</SelectItem>
+                              {staffList.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => { setEditingTaskId(null); setEditTaskForm(null) }}>
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={savingLeadTask || !editTaskForm.title.trim()}
+                            onClick={async () => {
+                              setSavingLeadTask(true)
+                              const res = await updateLeadTask({
+                                taskId: task.id,
+                                title: editTaskForm.title.trim(),
+                                description: editTaskForm.description.trim() || null,
+                                due_date: editTaskForm.due_date || null,
+                                assigned_to_id: editTaskForm.assigned_to_id || null,
+                              })
+                              setSavingLeadTask(false)
+                              if (res?.data?.success) {
+                                setEditingTaskId(null)
+                                setEditTaskForm(null)
+                                loadLeadTasks()
+                                toast.success('Task updated')
+                              } else {
+                                toast.error(res?.data?.error || 'Failed to update task')
+                              }
+                            }}
+                          >
+                            {savingLeadTask ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-semibold text-[#2B2820] truncate">{task.title}</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-[#777777]"
+                              onClick={() => {
+                                setEditingTaskId(task.id)
+                                setEditTaskForm({
+                                  title: task.title,
+                                  description: task.description || '',
+                                  due_date: task.due_date ? task.due_date.slice(0, 10) : '',
+                                  assigned_to_id: task.assigned_to_id || '',
+                                })
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Select
+                              value={task.status}
+                              onValueChange={async (value: 'todo' | 'in_progress' | 'done') => {
+                                setUpdatingStatusTaskId(task.id)
+                                const res = await updateLeadTaskStatus({ taskId: task.id, status: value })
+                                setUpdatingStatusTaskId(null)
+                                if (res?.data?.success) loadLeadTasks()
+                                else toast.error(res?.data?.error || 'Failed to update status')
+                              }}
+                              disabled={updatingStatusTaskId === task.id}
+                            >
+                              <SelectTrigger className="h-7 w-[100px] text-xs border-0 bg-transparent shadow-none">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="todo">To do</SelectItem>
+                                <SelectItem value="in_progress">In progress</SelectItem>
+                                <SelectItem value="done">Done</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <span className="text-xs text-[#777777]">
+                          {task.due_date ? format(new Date(task.due_date), 'MMM d, yyyy') : 'No due date'}
+                          {task.created_by_name && ` • By ${task.created_by_name}`}
+                          {task.assigned_to_name && ` → ${task.assigned_to_name}`}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {isStaff && (
+              <>
+                {showAddTaskInline && (
+                  <div className="rounded-[10px] border border-[#D6D2C8] bg-[#F5F4F0] p-3 space-y-3">
+                    <Input
+                      placeholder="Task title"
+                      value={newTaskForm.title}
+                      onChange={(e) => setNewTaskForm((f) => ({ ...f, title: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <Input
+                      placeholder="Description (optional)"
+                      value={newTaskForm.description}
+                      onChange={(e) => setNewTaskForm((f) => ({ ...f, description: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <Input
+                        type="date"
+                        placeholder="Due date"
+                        value={newTaskForm.due_date}
+                        onChange={(e) => setNewTaskForm((f) => ({ ...f, due_date: e.target.value }))}
+                        className="text-sm flex-1"
+                      />
+                      <Select
+                        value={newTaskForm.assigned_to_id || 'none'}
+                        onValueChange={(v: string) => setNewTaskForm((f) => ({ ...f, assigned_to_id: v === 'none' ? '' : v }))}
+                      >
+                        <SelectTrigger className="text-sm w-[140px]">
+                          <SelectValue placeholder="Assign to" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Unassigned</SelectItem>
+                          {staffList.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => { setShowAddTaskInline(false); setNewTaskForm({ title: '', description: '', due_date: '', assigned_to_id: '' }) }}>
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={savingLeadTask || !newTaskForm.title.trim()}
+                        onClick={async () => {
+                          setSavingLeadTask(true)
+                          const res = await createLeadTask({
+                            leadId: id,
+                            title: newTaskForm.title.trim(),
+                            description: newTaskForm.description.trim() || undefined,
+                            due_date: newTaskForm.due_date || undefined,
+                            assigned_to_id: newTaskForm.assigned_to_id || undefined,
+                          })
+                          setSavingLeadTask(false)
+                          if (res?.data?.success) {
+                            setNewTaskForm({ title: '', description: '', due_date: '', assigned_to_id: '' })
+                            setShowAddTaskInline(false)
+                            loadLeadTasks()
+                            toast.success('Task added')
+                          } else {
+                            toast.error(res?.data?.error || 'Failed to add task')
+                          }
+                        }}
+                      >
+                        {savingLeadTask ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-col gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full rounded-3xl border-[#D6D2C8] bg-white text-sm text-[#777777] hover:bg-[#F5F4F0] shadow-sm"
+                    onClick={() => setShowAddTaskInline((v) => !v)}
+                  >
+                    + Add Task
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full rounded-3xl border-[#D6D2C8] bg-white text-sm text-[#777777] hover:bg-[#F5F4F0] shadow-sm"
+                    onClick={() => setViewAllTasksOpen(true)}
+                  >
+                    View All Tasks for this lead →
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Readiness card */}
+          <div className="rounded-2xl border border-[#D6D2C8] bg-white p-5 flex flex-col gap-[34px] shadow-sm">
+            <div>
+              <h3 className="text-lg font-medium text-black mb-2.5">Readiness</h3>
+              <div className="flex items-end justify-between gap-2 h-16">
+                <div className="flex flex-col justify-center gap-0.5">
+                  <p className="text-xs text-[#777777]">Score</p>
+                  <p className="text-[25px] font-semibold text-black leading-none">{readinessScore}</p>
+                </div>
+                <div className="flex-1 h-2 rounded-full bg-[#F5F4F0] overflow-hidden ml-2">
+                  <div
+                    className="h-full rounded-full bg-[#6E7A46]"
+                    style={{ width: `${readinessScore}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <p className="text-xs text-[#777777]">Requirements</p>
+              <div className="border border-[#D6D2C8] rounded-[10px] overflow-hidden">
+                {(() => {
+                  const totalAmount = Number(profileData?.serviceAgreement?.total_program_fee ?? 0)
+                  const totalReceived = billingPayments.reduce((sum, p) => sum + Number(p.amount_received), 0)
+                  const isFullyPaid = billingPayments.some((p) => p.is_full_payment) || (totalAmount > 0 && totalReceived >= totalAmount - 0.01)
+                  const paymentPct = totalAmount > 0 ? Math.round((totalReceived / totalAmount) * 100) : 0
+                  const paymentLabel =
+                    !profileData?.serviceAgreement?.is_activated
+                      ? 'Payment'
+                      : isFullyPaid
+                        ? 'Payment'
+                        : billingPayments.length > 0
+                          ? `Payment: ${paymentPct}% done`
+                          : 'Payment'
+                  const paymentStatus =
+                    !profileData?.serviceAgreement?.is_activated
+                      ? 'Not Started'
+                      : isFullyPaid
+                        ? 'Done'
+                        : billingPayments.length > 0
+                          ? `${paymentPct}% done`
+                          : 'Incomplete'
+                  const paymentStatusStyle =
+                    paymentStatus === 'Done'
+                      ? 'Done'
+                      : paymentStatus === 'Incomplete'
+                        ? 'Missing'
+                        : paymentStatus === 'Not Started'
+                          ? 'Not Started'
+                          : 'Pending'
+                  const requirements: Array<{ label: string; status: string; statusStyle: string }> = [
+                    {
+                      label: `Forms Complete (${formsCompletedCount}/4)`,
+                      status: formsCompletedCount === 4 ? 'Done' : formsCompletedCount > 0 ? 'Pending' : 'Not Started',
+                      statusStyle: formsCompletedCount === 4 ? 'Done' : formsCompletedCount > 0 ? 'Pending' : 'Not Started',
+                    },
+                    { label: paymentLabel, status: paymentStatus, statusStyle: paymentStatusStyle },
+                    { label: 'Labs Uploaded', status: 'Missing', statusStyle: 'Missing' },
+                    { label: 'Medical Clearance', status: 'Not Started', statusStyle: 'Not Started' },
+                    { label: 'Travel Details', status: 'Pending', statusStyle: 'Pending' },
+                  ]
+                  return requirements
+                })().map((row) => {
+                  const displayText =
+                    row.label.startsWith('Payment') && row.status === 'Done'
+                      ? 'Completed'
+                      : row.label.startsWith('Payment') && row.status === 'Incomplete'
+                        ? 'Incomplete'
+                        : row.status
+                  return (
+                  <div
+                    key={row.label}
+                    className="flex items-center justify-between px-3 py-3.5 border-b border-[#D6D2C8] last:border-b-0"
+                  >
+                    <span className="text-sm text-[#2B2820]">{row.label}</span>
+                    <span
+                      className={`text-xs font-medium px-3 py-1 rounded-[10px] ${
+                        row.statusStyle === 'Done'
+                          ? 'bg-[#DEF8EE] text-[#10B981]'
+                          : row.statusStyle === 'Pending'
+                          ? 'bg-[#DBEAFE] text-[#1D4ED8]'
+                          : row.statusStyle === 'Missing'
+                          ? 'bg-[#FEE2E2] text-[#E7000B]'
+                          : 'bg-[#FFFBD4] text-[#F59E0B]'
+                      }`}
+                    >
+                      {displayText}
+                    </span>
+                  </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-[#D6D2C8]">
+              <p className="text-xs text-[#777777]">Last Updated: {lastUpdatedLabel}</p>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      {/* Assign / change treatment (arrival) date – same as onboarding */}
+      {profileData?.onboarding?.onboarding?.id && (
+        <TreatmentDateCalendar
+          onboardingId={profileData.onboarding.onboarding.id}
+          patientName={displayName}
+          currentTreatmentDate={onboardingTreatmentDate ?? undefined}
+          programNumberOfDays={
+            profileData?.serviceAgreement?.number_of_days != null
+              ? Number(profileData.serviceAgreement.number_of_days)
+              : undefined
+          }
+          open={openTreatmentDateCalendar}
+          onOpenChange={setOpenTreatmentDateCalendar}
+          onSuccess={() => {
+            loadPatientProfile()
+            setOpenTreatmentDateCalendar(false)
+          }}
+        />
+      )}
 
       {/* Form View Modal */}
       {viewingForm === 'intake' && viewFormData && (
@@ -1911,6 +3474,417 @@ export default function PatientProfilePage() {
           </div>
         </div>
       )}
+
+      {/* One-time / Daily form view in iframe popup (from profile pipeline) */}
+      {viewFormIframe && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            <div className="relative w-full max-w-5xl bg-white rounded-lg shadow-xl h-[85vh] min-h-[400px] overflow-hidden flex flex-col">
+              <div className="shrink-0 flex items-center justify-between border-b border-[#D6D2C8] px-4 py-3">
+                <h2 className="text-lg font-semibold text-[#2B2820] truncate pr-4">{viewFormIframe.title}</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setViewFormIframe(null)}
+                  className="shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                  Close
+                </Button>
+              </div>
+              <div className="flex-1 min-h-[360px] overflow-auto relative bg-gray-50">
+                <iframe
+                  src={typeof window !== 'undefined' ? `${window.location.origin}${viewFormIframe.url}` : viewFormIframe.url}
+                  title={viewFormIframe.title}
+                  className="absolute top-0 left-0 w-full min-h-full border-0 rounded-b-lg"
+                  style={{ height: '100%', minHeight: '360px' }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upgrade Agreement Modal – change days, amounts, percentage (no signatures) */}
+      <Dialog open={upgradeAgreementOpen} onOpenChange={(open) => {
+        setUpgradeAgreementOpen(open)
+        if (!open) setUpgradeAgreementForm(null)
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upgrade Agreement</DialogTitle>
+            <DialogDescription>
+              Update number of days and payment terms. Signatures are not changed.
+            </DialogDescription>
+          </DialogHeader>
+          {upgradeAgreementForm && (() => {
+            function parseNum(s: string): number {
+              const n = parseFloat(String(s).replace(/[^0-9.]/g, ''))
+              return Number.isNaN(n) ? 0 : n
+            }
+            function applyFeeUpdates(
+              f: NonNullable<typeof upgradeAgreementForm>,
+              updates: { total_program_fee?: string; deposit_amount?: string; deposit_percentage?: string }
+            ): NonNullable<typeof upgradeAgreementForm> {
+              const total = updates.total_program_fee !== undefined ? parseNum(updates.total_program_fee) : parseNum(f.total_program_fee)
+              let depositAmount: number
+              let depositPercentage: number
+              if (updates.deposit_amount !== undefined) {
+                depositAmount = parseNum(updates.deposit_amount)
+                depositPercentage = total > 0 ? Math.round((depositAmount / total) * 100 * 100) / 100 : 0
+              } else if (updates.deposit_percentage !== undefined) {
+                depositPercentage = parseNum(updates.deposit_percentage)
+                depositAmount = total > 0 ? Math.round(total * (depositPercentage / 100) * 100) / 100 : 0
+              } else {
+                depositAmount = parseNum(f.deposit_amount)
+                depositPercentage = total > 0 ? Math.round((depositAmount / total) * 100 * 100) / 100 : parseNum(f.deposit_percentage)
+              }
+              const remaining = Math.max(0, Math.round((total - depositAmount) * 100) / 100)
+              return {
+                ...f,
+                total_program_fee: updates.total_program_fee ?? f.total_program_fee,
+                deposit_amount: updates.deposit_amount !== undefined ? updates.deposit_amount : String(depositAmount),
+                deposit_percentage: updates.deposit_percentage !== undefined ? updates.deposit_percentage : String(depositPercentage),
+                remaining_balance: String(remaining),
+              }
+            }
+            return (
+            <form
+              className="space-y-4"
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!upgradeAgreementForm) return
+                setUpgradeAgreementSaving(true)
+                try {
+                  const result = await upgradeServiceAgreement(upgradeAgreementForm)
+                  if (result?.data?.success) {
+                    toast.success('Agreement updated successfully')
+                    setUpgradeAgreementOpen(false)
+                    setUpgradeAgreementForm(null)
+                    await loadPatientProfile()
+                  } else {
+                    toast.error(result?.data?.error || result?.serverError || 'Failed to update agreement')
+                  }
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Failed to update agreement')
+                } finally {
+                  setUpgradeAgreementSaving(false)
+                }
+              }}
+            >
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="upgrade-number_of_days">Number of days</Label>
+                  <Input
+                    id="upgrade-number_of_days"
+                    type="number"
+                    min={1}
+                    value={upgradeAgreementForm.number_of_days}
+                    onChange={(e) => setUpgradeAgreementForm((f) => f ? { ...f, number_of_days: e.target.value } : null)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="upgrade-total_program_fee">Total program fee ($)</Label>
+                  <Input
+                    id="upgrade-total_program_fee"
+                    type="text"
+                    inputMode="decimal"
+                    value={upgradeAgreementForm.total_program_fee}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setUpgradeAgreementForm((f) => f ? applyFeeUpdates(f, { total_program_fee: v }) : null)
+                    }}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="upgrade-deposit_amount">Deposit amount ($)</Label>
+                  <Input
+                    id="upgrade-deposit_amount"
+                    type="text"
+                    inputMode="decimal"
+                    value={upgradeAgreementForm.deposit_amount}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setUpgradeAgreementForm((f) => f ? applyFeeUpdates(f, { deposit_amount: v }) : null)
+                    }}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="upgrade-deposit_percentage">Deposit percentage (%)</Label>
+                  <Input
+                    id="upgrade-deposit_percentage"
+                    type="text"
+                    inputMode="decimal"
+                    value={upgradeAgreementForm.deposit_percentage}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setUpgradeAgreementForm((f) => f ? applyFeeUpdates(f, { deposit_percentage: v }) : null)
+                    }}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="upgrade-remaining_balance">Remaining balance ($)</Label>
+                  <Input
+                    id="upgrade-remaining_balance"
+                    type="text"
+                    inputMode="decimal"
+                    value={upgradeAgreementForm.remaining_balance}
+                    readOnly
+                    className="bg-muted"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="upgrade-payment_method">Payment method</Label>
+                  <Input
+                    id="upgrade-payment_method"
+                    value={upgradeAgreementForm.payment_method}
+                    onChange={(e) => setUpgradeAgreementForm((f) => f ? { ...f, payment_method: e.target.value } : null)}
+                    required
+                  />
+                </div>
+              </div>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button type="button" variant="outline" onClick={() => { setUpgradeAgreementOpen(false); setUpgradeAgreementForm(null) }}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={upgradeAgreementSaving}>
+                  {upgradeAgreementSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                </Button>
+              </DialogFooter>
+            </form>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* View All Tasks dialog */}
+      <Dialog open={viewAllTasksOpen} onOpenChange={(open) => { setViewAllTasksOpen(open); if (!open) { setShowAddTaskInDialog(false); setEditingTaskId(null); setEditTaskForm(null) } }}>
+        <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Tasks for this lead</DialogTitle>
+            <DialogDescription>View and update task status.</DialogDescription>
+          </DialogHeader>
+          {isStaff && (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-full"
+                onClick={() => setShowAddTaskInDialog((v) => !v)}
+              >
+                + Add Task
+              </Button>
+            </div>
+          )}
+          {isStaff && showAddTaskInDialog && (
+            <div className="rounded-[10px] border border-[#D6D2C8] bg-[#F5F4F0] p-3 space-y-3">
+              <Input
+                placeholder="Task title"
+                value={newTaskForm.title}
+                onChange={(e) => setNewTaskForm((f) => ({ ...f, title: e.target.value }))}
+                className="text-sm"
+              />
+              <Input
+                placeholder="Description (optional)"
+                value={newTaskForm.description}
+                onChange={(e) => setNewTaskForm((f) => ({ ...f, description: e.target.value }))}
+                className="text-sm"
+              />
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  value={newTaskForm.due_date}
+                  onChange={(e) => setNewTaskForm((f) => ({ ...f, due_date: e.target.value }))}
+                  className="text-sm flex-1"
+                />
+                <Select
+                  value={newTaskForm.assigned_to_id || 'none'}
+                  onValueChange={(v: string) => setNewTaskForm((f) => ({ ...f, assigned_to_id: v === 'none' ? '' : v }))}
+                >
+                  <SelectTrigger className="text-sm w-[140px]">
+                    <SelectValue placeholder="Assign to" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Unassigned</SelectItem>
+                    {staffList.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setShowAddTaskInDialog(false)}>Cancel</Button>
+                <Button
+                  size="sm"
+                  disabled={savingLeadTask || !newTaskForm.title.trim()}
+                  onClick={async () => {
+                    setSavingLeadTask(true)
+                    const res = await createLeadTask({
+                      leadId: id,
+                      title: newTaskForm.title.trim(),
+                      description: newTaskForm.description.trim() || undefined,
+                      due_date: newTaskForm.due_date || undefined,
+                      assigned_to_id: newTaskForm.assigned_to_id || undefined,
+                    })
+                    setSavingLeadTask(false)
+                    if (res?.data?.success) {
+                      setNewTaskForm({ title: '', description: '', due_date: '', assigned_to_id: '' })
+                      setShowAddTaskInDialog(false)
+                      loadLeadTasks()
+                      toast.success('Task added')
+                    } else {
+                      toast.error(res?.data?.error || 'Failed to add task')
+                    }
+                  }}
+                >
+                  {savingLeadTask ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
+                </Button>
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col gap-2 overflow-y-auto min-h-0 flex-1 pr-2">
+            {loadingLeadTasks ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-[#777777]" />
+              </div>
+            ) : leadTasks.length === 0 ? (
+              <p className="text-sm text-[#777777] py-4">No tasks yet. Add one from the card.</p>
+            ) : (
+              leadTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="rounded-[10px] border border-[#D6D2C8] px-3.5 py-2.5 flex flex-col gap-1.5 hover:bg-[#F5F4F0] transition-colors"
+                >
+                  {editingTaskId === task.id && editTaskForm ? (
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="Task title"
+                        value={editTaskForm.title}
+                        onChange={(e) => setEditTaskForm((f) => f ? { ...f, title: e.target.value } : null)}
+                        className="text-sm"
+                      />
+                      <Input
+                        placeholder="Description (optional)"
+                        value={editTaskForm.description}
+                        onChange={(e) => setEditTaskForm((f) => f ? { ...f, description: e.target.value } : null)}
+                        className="text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <Input
+                          type="date"
+                          value={editTaskForm.due_date}
+                          onChange={(e) => setEditTaskForm((f) => f ? { ...f, due_date: e.target.value } : null)}
+                          className="text-sm flex-1"
+                        />
+                        <Select
+                          value={editTaskForm.assigned_to_id || 'none'}
+                          onValueChange={(v: string) => setEditTaskForm((f) => f ? { ...f, assigned_to_id: v === 'none' ? '' : v } : null)}
+                        >
+                          <SelectTrigger className="text-sm w-[140px]">
+                            <SelectValue placeholder="Assign to" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Unassigned</SelectItem>
+                            {staffList.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => { setEditingTaskId(null); setEditTaskForm(null) }}>
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={savingLeadTask || !editTaskForm.title.trim()}
+                          onClick={async () => {
+                            setSavingLeadTask(true)
+                            const res = await updateLeadTask({
+                              taskId: task.id,
+                              title: editTaskForm.title.trim(),
+                              description: editTaskForm.description.trim() || null,
+                              due_date: editTaskForm.due_date || null,
+                              assigned_to_id: editTaskForm.assigned_to_id || null,
+                            })
+                            setSavingLeadTask(false)
+                            if (res?.data?.success) {
+                              setEditingTaskId(null)
+                              setEditTaskForm(null)
+                              loadLeadTasks()
+                              toast.success('Task updated')
+                            } else {
+                              toast.error(res?.data?.error || 'Failed to update task')
+                            }
+                          }}
+                        >
+                          {savingLeadTask ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-sm font-semibold text-[#2B2820]">{task.title}</span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs text-[#777777]"
+                            onClick={() => {
+                              setEditingTaskId(task.id)
+                              setEditTaskForm({
+                                title: task.title,
+                                description: task.description || '',
+                                due_date: task.due_date ? task.due_date.slice(0, 10) : '',
+                                assigned_to_id: task.assigned_to_id || '',
+                              })
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Select
+                            value={task.status}
+                            onValueChange={async (value: 'todo' | 'in_progress' | 'done') => {
+                              setUpdatingStatusTaskId(task.id)
+                              const res = await updateLeadTaskStatus({ taskId: task.id, status: value })
+                              setUpdatingStatusTaskId(null)
+                              if (res?.data?.success) loadLeadTasks()
+                              else toast.error(res?.data?.error || 'Failed to update status')
+                            }}
+                            disabled={updatingStatusTaskId === task.id}
+                          >
+                            <SelectTrigger className="h-7 w-[100px] text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="todo">To do</SelectItem>
+                              <SelectItem value="in_progress">In progress</SelectItem>
+                              <SelectItem value="done">Done</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      {task.description && <p className="text-xs text-[#777777]">{task.description}</p>}
+                      <span className="text-xs text-[#777777]">
+                        {task.due_date ? format(new Date(task.due_date), 'MMM d, yyyy') : 'No due date'}
+                        {task.created_by_name && ` • By ${task.created_by_name}`}
+                        {task.assigned_to_name && ` → ${task.assigned_to_name}`}
+                      </span>
+                    </>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Activation Modal for Required Fields */}
       <Dialog open={showActivationModal} onOpenChange={setShowActivationModal}>

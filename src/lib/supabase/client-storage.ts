@@ -56,6 +56,19 @@ const DOCUMENT_BUCKETS = {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     ],
   },
+  'onboarding-medical-documents': {
+    name: 'onboarding-medical-documents',
+    fileSizeLimit: 10485760, // 10MB
+    allowedMimeTypes: [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ],
+  },
 } as const
 
 export type DocumentBucketType = keyof typeof DOCUMENT_BUCKETS

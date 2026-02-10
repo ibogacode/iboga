@@ -8,7 +8,7 @@ const getPatientTasksSchema = z.object({})
 
 export interface PatientTask {
   id: string
-  type: 'intake' | 'medical_history' | 'service_agreement' | 'ibogaine_consent' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent'
+  type: 'intake' | 'medical_history' | 'service_agreement' | 'ibogaine_consent' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | 'onboarding_ekg_upload' | 'onboarding_bloodwork_upload'
   title: string
   description: string
   status: 'not_started' | 'in_progress' | 'completed' | 'locked'
@@ -561,12 +561,18 @@ export const getPatientTasks = authActionClient
         formsTotal: 3,
       }
 
-      // Fetch all 3 onboarding forms in parallel
-      const [releaseForm, outingForm, regulationsForm] = await Promise.all([
+      // Fetch all 3 onboarding forms and EKG/Bloodwork doc status in parallel
+      const [releaseForm, outingForm, regulationsForm, medicalDocsResult] = await Promise.all([
         supabase.from('onboarding_release_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
         supabase.from('onboarding_outing_consent_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
         supabase.from('onboarding_internal_regulations_forms').select('id, is_completed, is_activated, completed_at').eq('onboarding_id', onboardingFull.id).maybeSingle(),
+        supabase.from('onboarding_medical_documents').select('document_type, uploaded_at').eq('onboarding_id', onboardingFull.id),
       ])
+      const medicalDocs = medicalDocsResult.data || []
+      const hasEkg = medicalDocs.some((d: { document_type: string }) => d.document_type === 'ekg')
+      const hasBloodwork = medicalDocs.some((d: { document_type: string }) => d.document_type === 'bloodwork')
+      const ekgUploadedAt = medicalDocs.find((d: { document_type: string; uploaded_at: string }) => d.document_type === 'ekg')?.uploaded_at
+      const bloodworkUploadedAt = medicalDocs.find((d: { document_type: string; uploaded_at: string }) => d.document_type === 'bloodwork')?.uploaded_at
 
       // Helper function to determine task status
       const getOnboardingTaskStatus = (form: { data: any } | null): 'not_started' | 'in_progress' | 'completed' | 'locked' => {
@@ -619,6 +625,34 @@ export const getPatientTasks = authActionClient
         completedAt: regulationsForm?.data?.completed_at || undefined,
         formId: regulationsForm?.data?.id || '',
         link: regulationsForm?.data?.is_activated ? `/onboarding-forms/${onboardingFull.id}/internal-regulations` : '#',
+      })
+
+      // Add EKG and Bloodwork upload tasks (required for tapering schedule)
+      tasks.push({
+        id: `onboarding-ekg-${onboardingFull.id}`,
+        type: 'onboarding_ekg_upload',
+        title: 'Upload EKG Results',
+        description: 'Upload your EKG results. Required before we can prepare your tapering schedule.',
+        status: hasEkg ? 'completed' : 'not_started',
+        estimatedTime: '~2 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: ekgUploadedAt || undefined,
+        formId: onboardingFull.id,
+        link: '/patient/documents',
+      })
+      tasks.push({
+        id: `onboarding-bloodwork-${onboardingFull.id}`,
+        type: 'onboarding_bloodwork_upload',
+        title: 'Upload Bloodwork Results',
+        description: 'Upload your bloodwork results. Required before we can prepare your tapering schedule.',
+        status: hasBloodwork ? 'completed' : 'not_started',
+        estimatedTime: '~2 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: bloodworkUploadedAt || undefined,
+        formId: onboardingFull.id,
+        link: '/patient/documents',
       })
     }
 

@@ -76,8 +76,7 @@ export default function PatientPipelinePage() {
   const [customStartDate, setCustomStartDate] = useState<string>('')
   const [customEndDate, setCustomEndDate] = useState<string>('')
 
-  // Check if user is manager (managers cannot view client profiles)
-  const isManager = profile?.role === 'manager'
+  // All staff roles can view client profiles
 
   const programs = [
     { value: 'all', label: 'All Programs' },
@@ -622,17 +621,12 @@ export default function PatientPipelinePage() {
                   </div>
                   {paginatedPartialForms.map((form) => (
                     <div key={form.id} className="px-3 py-2 h-[66px] border-b border-[#D6D2C8] flex items-center">
-                      {!isManager && (
-                        <Button
-                          onClick={() => handleViewPartial(form.id)}
-                          className="px-4 py-[10px] h-auto bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
-                        >
-                          View
-                        </Button>
-                      )}
-                      {isManager && (
-                        <span className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">—</span>
-                      )}
+                      <Button
+                        onClick={() => handleViewPartial(form.id)}
+                        className="px-4 py-[10px] h-auto bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
+                      >
+                        View
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -689,14 +683,12 @@ export default function PatientPipelinePage() {
                         <p className="text-xs text-[#777777]">{form.creator.email}</p>
                       </div>
                     )}
-                    {!isManager && (
-                      <Button
-                        onClick={() => handleViewPartial(form.id)}
-                        className="w-full mt-2 px-4 py-[10px] h-auto bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
-                      >
-                        View
-                      </Button>
-                    )}
+                    <Button
+                      onClick={() => handleViewPartial(form.id)}
+                      className="w-full mt-2 px-4 py-[10px] h-auto bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
+                    >
+                      View
+                    </Button>
                   </div>
                 )
               })}
@@ -889,17 +881,12 @@ export default function PatientPipelinePage() {
                   </div>
                   {paginatedPublicForms.map((form) => (
                     <div key={form.id} className="px-3 py-2 h-[66px] border-b border-[#D6D2C8] flex items-center">
-                      {!isManager && (
-                        <Button
-                          onClick={() => handleViewPublic(form.id)}
-                          className="px-4 py-[10px] h-auto bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
-                        >
-                          View
-                        </Button>
-                      )}
-                      {isManager && (
-                        <span className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">—</span>
-                      )}
+                      <Button
+                        onClick={() => handleViewPublic(form.id)}
+                        className="px-4 py-[10px] h-auto bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
+                      >
+                        View
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -946,14 +933,12 @@ export default function PatientPipelinePage() {
                       <p className="text-xs text-[#777777] mb-1">Submission Date</p>
                       <p className="text-sm text-black">{formatDate(form.created_at)}</p>
                     </div>
-                    {!isManager && (
-                      <Button
-                        onClick={() => handleViewPublic(form.id)}
-                        className="w-full mt-2 px-4 py-[10px] h-auto bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
-                      >
-                        View
-                      </Button>
-                    )}
+                    <Button
+                      onClick={() => handleViewPublic(form.id)}
+                      className="w-full mt-2 px-4 py-[10px] h-auto bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm"
+                    >
+                      View
+                    </Button>
                   </div>
                 )
               })}

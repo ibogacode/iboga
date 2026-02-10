@@ -122,7 +122,7 @@ export const addExistingPatient = authActionClient
     // Wait for profile trigger to create profile
     await new Promise(resolve => setTimeout(resolve, 500))
     
-    // Update or create profile
+    // Update or create profile (source = admin_owner_added when added via this flow)
     const { error: profileError } = await supabase
       .from('profiles')
       .upsert({
@@ -136,6 +136,7 @@ export const addExistingPatient = authActionClient
         gender: parsedInput.gender || null,
         address: parsedInput.address || null,
         is_active: true,
+        source: 'admin_owner_added',
       }, {
         onConflict: 'id',
       })
