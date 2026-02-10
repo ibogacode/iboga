@@ -988,7 +988,7 @@ function generateOnboardingFormsEmail(
           <div class="content">
             <h2>Onboarding Forms – Please Complete</h2>
             <p>Hello ${displayName},</p>
-            <p>You have been moved to the onboarding stage. <strong>3 forms are now activated for you. Please finish them</strong> before we can assign your treatment date.</p>
+            <p>You have been moved to the onboarding stage. <strong>3 forms are now activated for you. Please finish them</strong> and upload your EKG and Bloodwork results before we can assign your treatment date.</p>
             <div class="info-box">
               <p><strong>Forms to complete:</strong></p>
               <ul>
@@ -996,11 +996,17 @@ function generateOnboardingFormsEmail(
                 <li><strong>Outing Consent Form</strong> – Permission for therapeutic outings</li>
                 <li><strong>Internal Regulations Form</strong> – Facility rules and guidelines</li>
               </ul>
+              <p style="margin-top: 12px;"><strong>Documents to upload (in Tasks):</strong></p>
+              <ul>
+                <li><strong>EKG results</strong></li>
+                <li><strong>Bloodwork results</strong></li>
+              </ul>
             </div>
             <p style="text-align: center;">
               <a href="${formLink}" class="cta-button">Complete Your 3 Forms</a>
             </p>
-            <p><strong>Important:</strong> These forms must be completed before we can assign your treatment date. Please complete them as soon as possible.</p>
+            <p>In your patient portal <strong>Tasks</strong> you will also see options to upload your <strong>EKG</strong> and <strong>Bloodwork</strong> results. Please complete the 3 forms and upload both documents so we can prepare your tapering schedule.</p>
+            <p><strong>Important:</strong> These forms and documents must be completed before we can assign your treatment date. Please complete them as soon as possible.</p>
             <p>If you have any questions, please contact us:</p>
             <p>
               <strong>Phone:</strong> +1 (800) 604-7294<br>

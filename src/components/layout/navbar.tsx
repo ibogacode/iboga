@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { useUnreadMessagesContext } from '@/contexts/unread-messages-context'
 import { useState, useEffect } from 'react'
 import { getUserConversations } from '@/app/(dashboard)/messages/actions'
+import { getMyTaskNotifications, markNotificationRead } from '@/actions/lead-tasks.action'
 import {
   Sheet,
   SheetContent,
@@ -66,29 +67,44 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
   const [conversations, setConversations] = useState<any[]>([])
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
+  const [taskNotifications, setTaskNotifications] = useState<Array<{ id: string; title: string; link_url: string | null; read_at: string | null; created_at: string }>>([])
+  const isStaff = role && ['owner', 'admin', 'manager', 'doctor', 'nurse', 'psych'].includes(role)
 
-  // Load recent conversations when dropdown opens OR when unread count changes
+  // Load recent conversations and task notifications when dropdown opens
   useEffect(() => {
     if (isNotificationOpen) {
       setIsLoadingNotifications(true)
-      getUserConversations().then(({ conversations }) => {
-        // Show only conversations with unread messages, sorted by most recent
-        const unreadConversations = conversations
-          .filter((c: any) => c.unread_count > 0)
-          .sort((a: any, b: any) =>
-            new Date(b.last_message_at || b.updated_at).getTime() -
-            new Date(a.last_message_at || a.updated_at).getTime()
-          )
-          .slice(0, 5) // Show max 5 notifications
-        setConversations(unreadConversations)
-        setIsLoadingNotifications(false)
-      })
+      Promise.all([
+        getUserConversations().then(({ conversations }) => {
+          const unreadConversations = conversations
+            .filter((c: any) => c.unread_count > 0)
+            .sort((a: any, b: any) =>
+              new Date(b.last_message_at || b.updated_at).getTime() -
+              new Date(a.last_message_at || a.updated_at).getTime()
+            )
+            .slice(0, 5)
+          setConversations(unreadConversations)
+        }),
+        isStaff ? getMyTaskNotifications({}).then((res) => {
+          if (res?.data?.success && res.data.data) {
+            setTaskNotifications(res.data.data.slice(0, 10).map((n: any) => ({
+              id: n.id,
+              title: n.title,
+              link_url: n.link_url,
+              read_at: n.read_at,
+              created_at: n.created_at,
+            })))
+          } else {
+            setTaskNotifications([])
+          }
+        }) : Promise.resolve(),
+      ]).finally(() => setIsLoadingNotifications(false))
     } else {
-      // Reset state when dropdown closes
       setConversations([])
+      setTaskNotifications([])
       setIsLoadingNotifications(false)
     }
-  }, [isNotificationOpen, unreadCount])
+  }, [isNotificationOpen, unreadCount, isStaff])
 
   // Get user name - prioritize generated name column, then construct from first/last, then fallback
   const userName = profile?.name ||
@@ -186,13 +202,14 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
                   <div className="p-4 text-center">
                     <Loader2 className="h-6 w-6 animate-spin text-gray-400 mx-auto" />
                   </div>
-                ) : conversations.length === 0 ? (
-                  <div className="p-4 text-center text-sm text-gray-500">
-                    No unread messages
-                  </div>
                 ) : (
                   <>
-                    {conversations.map((conv: any) => {
+                    {conversations.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-gray-500">
+                        No unread messages
+                      </div>
+                    ) : (
+                      conversations.map((conv: any) => {
                       // Get the other participant's name and info
                       const otherParticipant = conv.participants?.find(
                         (p: any) => p.user_id !== user?.id
@@ -245,7 +262,30 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
                           )}
                         </DropdownMenuItem>
                       )
-                    })}
+                    })
+                    )}
+                    {isStaff && taskNotifications.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Task assignments</DropdownMenuLabel>
+                        {taskNotifications.map((n) => (
+                          <DropdownMenuItem
+                            key={n.id}
+                            className="cursor-pointer p-3 flex flex-col items-start gap-0.5"
+                            onClick={async () => {
+                              if (n.link_url) router.push(n.link_url)
+                              if (!n.read_at) await markNotificationRead({ notificationId: n.id })
+                              setIsNotificationOpen(false)
+                            }}
+                          >
+                            <span className="text-sm font-medium truncate w-full">{n.title}</span>
+                            {!n.read_at && (
+                              <span className="text-xs text-[#6E7A46]">New</span>
+                            )}
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="cursor-pointer justify-center text-center text-sm font-medium"

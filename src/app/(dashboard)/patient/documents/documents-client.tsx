@@ -1,19 +1,41 @@
 'use client'
 
 import { useState } from 'react'
-import { FileText, ClipboardList, Shield, Eye, Loader2, X, Calendar } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { FileText, ClipboardList, Shield, Eye, Loader2, X, Calendar, FlaskConical, CheckCircle2, Heart, TestTube2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { PatientTask } from '@/actions/patient-tasks.action'
 import { getIntakeFormById } from '@/actions/patient-profile.action'
 import { getMedicalHistoryFormForPatient } from '@/actions/medical-history.action'
 import { getServiceAgreementForPatient } from '@/actions/service-agreement.action'
+import { acknowledgeTaperingSchedule } from '@/actions/tapering-schedule.action'
+import { recordOnboardingMedicalDocument } from '@/actions/onboarding-documents.action'
+import { uploadDocumentClient } from '@/lib/supabase/client-storage'
 import { PatientIntakeFormView } from '@/components/admin/patient-intake-form-view'
 import { MedicalHistoryFormView } from '@/components/admin/medical-history-form-view'
 import { ServiceAgreementFormView } from '@/components/admin/service-agreement-form-view'
 import { toast } from 'sonner'
 
+interface TaperingScheduleData {
+  id: string
+  status: 'draft' | 'sent' | 'acknowledged'
+  starting_dose: string
+  total_days: number
+  schedule_days: Array<{ day: number; dose: string; notes?: string; label?: string }>
+  additional_notes?: string
+  sent_at?: string
+}
+
+interface OnboardingUploadContext {
+  onboardingId: string
+  hasEkg: boolean
+  hasBloodwork: boolean
+}
+
 interface DocumentsClientProps {
   documents: PatientTask[]
+  taperingSchedule?: TaperingScheduleData | null
+  onboardingUpload?: OnboardingUploadContext | null
 }
 
 function getDocumentIcon(type: PatientTask['type']) {
@@ -56,10 +78,40 @@ function formatDate(dateString: string | null | undefined): string {
   }
 }
 
-export function DocumentsClient({ documents }: DocumentsClientProps) {
-  const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | null>(null)
+const ALLOWED_UPLOAD_TYPES = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp'
+
+export function DocumentsClient({ documents, taperingSchedule, onboardingUpload }: DocumentsClientProps) {
+  const router = useRouter()
+  const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | 'tapering' | null>(null)
   const [viewFormData, setViewFormData] = useState<any>(null)
   const [loadingViewForm, setLoadingViewForm] = useState<string | null>(null)
+  const [isAcknowledging, setIsAcknowledging] = useState(false)
+  const [uploadingType, setUploadingType] = useState<'ekg' | 'bloodwork' | null>(null)
+
+  const handleOnboardingUpload = async (type: 'ekg' | 'bloodwork', file: File) => {
+    if (!onboardingUpload) return
+    setUploadingType(type)
+    try {
+      const folder = `${onboardingUpload.onboardingId}/${type}`
+      const { path } = await uploadDocumentClient('onboarding-medical-documents', file, folder)
+      const result = await recordOnboardingMedicalDocument({
+        onboarding_id: onboardingUpload.onboardingId,
+        document_type: type,
+        document_path: path,
+        document_name: file.name,
+      })
+      if (result?.data?.success) {
+        toast.success(`${type === 'ekg' ? 'EKG' : 'Bloodwork'} results uploaded successfully`)
+        router.refresh()
+      } else {
+        toast.error(result?.data?.error || 'Failed to record document')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploadingType(null)
+    }
+  }
 
   const handleViewDocument = async (document: PatientTask) => {
     // Check if this is an uploaded document (has uploadedDocument property)
@@ -120,8 +172,133 @@ export function DocumentsClient({ documents }: DocumentsClientProps) {
         </p>
       </div>
 
+      {/* Onboarding: EKG and Bloodwork uploads (when in onboarding) */}
+      {onboardingUpload && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900">Onboarding documents</h2>
+          <p className="text-sm text-[#777777]">
+            Please upload your EKG and Bloodwork results. Both are required before we can prepare your tapering schedule.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* EKG */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg bg-[#F5F4F0] flex items-center justify-center">
+                  <Heart className="w-5 h-5 text-[#6E7A46]" />
+                </div>
+                <h3 className="font-medium text-gray-900">EKG results</h3>
+              </div>
+              <p className="text-sm text-[#777777] mb-4">Upload your EKG results (PDF or image).</p>
+              {onboardingUpload.hasEkg ? (
+                <div className="flex items-center gap-2 text-[#10B981] mt-auto">
+                  <CheckCircle2 className="w-5 h-5 shrink-0" />
+                  <span className="text-sm font-medium">Uploaded</span>
+                </div>
+              ) : (
+                <div className="mt-auto space-y-2">
+                  <input
+                    type="file"
+                    accept={ALLOWED_UPLOAD_TYPES}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#6E7A46] file:text-white file:text-sm"
+                    disabled={!!uploadingType}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) handleOnboardingUpload('ekg', f)
+                      e.target.value = ''
+                    }}
+                  />
+                  {uploadingType === 'ekg' && (
+                    <div className="flex items-center gap-2 text-sm text-[#777777]">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Uploading...
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {/* Bloodwork */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg bg-[#F5F4F0] flex items-center justify-center">
+                  <TestTube2 className="w-5 h-5 text-[#6E7A46]" />
+                </div>
+                <h3 className="font-medium text-gray-900">Bloodwork results</h3>
+              </div>
+              <p className="text-sm text-[#777777] mb-4">Upload your bloodwork results (PDF or image).</p>
+              {onboardingUpload.hasBloodwork ? (
+                <div className="flex items-center gap-2 text-[#10B981] mt-auto">
+                  <CheckCircle2 className="w-5 h-5 shrink-0" />
+                  <span className="text-sm font-medium">Uploaded</span>
+                </div>
+              ) : (
+                <div className="mt-auto space-y-2">
+                  <input
+                    type="file"
+                    accept={ALLOWED_UPLOAD_TYPES}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-[#6E7A46] file:text-white file:text-sm"
+                    disabled={!!uploadingType}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) handleOnboardingUpload('bloodwork', f)
+                      e.target.value = ''
+                    }}
+                  />
+                  {uploadingType === 'bloodwork' && (
+                    <div className="flex items-center gap-2 text-sm text-[#777777]">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Uploading...
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tapering Schedule Card - shown prominently if available */}
+      {taperingSchedule && (
+        <div className="bg-gradient-to-r from-[#6E7A46]/10 to-[#6E7A46]/5 rounded-2xl p-6 border border-[#6E7A46]/20">
+          <div className="flex items-start gap-4">
+            <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-[#6E7A46] text-white shrink-0">
+              <FlaskConical className="w-7 h-7" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Tapering Schedule
+                </h3>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-[#DEF8EE] text-[#10B981]">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Ready
+                </span>
+              </div>
+              <p className="text-sm text-[#777777] mb-1">
+                {taperingSchedule.total_days} day tapering schedule
+              </p>
+              {taperingSchedule.starting_dose && (
+                <p className="text-xs text-[#777777] mb-4">
+                  Starting dose: {taperingSchedule.starting_dose}
+                </p>
+              )}
+              {!taperingSchedule.starting_dose && <div className="mb-4" />}
+              <Button
+                onClick={() => {
+                  setViewFormData(taperingSchedule)
+                  setViewingForm('tapering')
+                }}
+                className="bg-[#6E7A46] text-white hover:bg-[#5c6840] rounded-3xl h-10 text-sm px-6"
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                View Schedule
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Documents Grid */}
-      {documents.length === 0 ? (
+      {documents.length === 0 && !taperingSchedule ? (
         <div className="bg-white rounded-2xl p-8 sm:p-12 text-center border border-gray-100">
           <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Documents Yet</h3>
@@ -129,7 +306,7 @@ export function DocumentsClient({ documents }: DocumentsClientProps) {
             Your completed forms will appear here once you finish them.
           </p>
         </div>
-      ) : (
+      ) : documents.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6" data-tour="tour-documents-list">
           {documents.map((document) => (
             <div
@@ -175,7 +352,7 @@ export function DocumentsClient({ documents }: DocumentsClientProps) {
             </div>
           ))}
         </div>
-      )}
+      ) : null}
 
       {/* Form View Modals */}
       {viewingForm === 'intake' && viewFormData && (
@@ -253,6 +430,145 @@ export function DocumentsClient({ documents }: DocumentsClientProps) {
               </div>
               <div className="p-6">
                 <ServiceAgreementFormView form={viewFormData} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tapering Schedule View Modal */}
+      {viewingForm === 'tapering' && viewFormData && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10 rounded-t-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#6E7A46] text-white">
+                    <FlaskConical className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">Tapering Schedule</h2>
+                    <p className="text-sm text-gray-500">{viewFormData.total_days} day schedule</p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setViewingForm(null)
+                    setViewFormData(null)
+                  }}
+                  className="gap-2"
+                >
+                  <X className="h-4 w-4" />
+                  Close
+                </Button>
+              </div>
+              <div className="p-6 space-y-6">
+                {/* Schedule header - show starting dose and duration */}
+                <div className="bg-[#6E7A46] text-white p-4 rounded-xl">
+                  <div className="text-lg font-semibold">Tapering Schedule</div>
+                  <div className="text-sm opacity-90">
+                    {viewFormData.starting_dose && `Starting Dose: ${viewFormData.starting_dose} | `}
+                    Duration: {viewFormData.total_days} days
+                  </div>
+                </div>
+
+                {/* Schedule days */}
+                <div className="space-y-3">
+                  {(viewFormData.schedule_days as Array<{ day: number; dose: string; notes?: string; label?: string }>)
+                    .sort((a, b) => a.day - b.day) // Sort ascending (Day 1 first)
+                    .map((day) => (
+                      <div
+                        key={day.day}
+                        className="p-4 bg-gray-50 rounded-xl border border-gray-100"
+                      >
+                        <div className="space-y-2">
+                          {/* Day header with optional label */}
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center px-3 h-8 bg-[#6E7A46] text-white rounded-lg font-semibold text-sm shrink-0">
+                              Day {day.day}
+                            </div>
+                            {day.label && (
+                              <span className="text-sm font-medium text-gray-700">({day.label})</span>
+                            )}
+                          </div>
+                          {/* Dose - optional */}
+                          {day.dose && (
+                            <div className="font-medium text-gray-900 ml-1">
+                              <span className="text-gray-500">Dose:</span> {day.dose}
+                            </div>
+                          )}
+                          {/* Notes - can be multi-line, shown as bullet points */}
+                          {day.notes && (
+                            <div className="text-sm text-gray-700 ml-1">
+                              <span className="font-medium text-gray-500">Notes:</span>
+                              <ul className="mt-1 ml-4 space-y-1">
+                                {day.notes.split('\n').filter(line => line.trim()).map((line, i) => (
+                                  <li key={i} className="list-disc">{line.trim().replace(/^[•\-]\s*/, '')}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                {/* Additional notes */}
+                {viewFormData.additional_notes && (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+                    <div className="font-medium text-yellow-900 mb-1">Additional Notes</div>
+                    <div className="text-sm text-yellow-800">{viewFormData.additional_notes}</div>
+                  </div>
+                )}
+
+                {/* Acknowledge button */}
+                {viewFormData.status === 'sent' && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <Button
+                      onClick={async () => {
+                        setIsAcknowledging(true)
+                        try {
+                          const result = await acknowledgeTaperingSchedule({ id: viewFormData.id })
+                          if (result?.data?.success) {
+                            toast.success('Schedule acknowledged')
+                            setViewFormData({ ...viewFormData, status: 'acknowledged' })
+                          } else {
+                            toast.error(result?.data?.error || 'Failed to acknowledge')
+                          }
+                        } catch {
+                          toast.error('Failed to acknowledge')
+                        } finally {
+                          setIsAcknowledging(false)
+                        }
+                      }}
+                      disabled={isAcknowledging}
+                      className="w-full bg-[#6E7A46] text-white hover:bg-[#5c6840] rounded-xl h-12"
+                    >
+                      {isAcknowledging ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Acknowledging...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          I Have Read and Understand This Schedule
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+
+                {viewFormData.status === 'acknowledged' && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <div className="flex items-center justify-center gap-2 text-[#10B981]">
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span className="font-medium">You have acknowledged this schedule</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -47,6 +47,47 @@ const adminServiceAgreementSchema = z.object({
   ),
 })
 
+// Schema for upgrading Service Agreement (days + amount columns + percentage only, no signatures)
+const upgradeServiceAgreementSchema = z.object({
+  formId: z.string().uuid(),
+  number_of_days: z.string().min(1, 'Number of days is required').refine(
+    (val) => {
+      const num = parseInt(val, 10)
+      return !isNaN(num) && num > 0
+    },
+    { message: 'Number of days must be a valid positive integer' }
+  ),
+  total_program_fee: z.string().min(1, 'Total program fee is required').refine(
+    (val) => {
+      const num = parseFloat(val.replace(/[^0-9.]/g, ''))
+      return !isNaN(num) && num > 0
+    },
+    { message: 'Total program fee must be a valid number greater than 0' }
+  ),
+  deposit_amount: z.string().min(1, 'Deposit amount is required').refine(
+    (val) => {
+      const num = parseFloat(val.replace(/[^0-9.]/g, ''))
+      return !isNaN(num) && num > 0
+    },
+    { message: 'Deposit amount must be a valid number greater than 0' }
+  ),
+  deposit_percentage: z.string().min(1, 'Deposit percentage is required').refine(
+    (val) => {
+      const num = parseFloat(val.replace(/[^0-9.]/g, ''))
+      return !isNaN(num) && num >= 0 && num <= 100
+    },
+    { message: 'Deposit percentage must be between 0 and 100' }
+  ),
+  remaining_balance: z.string().min(1, 'Remaining balance is required').refine(
+    (val) => {
+      const num = parseFloat(val.replace(/[^0-9.]/g, ''))
+      return !isNaN(num) && num >= 0
+    },
+    { message: 'Remaining balance must be a valid number' }
+  ),
+  payment_method: z.string().min(1, 'Payment method is required'),
+})
+
 // Schema for admin editing Ibogaine Consent (only admin fields)
 // facilitator_doctor_name can be overridden per form if needed
 const adminIbogaineConsentSchema = z.object({
@@ -205,6 +246,72 @@ export const updateServiceAgreementAdminFields = authActionClient
         provider_signature_date: providerSignatureDate.toISOString().split('T')[0],
         number_of_days: numberOfDays,
         program_type: programType,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', parsedInput.formId)
+      .select()
+      .single()
+
+    if (error) {
+      return { success: false, error: error.message }
+    }
+
+    return { success: true, data }
+  })
+
+// Upgrade Service Agreement (days, amounts, percentage only – no signatures)
+export const upgradeServiceAgreement = authActionClient
+  .schema(upgradeServiceAgreementSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const supabase = await createClient()
+    const adminClient = createAdminClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile || !hasOwnerAccess(profile.role)) {
+      return { success: false, error: 'Unauthorized - Owner or Admin access required' }
+    }
+
+    const totalProgramFee = parseFloat(parsedInput.total_program_fee.replace(/[^0-9.]/g, ''))
+    const depositAmount = parseFloat(parsedInput.deposit_amount.replace(/[^0-9.]/g, ''))
+    const depositPercentage = parseFloat(parsedInput.deposit_percentage.replace(/[^0-9.]/g, ''))
+    const remainingBalance = parseFloat(parsedInput.remaining_balance.replace(/[^0-9.]/g, ''))
+    const numberOfDays = parseInt(parsedInput.number_of_days, 10)
+
+    if (isNaN(totalProgramFee) || totalProgramFee <= 0) {
+      return { success: false, error: 'Total program fee must be a valid number greater than 0' }
+    }
+    if (isNaN(depositAmount) || depositAmount <= 0) {
+      return { success: false, error: 'Deposit amount must be a valid number greater than 0' }
+    }
+    if (isNaN(depositPercentage) || depositPercentage < 0 || depositPercentage > 100) {
+      return { success: false, error: 'Deposit percentage must be between 0 and 100' }
+    }
+    if (isNaN(remainingBalance) || remainingBalance < 0) {
+      return { success: false, error: 'Remaining balance must be a valid number' }
+    }
+    if (isNaN(numberOfDays) || numberOfDays <= 0) {
+      return { success: false, error: 'Number of days must be a valid positive integer' }
+    }
+
+    const { data, error } = await adminClient
+      .from('service_agreements')
+      .update({
+        number_of_days: numberOfDays,
+        total_program_fee: totalProgramFee,
+        deposit_amount: depositAmount,
+        deposit_percentage: depositPercentage,
+        remaining_balance: remainingBalance,
+        payment_method: parsedInput.payment_method.trim(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', parsedInput.formId)

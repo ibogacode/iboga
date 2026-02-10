@@ -287,6 +287,35 @@ export const assignTreatmentDate = authActionClient
   })
 
 // ============================================================================
+// Get Program Days for Onboarding (from service agreement)
+// ============================================================================
+
+const getProgramDaysForOnboardingSchema = z.object({
+  onboarding_id: z.string().uuid(),
+})
+
+export const getProgramDaysForOnboarding = authActionClient
+  .schema(getProgramDaysForOnboardingSchema)
+  .action(async ({ parsedInput }) => {
+    const supabase = await createClient()
+    const { data: onboarding } = await supabase
+      .from('patient_onboarding')
+      .select('patient_id')
+      .eq('id', parsedInput.onboarding_id)
+      .single()
+    if (!onboarding?.patient_id) {
+      return { success: true, data: { number_of_days: 14 } }
+    }
+    const { data: agreement } = await supabase
+      .from('service_agreements')
+      .select('number_of_days')
+      .eq('patient_id', onboarding.patient_id)
+      .maybeSingle()
+    const number_of_days = agreement?.number_of_days ?? 14
+    return { success: true, data: { number_of_days } }
+  })
+
+// ============================================================================
 // Get Next Available Date
 // ============================================================================
 
