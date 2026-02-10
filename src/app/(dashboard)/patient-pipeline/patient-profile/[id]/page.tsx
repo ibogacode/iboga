@@ -865,6 +865,7 @@ export default function PatientProfilePage() {
 
   /** Only show a date when the form is completed (not for auto-created records). */
   function getFormSubmittedDate(formKey: 'intake' | 'medical' | 'service' | 'ibogaine'): string | null {
+    if (!profileData) return null
     switch (formKey) {
       case 'intake':
         if (profileData.formStatuses.intake !== 'completed') return null
@@ -889,6 +890,7 @@ export default function PatientProfilePage() {
 
   /** Only show a date when the onboarding form is completed (not for auto-created records). */
   function getOnboardingFormSubmittedDate(formKey: 'releaseForm' | 'outingForm' | 'regulationsForm'): string | null {
+    if (!profileData) return null
     const ob = profileData.onboarding?.onboarding
     const forms = profileData.onboarding?.forms
     if (!ob || !forms) return null
@@ -2007,7 +2009,7 @@ export default function PatientProfilePage() {
                               getStatusBadge(status)
                             )}
                           </div>
-                          <div className="text-sm text-[#2B2820] py-2 px-3">{getOnboardingFormSubmittedDate(form.key) ?? '—'}</div>
+                          <div className="text-sm text-[#2B2820] py-2 px-3">{getOnboardingFormSubmittedDate(form.key as 'releaseForm' | 'outingForm' | 'regulationsForm') ?? '—'}</div>
                           <div className="py-2 px-3 flex gap-2 flex-wrap">
                             {isAdmin && !form.completed && onboardingId && (
                               <>

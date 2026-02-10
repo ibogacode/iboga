@@ -51,19 +51,20 @@ function EmbedFormContent() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!type || !managementId || !dateParam || !DAILY_TYPES.includes(type as DailyType)) {
+    const mid = managementId
+    if (!type || !mid || !dateParam || !DAILY_TYPES.includes(type as DailyType)) {
       setError('Missing or invalid type, managementId, or date')
       setIsLoading(false)
       return
     }
     let cancelled = false
-    async function load() {
+    async function load(managementIdParam: string) {
       setIsLoading(true)
       setError(null)
       try {
         const [managementResult, formsResult] = await Promise.all([
-          getPatientManagement({ management_id: managementId }),
-          getDailyFormsByManagementId({ management_id: managementId }),
+          getPatientManagement({ management_id: managementIdParam }),
+          getDailyFormsByManagementId({ management_id: managementIdParam }),
         ])
         if (cancelled) return
         if (managementResult?.data?.success && managementResult.data.data) {
@@ -82,7 +83,7 @@ function EmbedFormContent() {
         if (!cancelled) setIsLoading(false)
       }
     }
-    load()
+    load(mid)
     return () => { cancelled = true }
   }, [type, managementId, dateParam])
 
@@ -122,7 +123,7 @@ function EmbedFormContent() {
       </p>
       {type === 'daily_psychological' && (
         <DailyPsychologicalUpdateFormWrapper
-          managementId={managementId}
+          managementId={managementId!}
           patientFirstName={management.first_name}
           patientLastName={management.last_name}
           formDate={dateParam}
@@ -136,7 +137,7 @@ function EmbedFormContent() {
       )}
       {type === 'daily_medical' && (
         <DailyMedicalUpdateFormWrapper
-          managementId={managementId}
+          managementId={managementId!}
           patientFirstName={management.first_name}
           patientLastName={management.last_name}
           formDate={dateParam}
@@ -150,7 +151,7 @@ function EmbedFormContent() {
       )}
       {type === 'daily_sows' && (
         <DailySOWSForm
-          managementId={managementId}
+          managementId={managementId!}
           patientFirstName={management.first_name}
           patientLastName={management.last_name}
           patientDateOfBirth={management.date_of_birth}
@@ -164,7 +165,7 @@ function EmbedFormContent() {
       )}
       {type === 'daily_oows' && (
         <DailyOOWSForm
-          managementId={managementId}
+          managementId={managementId!}
           patientFirstName={management.first_name}
           patientLastName={management.last_name}
           patientDateOfBirth={management.date_of_birth}
