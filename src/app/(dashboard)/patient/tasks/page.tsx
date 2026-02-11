@@ -95,7 +95,7 @@ export default function PatientTasksPage() {
   const filteredTasks = tasks.filter(task => {
     if (selectedFilter === 'all') return true
     if (selectedFilter === 'not_started') return task.status === 'not_started'
-    if (selectedFilter === 'completed') return task.status === 'completed'
+    if (selectedFilter === 'completed') return task.status === 'completed' || task.status === 'skipped'
     return true
   })
 
@@ -184,6 +184,13 @@ export default function PatientTasksPage() {
       return (
         <span className="px-2.5 py-1 rounded-[10px] text-xs bg-[#E8F5E9] text-[#2E7D32]">
           Completed
+        </span>
+      )
+    }
+    if (task.status === 'skipped') {
+      return (
+        <span className="px-2.5 py-1 rounded-[10px] text-xs bg-amber-100 text-amber-800">
+          Skipped
         </span>
       )
     }
@@ -431,6 +438,9 @@ export default function PatientTasksPage() {
                         <div className="flex-1 min-w-0">
                           <h3 className="text-sm font-medium text-black mb-1">{task.title}</h3>
                           <p className="text-xs text-[#777777]">{task.description}</p>
+                          {task.status === 'skipped' && (task.type === 'onboarding_ekg_upload' || task.type === 'onboarding_bloodwork_upload') && (
+                            <p className="text-xs text-amber-700 mt-1">Tests will be done at the institute after arrival (free of cost).</p>
+                          )}
                         </div>
                       </div>
 
@@ -473,6 +483,14 @@ export default function PatientTasksPage() {
                             ) : (
                               'View'
                             )}
+                          </Button>
+                        ) : task.status === 'skipped' ? (
+                          <Button
+                            variant="outline"
+                            className="w-full md:w-auto h-10 px-4 rounded-3xl text-sm bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100"
+                            onClick={() => handleTaskAction(task)}
+                          >
+                            Documents
                           </Button>
                         ) : task.status === 'locked' ? (
                           <Button

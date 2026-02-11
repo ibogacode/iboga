@@ -44,7 +44,12 @@ export default async function PatientDocumentsPage() {
         return dateB - dateA
       })
 
-      const onboardingStatus = tasksResult.data.data.onboardingStatus as { isInOnboarding?: boolean; onboardingId?: string } | undefined
+      const onboardingStatus = tasksResult.data.data.onboardingStatus as {
+        isInOnboarding?: boolean
+        onboardingId?: string
+        ekgSkipped?: boolean
+        bloodworkSkipped?: boolean
+      } | undefined
       if (onboardingStatus?.isInOnboarding && onboardingStatus?.onboardingId) {
         const ekgTask = tasks.find((t: any) => t.type === 'onboarding_ekg_upload')
         const bloodworkTask = tasks.find((t: any) => t.type === 'onboarding_bloodwork_upload')
@@ -52,6 +57,8 @@ export default async function PatientDocumentsPage() {
           onboardingId: onboardingStatus.onboardingId,
           hasEkg: ekgTask?.status === 'completed',
           hasBloodwork: bloodworkTask?.status === 'completed',
+          ekgSkipped: onboardingStatus.ekgSkipped ?? false,
+          bloodworkSkipped: onboardingStatus.bloodworkSkipped ?? false,
         }
       }
     }
