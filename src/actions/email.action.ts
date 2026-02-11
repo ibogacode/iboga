@@ -1442,9 +1442,7 @@ export async function sendRequestLabsEmail(
         <div class="content">
           <h2>Lab Work Request</h2>
           <p>Hello ${displayName},</p>
-          <p>Our team is requesting that you complete the required lab work. Please schedule and complete your labs at your earliest convenience.</p>
-          <p>If you have any questions, please contact us:</p>
-          <p><strong>Phone:</strong> +1 (800) 604-7294<br><strong>Email:</strong> contactus@theibogainstitute.org</p>
+          <p>Our team is requesting that you complete the required lab work. Please log in to the client portal and complete this task at your earliest convenience.</p>
           <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
         </div>
         <div class="footer">

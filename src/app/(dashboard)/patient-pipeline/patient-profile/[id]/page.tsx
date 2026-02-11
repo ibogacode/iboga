@@ -7,8 +7,9 @@ import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { sendFormEmail } from '@/actions/send-form-email.action'
 import { sendRequestLabsEmail } from '@/actions/email.action'
 import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding, uploadOnboardingFormDocument, moveToPatientManagement } from '@/actions/onboarding-forms.action'
+import { getOnboardingMedicalDocumentViewUrl, adminSkipOnboardingMedicalDocument } from '@/actions/onboarding-documents.action'
 import { markAsProspect, removeProspectStatus } from '@/actions/prospect-status.action'
-import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload, ClipboardList, Stethoscope, LayoutGrid, ChevronDown, FlaskConical, PauseCircle, UserCheck } from 'lucide-react'
+import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload, ClipboardList, Stethoscope, LayoutGrid, ChevronDown, FlaskConical, PauseCircle, UserCheck, Heart, TestTube2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -85,6 +86,10 @@ interface PatientProfileData {
       outingForm: any
       regulationsForm: any
     }
+    medicalDocuments?: {
+      ekg: { id: string; document_path: string; document_name?: string | null; uploaded_at: string } | null
+      bloodwork: { id: string; document_path: string; document_name?: string | null; uploaded_at: string } | null
+    }
   } | null
 }
 
@@ -160,6 +165,8 @@ export default function PatientProfilePage() {
   const [loadingOnboarding, setLoadingOnboarding] = useState(false)
   const [uploadingDocument, setUploadingDocument] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   const [uploadingOnboardingForm, setUploadingOnboardingForm] = useState<{ onboardingId: string; formType: string } | null>(null)
+  const [loadingMedicalDocView, setLoadingMedicalDocView] = useState<'ekg' | 'bloodwork' | null>(null)
+  const [adminSkippingMedical, setAdminSkippingMedical] = useState<'ekg' | 'bloodwork' | null>(null)
   const onboardingFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const onboardingFormContentRef = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'billing' | 'travel' | 'notes'>('overview')
@@ -2206,6 +2213,164 @@ export default function PatientProfilePage() {
                       )
                     })}
 
+                    {/* EKG row */}
+                    {profileData?.onboarding?.onboarding?.id && (
+                      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0 last:border-b-0">
+                        <div className="text-sm text-[#2B2820] py-2 flex items-center gap-2">
+                          <Heart className="h-4 w-4 text-[#6E7A46]" />
+                          EKG
+                        </div>
+                        <div className="py-2 px-3">
+                          {profileData.onboarding.medicalDocuments?.ekg ? (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Uploaded</span>
+                          ) : profileData.onboarding.onboarding.ekg_skipped ? (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-amber-100 text-amber-800">Skipped</span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-gray-100 text-gray-500">Pending</span>
+                          )}
+                        </div>
+                        <div className="text-sm text-[#2B2820] py-2 px-3">
+                          {profileData.onboarding.medicalDocuments?.ekg?.uploaded_at
+                            ? format(new Date(profileData.onboarding.medicalDocuments.ekg.uploaded_at), 'MMM d, yyyy')
+                            : profileData.onboarding.onboarding.ekg_skipped_at
+                              ? format(new Date(profileData.onboarding.onboarding.ekg_skipped_at), 'MMM d, yyyy')
+                              : '—'}
+                        </div>
+                        <div className="py-2 px-3 flex gap-2 flex-wrap">
+                          {profileData.onboarding.medicalDocuments?.ekg && (
+                            <Button
+                              size="sm"
+                              className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm"
+                              disabled={loadingMedicalDocView === 'ekg'}
+                              onClick={async () => {
+                                setLoadingMedicalDocView('ekg')
+                                try {
+                                  const res = await getOnboardingMedicalDocumentViewUrl({
+                                    onboarding_id: profileData.onboarding!.onboarding.id,
+                                    document_type: 'ekg',
+                                  })
+                                  if (res?.data?.success && res.data.data?.url) {
+                                    window.open(res.data.data.url, '_blank')
+                                  } else {
+                                    toast.error(res?.data?.error || 'Failed to load document')
+                                  }
+                                } finally {
+                                  setLoadingMedicalDocView(null)
+                                }
+                              }}
+                            >
+                              {loadingMedicalDocView === 'ekg' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'View'}
+                            </Button>
+                          )}
+                          {isAdmin && !profileData.onboarding.medicalDocuments?.ekg && !profileData.onboarding.onboarding.ekg_skipped && (
+                            <Button
+                              size="sm"
+                              className="h-[22px] px-4 rounded-full text-xs bg-amber-100 text-amber-800 hover:bg-amber-200 border-0"
+                              disabled={!!adminSkippingMedical}
+                              onClick={async () => {
+                                setAdminSkippingMedical('ekg')
+                                try {
+                                  const res = await adminSkipOnboardingMedicalDocument({
+                                    onboarding_id: profileData.onboarding!.onboarding.id,
+                                    document_type: 'ekg',
+                                  })
+                                  if (res?.data?.success) {
+                                    toast.success('EKG marked as skipped')
+                                    loadPatientProfile()
+                                  } else {
+                                    toast.error(res?.data?.error || 'Failed to mark as skipped')
+                                  }
+                                } finally {
+                                  setAdminSkippingMedical(null)
+                                }
+                              }}
+                            >
+                              {adminSkippingMedical === 'ekg' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Mark as Skipped'}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Bloodwork row */}
+                    {profileData?.onboarding?.onboarding?.id && (
+                      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0 last:border-b-0">
+                        <div className="text-sm text-[#2B2820] py-2 flex items-center gap-2">
+                          <TestTube2 className="h-4 w-4 text-[#6E7A46]" />
+                          Bloodwork
+                        </div>
+                        <div className="py-2 px-3">
+                          {profileData.onboarding.medicalDocuments?.bloodwork ? (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Uploaded</span>
+                          ) : profileData.onboarding.onboarding.bloodwork_skipped ? (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-amber-100 text-amber-800">Skipped</span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-gray-100 text-gray-500">Pending</span>
+                          )}
+                        </div>
+                        <div className="text-sm text-[#2B2820] py-2 px-3">
+                          {profileData.onboarding.medicalDocuments?.bloodwork?.uploaded_at
+                            ? format(new Date(profileData.onboarding.medicalDocuments.bloodwork.uploaded_at), 'MMM d, yyyy')
+                            : profileData.onboarding.onboarding.bloodwork_skipped_at
+                              ? format(new Date(profileData.onboarding.onboarding.bloodwork_skipped_at), 'MMM d, yyyy')
+                              : '—'}
+                        </div>
+                        <div className="py-2 px-3 flex gap-2 flex-wrap">
+                          {profileData.onboarding.medicalDocuments?.bloodwork && (
+                            <Button
+                              size="sm"
+                              className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm"
+                              disabled={loadingMedicalDocView === 'bloodwork'}
+                              onClick={async () => {
+                                setLoadingMedicalDocView('bloodwork')
+                                try {
+                                  const res = await getOnboardingMedicalDocumentViewUrl({
+                                    onboarding_id: profileData.onboarding!.onboarding.id,
+                                    document_type: 'bloodwork',
+                                  })
+                                  if (res?.data?.success && res.data.data?.url) {
+                                    window.open(res.data.data.url, '_blank')
+                                  } else {
+                                    toast.error(res?.data?.error || 'Failed to load document')
+                                  }
+                                } finally {
+                                  setLoadingMedicalDocView(null)
+                                }
+                              }}
+                            >
+                              {loadingMedicalDocView === 'bloodwork' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'View'}
+                            </Button>
+                          )}
+                          {isAdmin && !profileData.onboarding.medicalDocuments?.bloodwork && !profileData.onboarding.onboarding.bloodwork_skipped && (
+                            <Button
+                              size="sm"
+                              className="h-[22px] px-4 rounded-full text-xs bg-amber-100 text-amber-800 hover:bg-amber-200 border-0"
+                              disabled={!!adminSkippingMedical}
+                              onClick={async () => {
+                                setAdminSkippingMedical('bloodwork')
+                                try {
+                                  const res = await adminSkipOnboardingMedicalDocument({
+                                    onboarding_id: profileData.onboarding!.onboarding.id,
+                                    document_type: 'bloodwork',
+                                  })
+                                  if (res?.data?.success) {
+                                    toast.success('Bloodwork marked as skipped')
+                                    loadPatientProfile()
+                                  } else {
+                                    toast.error(res?.data?.error || 'Failed to mark as skipped')
+                                  }
+                                } finally {
+                                  setAdminSkippingMedical(null)
+                                }
+                              }}
+                            >
+                              {adminSkippingMedical === 'bloodwork' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Mark as Skipped'}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Tapering Schedule row - visible to all staff, Create/Edit for admin/manager only */}
                     {isStaff && (
                       <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0 last:border-b-0">
@@ -2673,8 +2838,27 @@ export default function PatientProfilePage() {
               })()}
 
               {/* Payment history */}
+              {(() => {
+                const totalAmount = Number(profileData.serviceAgreement?.total_program_fee ?? 0)
+                const totalReceived = billingPayments.reduce((sum, p) => sum + Number(p.amount_received), 0)
+                const balanceAmount = Math.max(0, totalAmount - totalReceived)
+                return (
               <div className="rounded-[14px] bg-[#F5F4F0] border border-[#D6D2C8] p-6">
                 <h3 className="text-lg font-medium text-black mb-4">Payment history</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 p-4 rounded-lg bg-white border border-[#D6D2C8]">
+                  <div>
+                    <span className="text-sm text-[#777777]">Total amount recovered</span>
+                    <p className="text-lg font-semibold text-[#2B2820]">
+                      ${totalReceived.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-[#777777]">Balance amount</span>
+                    <p className="text-lg font-semibold text-[#2B2820]">
+                      ${balanceAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
                 {loadingBillingPayments ? (
                   <div className="flex items-center gap-2 text-[#777777]">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -2758,6 +2942,8 @@ export default function PatientProfilePage() {
                   </ul>
                 )}
               </div>
+                )
+              })()}
 
               {/* Update payment dialog (admin/owner) */}
               <Dialog open={!!billingEditRecord} onOpenChange={(open) => !open && setBillingEditRecord(null)}>

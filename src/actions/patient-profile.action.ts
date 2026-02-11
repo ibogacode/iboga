@@ -344,8 +344,8 @@ export const getPatientProfile = authActionClient
         .maybeSingle()
 
       if (onboarding) {
-        // Get onboarding forms (tables: onboarding_release_forms, etc.)
-        const [releaseForm, outingForm, regulationsForm] = await Promise.all([
+        // Get onboarding forms and EKG/Bloodwork documents
+        const [releaseForm, outingForm, regulationsForm, medicalDocsResult] = await Promise.all([
           adminClient
             .from('onboarding_release_forms')
             .select('*')
@@ -364,7 +364,14 @@ export const getPatientProfile = authActionClient
             .eq('onboarding_id', onboarding.id)
             .maybeSingle()
             .then(r => r.data),
+          adminClient
+            .from('onboarding_medical_documents')
+            .select('id, document_type, document_path, document_name, uploaded_at')
+            .eq('onboarding_id', onboarding.id),
         ])
+        const medicalDocs = medicalDocsResult.data || []
+        const ekgDoc = medicalDocs.find((d: { document_type: string }) => d.document_type === 'ekg') ?? null
+        const bloodworkDoc = medicalDocs.find((d: { document_type: string }) => d.document_type === 'bloodwork') ?? null
 
         onboardingData = {
           onboarding,
@@ -372,7 +379,8 @@ export const getPatientProfile = authActionClient
             releaseForm,
             outingForm,
             regulationsForm,
-          }
+          },
+          medicalDocuments: { ekg: ekgDoc, bloodwork: bloodworkDoc },
         }
       }
     } else if (patientEmail) {
@@ -385,8 +393,8 @@ export const getPatientProfile = authActionClient
         .maybeSingle()
 
       if (onboarding) {
-        // Get onboarding forms (tables: onboarding_release_forms, etc.)
-        const [releaseForm, outingForm, regulationsForm] = await Promise.all([
+        // Get onboarding forms and EKG/Bloodwork documents
+        const [releaseForm, outingForm, regulationsForm, medicalDocsResult] = await Promise.all([
           adminClient
             .from('onboarding_release_forms')
             .select('*')
@@ -405,7 +413,14 @@ export const getPatientProfile = authActionClient
             .eq('onboarding_id', onboarding.id)
             .maybeSingle()
             .then(r => r.data),
+          adminClient
+            .from('onboarding_medical_documents')
+            .select('id, document_type, document_path, document_name, uploaded_at')
+            .eq('onboarding_id', onboarding.id),
         ])
+        const medicalDocs = medicalDocsResult.data || []
+        const ekgDoc = medicalDocs.find((d: { document_type: string }) => d.document_type === 'ekg') ?? null
+        const bloodworkDoc = medicalDocs.find((d: { document_type: string }) => d.document_type === 'bloodwork') ?? null
 
         onboardingData = {
           onboarding,
@@ -413,7 +428,8 @@ export const getPatientProfile = authActionClient
             releaseForm,
             outingForm,
             regulationsForm,
-          }
+          },
+          medicalDocuments: { ekg: ekgDoc, bloodwork: bloodworkDoc },
         }
       }
     }

@@ -19,7 +19,13 @@ export default async function PatientDocumentsPage() {
   // Fetch completed forms, tapering schedule, and onboarding upload status in parallel
   let completedDocuments: any[] = []
   let taperingScheduleData: any = null
-  let onboardingUploadContext: { onboardingId: string; hasEkg: boolean; hasBloodwork: boolean } | null = null
+  let onboardingUploadContext: {
+    onboardingId: string
+    hasEkg: boolean
+    hasBloodwork: boolean
+    ekgSkipped: boolean
+    bloodworkSkipped: boolean
+  } | null = null
 
   try {
     const [tasksResult, taperingResult] = await Promise.all([
@@ -44,7 +50,12 @@ export default async function PatientDocumentsPage() {
         return dateB - dateA
       })
 
-      const onboardingStatus = tasksResult.data.data.onboardingStatus as { isInOnboarding?: boolean; onboardingId?: string } | undefined
+      const onboardingStatus = tasksResult.data.data.onboardingStatus as {
+        isInOnboarding?: boolean
+        onboardingId?: string
+        ekgSkipped?: boolean
+        bloodworkSkipped?: boolean
+      } | undefined
       if (onboardingStatus?.isInOnboarding && onboardingStatus?.onboardingId) {
         const ekgTask = tasks.find((t: any) => t.type === 'onboarding_ekg_upload')
         const bloodworkTask = tasks.find((t: any) => t.type === 'onboarding_bloodwork_upload')
@@ -52,6 +63,8 @@ export default async function PatientDocumentsPage() {
           onboardingId: onboardingStatus.onboardingId,
           hasEkg: ekgTask?.status === 'completed',
           hasBloodwork: bloodworkTask?.status === 'completed',
+          ekgSkipped: onboardingStatus.ekgSkipped ?? false,
+          bloodworkSkipped: onboardingStatus.bloodworkSkipped ?? false,
         }
       }
     }

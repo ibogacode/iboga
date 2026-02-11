@@ -673,17 +673,28 @@ export async function sendTaperingScheduleAdminNotification(
 }
 
 // =============================================================================
-// SEND OMAR NOTIFICATION: CLIENT READY FOR TAPERING (EKG + BLOODWORK UPLOADED)
+// SEND OMAR NOTIFICATION: CLIENT READY FOR TAPERING (EKG + BLOODWORK UPLOADED OR SKIPPED)
 // =============================================================================
 export async function sendClientReadyForTaperingNotification(
   patientFirstName: string,
   patientLastName: string,
   patientEmail: string,
-  onboardingId: string
+  onboardingId: string,
+  options?: { ekgSkipped?: boolean; bloodworkSkipped?: boolean }
 ) {
   const adminEmail = 'omar@theibogainstitute.org'
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://portal.theibogainstitute.org'
   const profileUrl = `${baseUrl}/patient-pipeline/patient-profile/${onboardingId}`
+
+  const ekgSkipped = options?.ekgSkipped ?? false
+  const bloodworkSkipped = options?.bloodworkSkipped ?? false
+  const anySkipped = ekgSkipped || bloodworkSkipped
+
+  const skippedNote =
+    anySkipped &&
+    `<div style="background: #fef3c7; border-left: 4px solid #d97706; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; font-size: 14px; color: #92400e;"><strong>Note:</strong> Client has skipped ${ekgSkipped && bloodworkSkipped ? 'EKG and Bloodwork' : ekgSkipped ? 'EKG' : 'Bloodwork'}. Tests will be done at the institute after arrival.</p>
+    </div>`
 
   const emailHtml = `
     <!DOCTYPE html>
@@ -707,7 +718,8 @@ export async function sendClientReadyForTaperingNotification(
         <div class="content">
           <h2>Client Ready for Tapering Schedule</h2>
           <p>Hello,</p>
-          <p><strong>${patientFirstName} ${patientLastName}</strong> has completed the required onboarding steps: all 3 forms are done and both <strong>EKG</strong> and <strong>Bloodwork</strong> results have been uploaded.</p>
+          <p><strong>${patientFirstName} ${patientLastName}</strong> has completed the required onboarding steps: all 3 forms are done and both <strong>EKG</strong> and <strong>Bloodwork</strong> are complete (uploaded or skipped).</p>
+          ${skippedNote || ''}
           <div class="info-box">
             <p><strong>Patient:</strong> ${patientFirstName} ${patientLastName}</p>
             <p><strong>Email:</strong> ${patientEmail}</p>

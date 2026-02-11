@@ -11,7 +11,7 @@ export interface PatientTask {
   type: 'intake' | 'medical_history' | 'service_agreement' | 'ibogaine_consent' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | 'onboarding_ekg_upload' | 'onboarding_bloodwork_upload'
   title: string
   description: string
-  status: 'not_started' | 'in_progress' | 'completed' | 'locked'
+  status: 'not_started' | 'in_progress' | 'completed' | 'locked' | 'skipped'
   estimatedTime: string
   isRequired: boolean
   isOptional: boolean
@@ -30,6 +30,8 @@ export interface OnboardingStatus {
   onboardingId?: string
   formsCompleted?: number
   formsTotal?: number
+  ekgSkipped?: boolean
+  bloodworkSkipped?: boolean
 }
 
 /**
@@ -62,7 +64,7 @@ export const getPatientTasks = authActionClient
       // Check onboarding status (full query - no need to query again later)
       supabase
         .from('patient_onboarding')
-        .select('id, status, release_form_completed, outing_consent_completed, internal_regulations_completed')
+        .select('id, status, release_form_completed, outing_consent_completed, internal_regulations_completed, ekg_skipped, ekg_skipped_at, bloodwork_skipped, bloodwork_skipped_at')
         .eq('patient_id', patientId)
         .maybeSingle(),
       // Try to find intake form by patient_id match in profiles
@@ -559,6 +561,8 @@ export const getPatientTasks = authActionClient
           onboardingFull.internal_regulations_completed,
         ].filter(Boolean).length,
         formsTotal: 3,
+        ekgSkipped: !!onboardingFull.ekg_skipped,
+        bloodworkSkipped: !!onboardingFull.bloodwork_skipped,
       }
 
       // Fetch all 3 onboarding forms and EKG/Bloodwork doc status in parallel
@@ -627,17 +631,22 @@ export const getPatientTasks = authActionClient
         link: regulationsForm?.data?.is_activated ? `/onboarding-forms/${onboardingFull.id}/internal-regulations` : '#',
       })
 
-      // Add EKG and Bloodwork upload tasks (required for tapering schedule)
+      // Add EKG and Bloodwork upload tasks (required for tapering schedule; can be uploaded or skipped)
+      const ekgSkipped = !!onboardingFull.ekg_skipped
+      const bloodworkSkipped = !!onboardingFull.bloodwork_skipped
+      const ekgStatus: PatientTask['status'] = hasEkg ? 'completed' : ekgSkipped ? 'skipped' : 'not_started'
+      const bloodworkStatus: PatientTask['status'] = hasBloodwork ? 'completed' : bloodworkSkipped ? 'skipped' : 'not_started'
+
       tasks.push({
         id: `onboarding-ekg-${onboardingFull.id}`,
         type: 'onboarding_ekg_upload',
         title: 'Upload EKG Results',
         description: 'Upload your EKG results. Required before we can prepare your tapering schedule.',
-        status: hasEkg ? 'completed' : 'not_started',
+        status: ekgStatus,
         estimatedTime: '~2 min',
         isRequired: true,
         isOptional: false,
-        completedAt: ekgUploadedAt || undefined,
+        completedAt: ekgUploadedAt || (ekgSkipped ? onboardingFull.ekg_skipped_at : undefined),
         formId: onboardingFull.id,
         link: '/patient/documents',
       })
@@ -646,18 +655,18 @@ export const getPatientTasks = authActionClient
         type: 'onboarding_bloodwork_upload',
         title: 'Upload Bloodwork Results',
         description: 'Upload your bloodwork results. Required before we can prepare your tapering schedule.',
-        status: hasBloodwork ? 'completed' : 'not_started',
+        status: bloodworkStatus,
         estimatedTime: '~2 min',
         isRequired: true,
         isOptional: false,
-        completedAt: bloodworkUploadedAt || undefined,
+        completedAt: bloodworkUploadedAt || (bloodworkSkipped ? onboardingFull.bloodwork_skipped_at : undefined),
         formId: onboardingFull.id,
         link: '/patient/documents',
       })
     }
 
-    // Calculate task statistics (include onboarding forms)
-    const completedTasks = tasks.filter(t => t.status === 'completed').length
+    // Calculate task statistics (include onboarding forms; skipped counts as done for progress)
+    const completedTasks = tasks.filter(t => t.status === 'completed' || t.status === 'skipped').length
     const totalRequiredTasks = tasks.filter(t => t.isRequired).length
     const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length
 
@@ -669,7 +678,7 @@ export const getPatientTasks = authActionClient
           completed: completedTasks,
           total: totalRequiredTasks,
           inProgress: inProgressTasks,
-          required: tasks.filter(t => t.isRequired && t.status !== 'completed').length,
+          required: tasks.filter(t => t.isRequired && t.status !== 'completed' && t.status !== 'skipped').length,
           optional: tasks.filter(t => t.isOptional).length,
         },
         onboardingStatus,

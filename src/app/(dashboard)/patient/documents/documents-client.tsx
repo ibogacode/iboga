@@ -9,11 +9,21 @@ import { getIntakeFormById } from '@/actions/patient-profile.action'
 import { getMedicalHistoryFormForPatient } from '@/actions/medical-history.action'
 import { getServiceAgreementForPatient } from '@/actions/service-agreement.action'
 import { acknowledgeTaperingSchedule } from '@/actions/tapering-schedule.action'
-import { recordOnboardingMedicalDocument } from '@/actions/onboarding-documents.action'
+import { recordOnboardingMedicalDocument, skipOnboardingMedicalDocument } from '@/actions/onboarding-documents.action'
 import { uploadDocumentClient } from '@/lib/supabase/client-storage'
 import { PatientIntakeFormView } from '@/components/admin/patient-intake-form-view'
 import { MedicalHistoryFormView } from '@/components/admin/medical-history-form-view'
 import { ServiceAgreementFormView } from '@/components/admin/service-agreement-form-view'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'sonner'
 
 interface TaperingScheduleData {
@@ -30,6 +40,8 @@ interface OnboardingUploadContext {
   onboardingId: string
   hasEkg: boolean
   hasBloodwork: boolean
+  ekgSkipped: boolean
+  bloodworkSkipped: boolean
 }
 
 interface DocumentsClientProps {
@@ -87,6 +99,9 @@ export function DocumentsClient({ documents, taperingSchedule, onboardingUpload 
   const [loadingViewForm, setLoadingViewForm] = useState<string | null>(null)
   const [isAcknowledging, setIsAcknowledging] = useState(false)
   const [uploadingType, setUploadingType] = useState<'ekg' | 'bloodwork' | null>(null)
+  const [skipDialog, setSkipDialog] = useState<'ekg' | 'bloodwork' | null>(null)
+  const [skipTermsAccepted, setSkipTermsAccepted] = useState(false)
+  const [skippingType, setSkippingType] = useState<'ekg' | 'bloodwork' | null>(null)
 
   const handleOnboardingUpload = async (type: 'ekg' | 'bloodwork', file: File) => {
     if (!onboardingUpload) return
@@ -110,6 +125,29 @@ export function DocumentsClient({ documents, taperingSchedule, onboardingUpload 
       toast.error(err instanceof Error ? err.message : 'Upload failed')
     } finally {
       setUploadingType(null)
+    }
+  }
+
+  const handleSkipConfirm = async () => {
+    if (!onboardingUpload || !skipDialog || !skipTermsAccepted) return
+    setSkippingType(skipDialog)
+    try {
+      const result = await skipOnboardingMedicalDocument({
+        onboarding_id: onboardingUpload.onboardingId,
+        document_type: skipDialog,
+      })
+      if (result?.data?.success) {
+        toast.success(skipDialog === 'ekg' ? 'EKG skipped' : 'Bloodwork skipped. Tests can be done at the institute.')
+        setSkipDialog(null)
+        setSkipTermsAccepted(false)
+        router.refresh()
+      } else {
+        toast.error(result?.data?.error || 'Failed to skip')
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to skip')
+    } finally {
+      setSkippingType(null)
     }
   }
 
@@ -194,6 +232,11 @@ export function DocumentsClient({ documents, taperingSchedule, onboardingUpload 
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
                   <span className="text-sm font-medium">Uploaded</span>
                 </div>
+              ) : onboardingUpload.ekgSkipped ? (
+                <div className="flex items-center gap-2 text-amber-600 mt-auto">
+                  <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Skipped</span>
+                  <span className="text-sm text-[#777777]">Will be done at institute</span>
+                </div>
               ) : (
                 <div className="mt-auto space-y-2">
                   <input
@@ -213,6 +256,15 @@ export function DocumentsClient({ documents, taperingSchedule, onboardingUpload 
                       Uploading...
                     </div>
                   )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2 text-sm border-amber-200 text-amber-700 hover:bg-amber-50"
+                    onClick={() => { setSkipDialog('ekg'); setSkipTermsAccepted(false) }}
+                  >
+                    Skip for now — get it done at institute
+                  </Button>
                 </div>
               )}
             </div>
@@ -229,6 +281,11 @@ export function DocumentsClient({ documents, taperingSchedule, onboardingUpload 
                 <div className="flex items-center gap-2 text-[#10B981] mt-auto">
                   <CheckCircle2 className="w-5 h-5 shrink-0" />
                   <span className="text-sm font-medium">Uploaded</span>
+                </div>
+              ) : onboardingUpload.bloodworkSkipped ? (
+                <div className="flex items-center gap-2 text-amber-600 mt-auto">
+                  <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Skipped</span>
+                  <span className="text-sm text-[#777777]">Will be done at institute</span>
                 </div>
               ) : (
                 <div className="mt-auto space-y-2">
@@ -249,12 +306,60 @@ export function DocumentsClient({ documents, taperingSchedule, onboardingUpload 
                       Uploading...
                     </div>
                   )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-2 text-sm border-amber-200 text-amber-700 hover:bg-amber-50"
+                    onClick={() => { setSkipDialog('bloodwork'); setSkipTermsAccepted(false) }}
+                  >
+                    Skip for now — get it done at institute
+                  </Button>
                 </div>
               )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Skip EKG/Bloodwork confirmation dialog */}
+      <Dialog open={!!skipDialog} onOpenChange={(open) => { if (!open) { setSkipDialog(null); setSkipTermsAccepted(false) } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Skip {skipDialog === 'ekg' ? 'EKG' : 'Bloodwork'} for now?</DialogTitle>
+            <DialogDescription>
+              You can have {skipDialog === 'ekg' ? 'your EKG' : 'bloodwork'} done at the institute after arrival at no extra cost. Please read the following:
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="list-disc list-inside text-sm text-gray-600 space-y-1 my-4">
+            <li>Tests are free of cost at the institute after arrival.</li>
+            <li>If results show you are not ready for treatment, you may need to wait an extra 2–3 days at the institute.</li>
+            <li>Extra days will be charged accordingly.</li>
+          </ul>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="skip-terms"
+              checked={skipTermsAccepted}
+              onCheckedChange={(checked) => setSkipTermsAccepted(checked === true)}
+            />
+            <Label htmlFor="skip-terms" className="text-sm font-medium cursor-pointer">
+              I understand and accept these terms
+            </Label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setSkipDialog(null); setSkipTermsAccepted(false) }} disabled={!!skippingType}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSkipConfirm}
+              disabled={!skipTermsAccepted || !!skippingType}
+              className="bg-[#6E7A46] hover:bg-[#5c6840]"
+            >
+              {skippingType ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Yes, skip for now'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Tapering Schedule Card - shown prominently if available */}
       {taperingSchedule && (
