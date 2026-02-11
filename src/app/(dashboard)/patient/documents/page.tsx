@@ -19,7 +19,13 @@ export default async function PatientDocumentsPage() {
   // Fetch completed forms, tapering schedule, and onboarding upload status in parallel
   let completedDocuments: any[] = []
   let taperingScheduleData: any = null
-  let onboardingUploadContext: { onboardingId: string; hasEkg: boolean; hasBloodwork: boolean } | null = null
+  let onboardingUploadContext: {
+    onboardingId: string
+    hasEkg: boolean
+    hasBloodwork: boolean
+    ekgSkipped: boolean
+    bloodworkSkipped: boolean
+  } | null = null
 
   try {
     const [tasksResult, taperingResult] = await Promise.all([
