@@ -5,8 +5,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById, activateServiceAgreement, activateIbogaineConsent, createServiceAgreementForPatient } from '@/actions/patient-profile.action'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { sendFormEmail } from '@/actions/send-form-email.action'
+import { sendRequestLabsEmail } from '@/actions/email.action'
 import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding, uploadOnboardingFormDocument, moveToPatientManagement } from '@/actions/onboarding-forms.action'
-import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload, ClipboardList, Stethoscope, LayoutGrid, ChevronDown, FlaskConical } from 'lucide-react'
+import { markAsProspect, removeProspectStatus } from '@/actions/prospect-status.action'
+import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload, ClipboardList, Stethoscope, LayoutGrid, ChevronDown, FlaskConical, PauseCircle, UserCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,6 +34,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { ProspectBadge } from '@/components/ui/prospect-badge'
 import { recordBillingPayment, getBillingPayments, turnOffBillingReminder, updateBillingPayment } from '@/actions/patient-billing.action'
 import { TreatmentDateCalendar } from '@/components/treatment-scheduling/treatment-date-calendar'
 import { getTaperingScheduleByOnboarding } from '@/actions/tapering-schedule.action'
@@ -139,6 +152,10 @@ export default function PatientProfilePage() {
   const [isSavingConfirmationFields, setIsSavingConfirmationFields] = useState(false)
   const [isMovingToOnboarding, setIsMovingToOnboarding] = useState(false)
   const [isMovingToManagement, setIsMovingToManagement] = useState(false)
+  const [isRequestingLabs, setIsRequestingLabs] = useState(false)
+  const [showProspectConfirm, setShowProspectConfirm] = useState(false)
+  const [showRemoveProspectConfirm, setShowRemoveProspectConfirm] = useState(false)
+  const [isTogglingProspect, setIsTogglingProspect] = useState(false)
   const [openTreatmentDateCalendar, setOpenTreatmentDateCalendar] = useState(false)
   const [loadingOnboarding, setLoadingOnboarding] = useState(false)
   const [uploadingDocument, setUploadingDocument] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
@@ -1042,9 +1059,103 @@ export default function PatientProfilePage() {
             <p className="text-sm text-gray-500 mt-1">
               {[patient?.email || 'No email', patient?.phone || 'No phone', `Source: ${sourceLabel}`].join(' · ')}
             </p>
+            {patient?.is_prospect && (
+              <div className="mt-2">
+                <ProspectBadge />
+              </div>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {patient?.id && isAdminOrOwner && (
+            <>
+              {patient?.is_prospect ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 bg-amber-50 hover:bg-amber-100 border-amber-200 text-amber-800"
+                  disabled={isTogglingProspect}
+                  onClick={() => setShowRemoveProspectConfirm(true)}
+                >
+                  {isTogglingProspect ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}
+                  Remove prospect status
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 bg-gray-100 hover:bg-gray-200 border-gray-200"
+                  disabled={isTogglingProspect}
+                  onClick={() => setShowProspectConfirm(true)}
+                >
+                  {isTogglingProspect ? <Loader2 className="h-4 w-4 animate-spin" /> : <PauseCircle className="h-4 w-4" />}
+                  Mark as Prospect
+                </Button>
+              )}
+              <AlertDialog open={showProspectConfirm} onOpenChange={setShowProspectConfirm}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Mark as Prospect?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will stop all reminder emails (login, form, onboarding, and billing) for this profile. You can remove prospect status later to resume reminders.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={async () => {
+                        if (!patient?.id) return
+                        setIsTogglingProspect(true)
+                        try {
+                          await markAsProspect(patient.id)
+                          toast.success('Profile marked as prospect. No reminder emails will be sent.')
+                          setShowProspectConfirm(false)
+                          await loadPatientProfile()
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : 'Failed to mark as prospect')
+                        } finally {
+                          setIsTogglingProspect(false)
+                        }
+                      }}
+                    >
+                      Mark as Prospect
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <AlertDialog open={showRemoveProspectConfirm} onOpenChange={setShowRemoveProspectConfirm}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remove prospect status?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Reminder emails (login, form, onboarding, billing) will be sent again according to existing rules.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={async () => {
+                        if (!patient?.id) return
+                        setIsTogglingProspect(true)
+                        try {
+                          await removeProspectStatus(patient.id)
+                          toast.success('Prospect status removed. Reminder emails will resume.')
+                          setShowRemoveProspectConfirm(false)
+                          await loadPatientProfile()
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : 'Failed to remove prospect status')
+                        } finally {
+                          setIsTogglingProspect(false)
+                        }
+                      }}
+                    >
+                      Remove prospect status
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -1153,9 +1264,48 @@ export default function PatientProfilePage() {
             variant="outline"
             size="sm"
             className="gap-2 bg-gray-100 hover:bg-gray-200 border-gray-200"
-            onClick={() => toast.info('Request Labs – coming soon')}
+            disabled={
+              isRequestingLabs ||
+              !(
+                profileData.patient?.email ||
+                profileData.intakeForm?.email ||
+                profileData.partialForm?.email
+              )
+            }
+            onClick={async () => {
+              const email =
+                profileData.patient?.email ||
+                profileData.intakeForm?.email ||
+                profileData.partialForm?.email
+              const firstName =
+                profileData.patient?.first_name ||
+                profileData.intakeForm?.first_name ||
+                profileData.partialForm?.first_name ||
+                ''
+              const lastName =
+                profileData.patient?.last_name ||
+                profileData.intakeForm?.last_name ||
+                profileData.partialForm?.last_name ||
+                ''
+              if (!email) {
+                toast.error('No email on file for this patient.')
+                return
+              }
+              setIsRequestingLabs(true)
+              const result = await sendRequestLabsEmail(email, firstName, lastName)
+              setIsRequestingLabs(false)
+              if (result.success) {
+                toast.success('Request Labs email sent to client.')
+              } else {
+                toast.error(result.error ?? 'Failed to send email.')
+              }
+            }}
           >
-            <FlaskConical className="h-4 w-4" />
+            {isRequestingLabs ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FlaskConical className="h-4 w-4" />
+            )}
             Request Labs
           </Button>
           {isAdminOrOwner && profileData.serviceAgreement?.id && (

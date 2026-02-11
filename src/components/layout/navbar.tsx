@@ -30,6 +30,7 @@ import { User } from '@/types'
 import { User as SupabaseUser } from '@supabase/supabase-js'
 import { UserRole } from '@/types'
 import { Sidebar } from './sidebar'
+import { ClientSearch } from './client-search'
 
 function getInitials(name?: string | null, firstName?: string | null, lastName?: string | null): string {
   if (name) {
@@ -170,14 +171,18 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
         <div className="flex items-center gap-2 md:gap-[21px] py-1 shrink-0">
           {/* Search and Bell in one container */}
           <div className="hidden sm:flex items-center gap-2 px-2 md:px-3 h-[44px] md:h-[51px] rounded-[36px] bg-white shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-auto w-auto p-1.5 md:p-2 hover:bg-transparent"
-            >
-              <Search className="h-4 w-4 md:h-5 md:w-5 text-black" />
-              <span className="sr-only">Search</span>
-            </Button>
+            {isStaff ? (
+              <ClientSearch />
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-auto w-auto p-1.5 md:p-2 hover:bg-transparent"
+              >
+                <Search className="h-4 w-4 md:h-5 md:w-5 text-black" />
+                <span className="sr-only">Search</span>
+              </Button>
+            )}
             <DropdownMenu open={isNotificationOpen} onOpenChange={setIsNotificationOpen}>
               <DropdownMenuTrigger asChild>
                 <Button

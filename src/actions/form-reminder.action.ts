@@ -25,7 +25,7 @@ export async function sendFormReminders() {
   // Check Service Agreements
   const { data: serviceAgreements, error: serviceError } = await supabase
     .from('service_agreements')
-    .select('id, patient_email, patient_first_name, patient_last_name, activated_at, patient_signature_data')
+    .select('id, patient_id, patient_email, patient_first_name, patient_last_name, activated_at, patient_signature_data')
     .eq('is_activated', true)
     .not('activated_at', 'is', null)
     .lt('activated_at', fortyEightHoursAgo.toISOString())
@@ -34,6 +34,13 @@ export async function sendFormReminders() {
     console.error('[sendFormReminders] Error fetching service agreements:', serviceError)
   } else if (serviceAgreements) {
     for (const agreement of serviceAgreements) {
+      // Skip prospects – no reminder emails
+      const profileQuery = agreement.patient_id
+        ? supabase.from('profiles').select('is_prospect').eq('id', agreement.patient_id).maybeSingle()
+        : supabase.from('profiles').select('is_prospect').eq('email', agreement.patient_email).maybeSingle()
+      const { data: profile } = await profileQuery
+      if (profile?.is_prospect) continue
+
       // Check if form is incomplete (no patient signature)
       if (!agreement.patient_signature_data) {
         total++
@@ -64,7 +71,7 @@ export async function sendFormReminders() {
   // Check Ibogaine Consent Forms
   const { data: consentForms, error: consentError } = await supabase
     .from('ibogaine_consent_forms')
-    .select('id, email, first_name, last_name, activated_at, signature_data')
+    .select('id, patient_id, email, first_name, last_name, activated_at, signature_data')
     .eq('is_activated', true)
     .not('activated_at', 'is', null)
     .lt('activated_at', fortyEightHoursAgo.toISOString())
@@ -73,6 +80,13 @@ export async function sendFormReminders() {
     console.error('[sendFormReminders] Error fetching ibogaine consent forms:', consentError)
   } else if (consentForms) {
     for (const form of consentForms) {
+      // Skip prospects – no reminder emails
+      const profileQuery = form.patient_id
+        ? supabase.from('profiles').select('is_prospect').eq('id', form.patient_id).maybeSingle()
+        : supabase.from('profiles').select('is_prospect').eq('email', form.email).maybeSingle()
+      const { data: profile } = await profileQuery
+      if (profile?.is_prospect) continue
+
       // Check if form is incomplete (no signature)
       if (!form.signature_data) {
         total++

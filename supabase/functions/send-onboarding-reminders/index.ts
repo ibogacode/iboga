@@ -58,11 +58,30 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Exclude prospects (no reminder emails)
+    const prospectIds = new Set<string>()
+    const prospectEmails = new Set<string>()
+    const patientIds = [...new Set(patients.map((p: { patient_id?: string | null }) => p.patient_id).filter(Boolean))] as string[]
+    const patientEmails = [...new Set(patients.map((p: { email?: string }) => (p.email || '').trim().toLowerCase()).filter(Boolean))]
+    if (patientIds.length > 0) {
+      const { data: prospectProfiles } = await supabase.from('profiles').select('id').eq('is_prospect', true).in('id', patientIds)
+      prospectProfiles?.forEach((r: { id: string }) => prospectIds.add(r.id))
+    }
+    if (patientEmails.length > 0) {
+      const { data: prospectByEmail } = await supabase.from('profiles').select('email').eq('is_prospect', true).in('email', patientEmails)
+      prospectByEmail?.forEach((r: { email: string }) => prospectEmails.add((r.email || '').trim().toLowerCase()))
+    }
+    const patientsFiltered = patients.filter((p: { patient_id?: string | null; email?: string }) => {
+      if (p.patient_id && prospectIds.has(p.patient_id)) return false
+      if (p.email && prospectEmails.has((p.email || '').trim().toLowerCase())) return false
+      return true
+    })
+
     // Filter patients who haven't been reminded in the last 24 hours
     const now = new Date()
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-    
-    const patientsToRemind = patients.filter((patient: OnboardingPatient) => {
+
+    const patientsToRemind = patientsFiltered.filter((patient: OnboardingPatient) => {
       if (!patient.last_reminder_sent_at) return true
       const lastReminder = new Date(patient.last_reminder_sent_at)
       return lastReminder < oneDayAgo

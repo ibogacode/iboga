@@ -1413,3 +1413,55 @@ export async function sendOnboardingFormsEmail(
   }
   return result
 }
+
+/** Send "Request Labs" email to client (patient). */
+export async function sendRequestLabsEmail(
+  patientEmail: string,
+  firstName: string,
+  lastName: string
+) {
+  const displayName = [firstName, lastName].filter(Boolean).join(' ') || 'there'
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.8; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; }
+        .header { background: #5D7A5F; color: white; padding: 40px 30px; text-align: center; }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 400; }
+        .content { padding: 40px 30px; background: white; }
+        .content h2 { color: #5D7A5F; font-size: 24px; margin-top: 0; }
+        .content p { font-size: 16px; color: #555; margin-bottom: 20px; }
+        .footer { padding: 30px; text-align: center; font-size: 14px; color: #888; background: #f9f9f9; border-top: 1px solid #eee; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header"><h1>Iboga Wellness Institute</h1></div>
+        <div class="content">
+          <h2>Lab Work Request</h2>
+          <p>Hello ${displayName},</p>
+          <p>Our team is requesting that you complete the required lab work. Please schedule and complete your labs at your earliest convenience.</p>
+          <p>If you have any questions, please contact us:</p>
+          <p><strong>Phone:</strong> +1 (800) 604-7294<br><strong>Email:</strong> contactus@theibogainstitute.org</p>
+          <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
+        </div>
+        <div class="footer">
+          <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+          <p>https://theibogainstitute.org</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+  const result = await sendEmailDirect({
+    to: patientEmail,
+    subject: 'Lab Work Request | Iboga Wellness Institute',
+    body: emailHtml,
+  })
+  if (!result.success) {
+    console.error('[sendRequestLabsEmail] Failed to send:', result.error)
+  }
+  return result
+}
