@@ -4,6 +4,7 @@ import { StatCard } from '@/components/dashboard/stat-card'
 import { ProgramsCard } from '@/components/dashboard/programs-card'
 import { GraphCard } from '@/components/dashboard/graph-card'
 import { ModuleCard } from '@/components/dashboard/module-card'
+import { getDashboardStats } from '@/actions/dashboard-stats.action'
 
 export const metadata = {
   title: 'Dashboard',
@@ -14,6 +15,12 @@ function getGreeting() {
   if (hour < 12) return 'Good Morning'
   if (hour < 18) return 'Good Afternoon'
   return 'Good Evening'
+}
+
+function formatCurrencyShort(value: number): string {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
+  return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 export default async function OwnerDashboardPage() {
@@ -31,12 +38,40 @@ export default async function OwnerDashboardPage() {
     .eq('id', user.id)
     .single()
 
-  const userName = profile?.name || 
-    (profile?.first_name && profile?.last_name 
-      ? `${profile.first_name} ${profile.last_name}` 
+  const userName = profile?.name ||
+    (profile?.first_name && profile?.last_name
+      ? `${profile.first_name} ${profile.last_name}`
       : profile?.first_name || 'User')
   const greeting = getGreeting()
-  
+
+  const statsResult = await getDashboardStats({})
+  const stats = statsResult?.data?.success ? statsResult.data.data : null
+  const monthlyRevenueValue = stats?.monthlyRevenue ?? 0
+  const monthlyRevenueChangePercent = stats?.monthlyRevenueChangePercent ?? null
+  const totalRevenueValue = stats?.totalRevenue ?? 0
+  const totalClientCount = stats?.totalClientCount ?? 0
+  const activePatientsValue = stats?.activePatients ?? 0
+  const activeClientsChangePercent = stats?.activeClientsChangePercent ?? null
+  const facilityUtilizationValue = stats?.facilityUtilization ?? 0
+  const programsByType = stats?.programsByType ?? [
+    { name: 'Neurological', patientCount: 0 },
+    { name: 'Mental Health', patientCount: 0 },
+    { name: 'Addiction', patientCount: 0 },
+  ]
+  const facilityUtilizationMonth = stats?.facilityUtilizationMonth ?? 0
+
+  const activeClientsChangeLabel =
+    activeClientsChangePercent !== null
+      ? `${activeClientsChangePercent >= 0 ? '+' : ''}${activeClientsChangePercent}%`
+      : '—'
+  const activeClientsChangePositive = activeClientsChangePercent === null || activeClientsChangePercent >= 0
+
+  const monthlyChangeLabel =
+    monthlyRevenueChangePercent !== null
+      ? `${monthlyRevenueChangePercent >= 0 ? '+' : ''}${monthlyRevenueChangePercent}%`
+      : '—'
+  const monthlyChangePositive = monthlyRevenueChangePercent === null || monthlyRevenueChangePercent >= 0
+
   return (
     <div className="space-y-4 sm:space-y-6 md:space-y-[25px] pt-4 sm:pt-6 md:pt-[30px] px-4 sm:px-6 md:px-[25px]">
       {/* Header Section */}
@@ -53,38 +88,43 @@ export default async function OwnerDashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 md:gap-[25px]">
         <StatCard
           title="Monthly Revenue"
-          value="$245K"
-          change="12%"
+          value={formatCurrencyShort(monthlyRevenueValue)}
+          change={monthlyChangeLabel}
           changeLabel="vs last month"
-          isPositive={true}
+          isPositive={monthlyChangePositive}
           isPrimary={true}
         />
         <StatCard
-          title="Pipeline Value"
-          value="$380K"
-          change="12%"
-          changeLabel="vs last month"
+          title="Total Revenue"
+          value={formatCurrencyShort(totalRevenueValue)}
+          change="—"
+          changeLabel="All agreements"
           isPositive={true}
+          hideChange
+          subValue={`${totalClientCount} client${totalClientCount === 1 ? '' : 's'}`}
         />
         <StatCard
-          title="Active Patients"
-          value="14"
-          change="12%"
-          changeLabel="Stable"
-          isPositive={true}
+          title="Active Clients"
+          value={String(activePatientsValue)}
+          change={activeClientsChangeLabel}
+          changeLabel="vs last month"
+          isPositive={activeClientsChangePositive}
         />
         <StatCard
           title="Facility Utilization"
-          value="78%"
-          change="12%"
-          changeLabel="Good"
+          value={`${facilityUtilizationValue}%`}
+          change={`${facilityUtilizationValue}%`}
+          changeLabel="of capacity"
           isPositive={true}
         />
       </div>
 
       {/* Programs Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 md:gap-[25px]">
-        <ProgramsCard />
+        <ProgramsCard
+          programs={programsByType}
+          facilityUtilizationPercent={facilityUtilizationMonth}
+        />
         <GraphCard />
       </div>
 

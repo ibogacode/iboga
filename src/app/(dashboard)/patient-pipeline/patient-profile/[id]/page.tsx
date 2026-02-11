@@ -167,6 +167,7 @@ export default function PatientProfilePage() {
   const [uploadingOnboardingForm, setUploadingOnboardingForm] = useState<{ onboardingId: string; formType: string } | null>(null)
   const [loadingMedicalDocView, setLoadingMedicalDocView] = useState<'ekg' | 'bloodwork' | null>(null)
   const [adminSkippingMedical, setAdminSkippingMedical] = useState<'ekg' | 'bloodwork' | null>(null)
+  const [confirmSkipMedical, setConfirmSkipMedical] = useState<'ekg' | 'bloodwork' | null>(null)
   const onboardingFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const onboardingFormContentRef = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'billing' | 'travel' | 'notes'>('overview')
@@ -1163,6 +1164,42 @@ export default function PatientProfilePage() {
               </AlertDialog>
             </>
           )}
+          <AlertDialog open={!!confirmSkipMedical} onOpenChange={(open) => { if (!open) setConfirmSkipMedical(null) }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Mark {confirmSkipMedical === 'ekg' ? 'EKG' : 'Bloodwork'} as skipped?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  The client will see this item as skipped. Tests will be done at the institute after arrival (free of cost). If results show they are not ready for treatment, they may need to wait 2–3 extra days at the institute; extra days will be charged. Omar will be notified to create the tapering schedule if both EKG and bloodwork are now complete.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async () => {
+                    if (!confirmSkipMedical || !profileData?.onboarding?.onboarding?.id) return
+                    setAdminSkippingMedical(confirmSkipMedical)
+                    try {
+                      const res = await adminSkipOnboardingMedicalDocument({
+                        onboarding_id: profileData.onboarding.onboarding.id,
+                        document_type: confirmSkipMedical,
+                      })
+                      if (res?.data?.success) {
+                        toast.success(confirmSkipMedical === 'ekg' ? 'EKG marked as skipped' : 'Bloodwork marked as skipped')
+                        setConfirmSkipMedical(null)
+                        loadPatientProfile()
+                      } else {
+                        toast.error(res?.data?.error || 'Failed to mark as skipped')
+                      }
+                    } finally {
+                      setAdminSkippingMedical(null)
+                    }
+                  }}
+                >
+                  Yes, mark as skipped
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -2267,25 +2304,9 @@ export default function PatientProfilePage() {
                               size="sm"
                               className="h-[22px] px-4 rounded-full text-xs bg-amber-100 text-amber-800 hover:bg-amber-200 border-0"
                               disabled={!!adminSkippingMedical}
-                              onClick={async () => {
-                                setAdminSkippingMedical('ekg')
-                                try {
-                                  const res = await adminSkipOnboardingMedicalDocument({
-                                    onboarding_id: profileData.onboarding!.onboarding.id,
-                                    document_type: 'ekg',
-                                  })
-                                  if (res?.data?.success) {
-                                    toast.success('EKG marked as skipped')
-                                    loadPatientProfile()
-                                  } else {
-                                    toast.error(res?.data?.error || 'Failed to mark as skipped')
-                                  }
-                                } finally {
-                                  setAdminSkippingMedical(null)
-                                }
-                              }}
+                              onClick={() => setConfirmSkipMedical('ekg')}
                             >
-                              {adminSkippingMedical === 'ekg' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Mark as Skipped'}
+                              Mark as Skipped
                             </Button>
                           )}
                         </div>
@@ -2346,25 +2367,9 @@ export default function PatientProfilePage() {
                               size="sm"
                               className="h-[22px] px-4 rounded-full text-xs bg-amber-100 text-amber-800 hover:bg-amber-200 border-0"
                               disabled={!!adminSkippingMedical}
-                              onClick={async () => {
-                                setAdminSkippingMedical('bloodwork')
-                                try {
-                                  const res = await adminSkipOnboardingMedicalDocument({
-                                    onboarding_id: profileData.onboarding!.onboarding.id,
-                                    document_type: 'bloodwork',
-                                  })
-                                  if (res?.data?.success) {
-                                    toast.success('Bloodwork marked as skipped')
-                                    loadPatientProfile()
-                                  } else {
-                                    toast.error(res?.data?.error || 'Failed to mark as skipped')
-                                  }
-                                } finally {
-                                  setAdminSkippingMedical(null)
-                                }
-                              }}
+                              onClick={() => setConfirmSkipMedical('bloodwork')}
                             >
-                              {adminSkippingMedical === 'bloodwork' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Mark as Skipped'}
+                              Mark as Skipped
                             </Button>
                           )}
                         </div>

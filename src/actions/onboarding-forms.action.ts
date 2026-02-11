@@ -7,7 +7,6 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { uploadDocument } from '@/lib/supabase/document-storage'
 import { sendEmailDirect, sendOnboardingFormsEmail } from './email.action'
-import { sendTaperingScheduleAdminNotification } from './tapering-schedule.action'
 import {
   releaseFormSchema,
   outingConsentFormSchema,
@@ -222,14 +221,6 @@ export const movePatientToOnboarding = authActionClient
         onboardingRow.last_name ?? '',
         onboardingId as string
       ).catch((err) => console.error('[movePatientToOnboarding] Failed to send onboarding email:', err))
-
-      // Send admin notification for tapering schedule preparation
-      sendTaperingScheduleAdminNotification(
-        onboardingRow.first_name ?? 'Patient',
-        onboardingRow.last_name ?? '',
-        onboardingRow.email,
-        onboardingId as string
-      ).catch((err) => console.error('[movePatientToOnboarding] Failed to send tapering schedule admin notification:', err))
     }
 
     revalidatePath('/onboarding')
@@ -287,14 +278,6 @@ export const movePatientToOnboardingByEmail = authActionClient
         onboardingRow.last_name ?? '',
         onboardingId as string
       ).catch((err) => console.error('[movePatientToOnboardingByEmail] Failed to send onboarding email:', err))
-
-      // Send admin notification for tapering schedule preparation
-      sendTaperingScheduleAdminNotification(
-        onboardingRow.first_name ?? 'Patient',
-        onboardingRow.last_name ?? '',
-        onboardingRow.email,
-        onboardingId as string
-      ).catch((err) => console.error('[movePatientToOnboardingByEmail] Failed to send tapering schedule admin notification:', err))
     }
 
     revalidatePath('/onboarding')
