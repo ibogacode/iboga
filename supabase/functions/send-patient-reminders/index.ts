@@ -401,12 +401,13 @@ serve(async (req) => {
 
     console.log('[send-patient-reminders] Starting reminder job...')
 
-    // Find all patients where must_change_password = true
+    // Find all patients where must_change_password = true (exclude prospects – no reminders)
     const { data: patients, error } = await supabase
       .from('profiles')
       .select('id, email, first_name, last_name')
       .eq('role', 'patient')
       .eq('must_change_password', true)
+      .or('is_prospect.is.null,is_prospect.eq.false')
 
     if (error) {
       console.error('[send-patient-reminders] Error fetching patients:', error)

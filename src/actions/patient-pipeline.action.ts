@@ -242,13 +242,42 @@ export const getPartialIntakeForms = authActionClient
     // Filter out forms whose patient is already in onboarding. Include forms that have
     // only recipient_email (invite sent, not yet started) or both; exclude only when
     // the relevant contact is already in onboarding.
-    const filteredPartialForms = (partialForms || []).filter((pf: any) => {
+    let filteredPartialForms = (partialForms || []).filter((pf: any) => {
       const email = pf.email?.toLowerCase().trim()
       const recipientEmail = pf.recipient_email?.toLowerCase().trim()
       const primaryEmail = email || recipientEmail
       if (!primaryEmail) return false
       return !movedPatientsEmails.has(primaryEmail)
     })
+
+    // Filter out forms whose patient is marked as prospect (show only in Prospects table)
+    const filteredEmails = [...new Set(
+      filteredPartialForms.flatMap((pf: any) => [
+        pf.email?.toLowerCase().trim(),
+        pf.recipient_email?.toLowerCase().trim()
+      ].filter(Boolean))
+    )]
+    if (filteredEmails.length > 0) {
+      const adminClient = createAdminClient()
+      const { data: prospectProfiles } = await adminClient
+        .from('profiles')
+        .select('email')
+        .eq('role', 'patient')
+        .eq('is_prospect', true)
+        .in('email', filteredEmails)
+      
+      const prospectEmails = new Set(
+        (prospectProfiles || []).map((p: any) => p.email?.toLowerCase().trim()).filter(Boolean)
+      )
+      
+      if (prospectEmails.size > 0) {
+        filteredPartialForms = filteredPartialForms.filter((pf: any) => {
+          const email = pf.email?.toLowerCase().trim()
+          const recipientEmail = pf.recipient_email?.toLowerCase().trim()
+          return !prospectEmails.has(email) && !prospectEmails.has(recipientEmail)
+        })
+      }
+    }
 
     // Fetch creator profiles for partial forms
     const creatorIds = [...new Set((filteredPartialForms || []).map((pf: any) => pf.created_by).filter(Boolean))]
@@ -610,6 +639,29 @@ export const getPublicIntakeForms = authActionClient
       const email = f.email?.toLowerCase().trim()
       return email && !movedPublicPatientsEmails.has(email)
     })
+
+    // Filter out forms whose patient is marked as prospect (show only in Prospects table)
+    const publicEmails = directApplications.map((f: any) => f.email?.toLowerCase().trim()).filter(Boolean)
+    if (publicEmails.length > 0) {
+      const adminClient = createAdminClient()
+      const { data: prospectProfiles } = await adminClient
+        .from('profiles')
+        .select('email')
+        .eq('role', 'patient')
+        .eq('is_prospect', true)
+        .in('email', publicEmails)
+      
+      const prospectEmails = new Set(
+        (prospectProfiles || []).map((p: any) => p.email?.toLowerCase().trim()).filter(Boolean)
+      )
+      
+      if (prospectEmails.size > 0) {
+        directApplications = directApplications.filter((f: any) => {
+          const email = f.email?.toLowerCase().trim()
+          return !prospectEmails.has(email)
+        })
+      }
+    }
 
     // Early return if no forms to process
     if (directApplications.length === 0) {

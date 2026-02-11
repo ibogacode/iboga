@@ -247,12 +247,13 @@ serve(async (req) => {
     // Get access token once for all emails
     const accessToken = await getAccessToken()
 
-    // Get all patients
+    // Get all patients (exclude prospects – no reminder emails)
     const { data: patients, error: patientsError } = await supabase
       .from('profiles')
       .select('id, email, first_name, last_name')
       .eq('role', 'patient')
       .not('email', 'is', null)
+      .or('is_prospect.is.null,is_prospect.eq.false')
 
     if (patientsError) {
       console.error('[send-form-reminders] Error fetching patients:', patientsError)

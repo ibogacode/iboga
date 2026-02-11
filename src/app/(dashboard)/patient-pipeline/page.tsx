@@ -4,12 +4,14 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getPartialIntakeForms, getPublicIntakeForms, getScheduledPatientsCount, getPipelineStatistics } from '@/actions/patient-pipeline.action'
+import { getProspects } from '@/actions/prospect-status.action'
 import { Loader2, TrendingUp, TrendingDown, Eye, CheckCircle2, Users, Mail, UserPlus, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AddPatientModal } from '@/components/patient/add-patient-modal'
+import { ProspectsTable, type Prospect } from '@/components/patient/prospects-table'
 import { format } from 'date-fns'
 import { useUser } from '@/hooks/use-user.hook'
 
@@ -71,10 +73,13 @@ export default function PatientPipelinePage() {
   const [currentPagePublic, setCurrentPagePublic] = useState(1)
   const [itemsPerPage] = useState(6)
   const [isAddPatientModalOpen, setIsAddPatientModalOpen] = useState(false)
-  const [selectedDateRange, setSelectedDateRange] = useState<string>('last-30-days')
+  const [selectedDateRange, setSelectedDateRange] = useState<string>('all-time')
   const [showCustomDateRange, setShowCustomDateRange] = useState(false)
   const [customStartDate, setCustomStartDate] = useState<string>('')
   const [customEndDate, setCustomEndDate] = useState<string>('')
+  const [activeApplicationsTab, setActiveApplicationsTab] = useState<'invites' | 'applications'>('applications')
+  const [prospects, setProspects] = useState<Prospect[]>([])
+  const [isProspectsLoading, setIsProspectsLoading] = useState(true)
 
   // All staff roles can view client profiles
 
@@ -122,6 +127,24 @@ export default function PatientPipelinePage() {
         setPublicForms(publicResult.data.data)
       }
       
+      // Load prospects (clients in prospect stage)
+      getProspects()
+        .then((result) => {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[PatientPipeline] getProspects result:', { success: result?.success, dataLength: result?.data?.length, error: result?.error })
+          }
+          if (result?.success && result.data) {
+            setProspects(result.data)
+          } else if (result?.error && process.env.NODE_ENV === 'development') {
+            console.warn('[PatientPipeline] getProspects error:', result.error)
+          }
+          setIsProspectsLoading(false)
+        })
+        .catch((err) => {
+          console.error('[PatientPipeline] getProspects failed:', err)
+          setIsProspectsLoading(false)
+        })
+
       // Don't block UI - load scheduled count in background
       setIsLoading(false)
       
@@ -175,6 +198,10 @@ export default function PatientPipelinePage() {
     
     setIsLoading(false)
 
+    getProspects().then((result) => {
+      if (result?.success && result.data) setProspects(result.data)
+    })
+
     Promise.all([
       getScheduledPatientsCount({}),
       getPipelineStatistics({})
@@ -201,6 +228,8 @@ export default function PatientPipelinePage() {
     let startDate: Date
 
     switch (selectedDateRange) {
+      case 'all-time':
+        return null
       case 'last-7-days':
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
         return { startDate, endDate: now }
@@ -335,9 +364,10 @@ export default function PatientPipelinePage() {
             }}
           >
             <SelectTrigger className="h-[44px] px-3 sm:px-4 py-[10px] bg-white border border-[#D6D2C8] rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-xs sm:text-sm text-[#777777]">
-              <SelectValue placeholder="Date: Last 30 days" className="truncate" />
+              <SelectValue placeholder="Date: All time" className="truncate" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all-time">All time</SelectItem>
               <SelectItem value="last-7-days">Last 7 days</SelectItem>
               <SelectItem value="last-30-days">Last 30 days</SelectItem>
               <SelectItem value="last-90-days">Last 90 days</SelectItem>
@@ -478,26 +508,46 @@ export default function PatientPipelinePage() {
         </div>
       </div>
 
-      {/* Admin/Owner Sent Invites */}
-      <div className="bg-white rounded-2xl p-5 shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] mb-[25px]">
+      {/* Client Applications - single card with tabs */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
         {/* Section Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-[10px] mb-4 sm:mb-6 md:mb-[26px]">
-          <div className="flex items-center gap-2 sm:gap-[10px]">
-            <h2 className="text-base sm:text-lg font-medium text-black leading-[1.193em] tracking-[-0.04em]">
-              Admin / Owner Sent Invites
-            </h2>
-            <span className="flex items-center justify-center px-3 h-[26px] rounded-[33px] bg-[#DEF8EE] text-[#10B981] text-xs leading-[1.193em] tracking-[-0.04em]">
-              {filteredByProgramPartial.length}
-            </span>
-          </div>
-          <div className="hidden sm:block w-px h-[15px] bg-[#6B7280]" />
-          <p className="hidden sm:block text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">
-            Mode = data captured before sending the client application link (Minimal: Name+Email • Partial: +Emergency Contact)
-          </p>
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Client Applications</h2>
         </div>
 
+        {/* Tab Navigation */}
+        <div className="flex gap-0 border-b border-gray-200">
+          <button
+            type="button"
+            onClick={() => setActiveApplicationsTab('applications')}
+            className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
+              activeApplicationsTab === 'applications'
+                ? 'bg-[#6E7A46] text-white'
+                : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            Direct Public Applications
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveApplicationsTab('invites')}
+            className={`flex-1 px-6 py-3 text-sm font-medium transition-colors ${
+              activeApplicationsTab === 'invites'
+                ? 'bg-[#6E7A46] text-white'
+                : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            Admin/Owner Sent Invites
+          </button>
+        </div>
 
-        {/* Table - Desktop, Cards - Mobile */}
+        {/* Tab Content: Admin/Owner Sent Invites */}
+        {activeApplicationsTab === 'invites' && (
+          <div className="p-5">
+            <p className="text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em] mb-4">
+              Mode = data captured before sending the client application link (Minimal: Name+Email • Partial: +Emergency Contact)
+            </p>
+            {/* Table - Desktop, Cards - Mobile */}
         {paginatedPartialForms.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-sm text-[#777777]">No forms found.</p>
@@ -757,24 +807,14 @@ export default function PatientPipelinePage() {
             )}
           </>
         )}
-      </div>
-
-      {/* Direct Public Applications */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
-        {/* Section Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-[10px] mb-4 sm:mb-6 md:mb-[26px]">
-          <div className="flex items-center gap-2 sm:gap-[10px]">
-            <h2 className="text-base sm:text-lg font-medium text-black leading-[1.193em] tracking-[-0.04em]">
-              Direct Public Applications
-            </h2>
-            <span className="flex items-center justify-center px-3 h-[26px] rounded-[33px] bg-[#DEF8EE] text-[#10B981] text-xs leading-[1.193em] tracking-[-0.04em]">
-              {filteredByProgramPublic.length}
-            </span>
           </div>
-        </div>
+        )}
 
-        {/* Table - Desktop, Cards - Mobile */}
-        {filteredByProgramPublic.length === 0 ? (
+        {/* Tab Content: Direct Public Applications */}
+        {activeApplicationsTab === 'applications' && (
+          <div className="p-5">
+            {/* Table - Desktop, Cards - Mobile */}
+            {filteredByProgramPublic.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-sm text-[#777777]">No direct public applications yet.</p>
           </div>
@@ -1007,6 +1047,13 @@ export default function PatientPipelinePage() {
             )}
           </>
         )}
+          </div>
+        )}
+      </div>
+
+      {/* Prospects */}
+      <div className="mt-6">
+        <ProspectsTable prospects={prospects} isLoading={isProspectsLoading} />
       </div>
 
       {/* Add Patient Modal */}

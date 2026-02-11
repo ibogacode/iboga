@@ -84,6 +84,14 @@ export const recordBillingPayment = authActionClient
       (parsedInput.send_reminder_now === true || !!parsedInput.next_reminder_date)
 
     if (shouldSendReminder && agreement.patient_email) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_prospect')
+        .eq('id', parsedInput.patient_id)
+        .single()
+      if (profile?.is_prospect) {
+        // Do not send any reminder emails to prospects
+      } else {
       const totalAmount = Number(agreement.total_program_fee)
       const received = parsedInput.amount_received
       // Balance due = total amount (from service agreement) minus sum of all recorded payments
@@ -125,6 +133,7 @@ export const recordBillingPayment = authActionClient
           .update({ balance_reminder_sent_at: new Date().toISOString() })
           .eq('id', payment.id)
       }
+      }
     }
 
     return { success: true, data: payment }
@@ -157,6 +166,15 @@ export const sendBalanceReminder = authActionClient
       return { success: false, error: 'Only staff can send balance reminders' }
     }
     const supabase = createAdminClient()
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_prospect')
+      .eq('id', parsedInput.patient_id)
+      .single()
+    if (profile?.is_prospect) {
+      return { success: false, error: 'Reminder emails are disabled for prospects' }
+    }
 
     const { data: agreement } = await supabase
       .from('service_agreements')

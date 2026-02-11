@@ -18,12 +18,13 @@ import { sendPatientLoginReminderEmail, sendFillerLoginReminderEmail } from './e
 export async function sendPatientLoginReminders() {
   const supabase = createAdminClient()
   
-  // Find all patients where must_change_password = true
+  // Find all patients where must_change_password = true (exclude prospects – no reminders)
   const { data: patients, error } = await supabase
     .from('profiles')
     .select('id, email, first_name, last_name')
     .eq('role', 'patient')
     .eq('must_change_password', true)
+    .or('is_prospect.is.null,is_prospect.eq.false')
   
   if (error) {
     console.error('[sendPatientLoginReminders] Error fetching patients:', error)

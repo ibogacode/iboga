@@ -23,6 +23,9 @@ export interface User {
   address?: string | null
   gender?: 'male' | 'female' | 'other' | 'prefer-not-to-say' | null
   is_active: boolean
+  is_prospect?: boolean
+  prospect_marked_at?: string | null
+  prospect_marked_by?: string | null
   created_at: string
   updated_at: string
 }
