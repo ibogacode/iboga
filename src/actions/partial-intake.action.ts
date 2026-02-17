@@ -109,6 +109,7 @@ export const createPartialIntakeForm = authActionClient
         recipient_email: recipientEmail,
         recipient_name: recipientName,
         created_by: ctx.user.id,
+        is_prospect: parsedInput.is_prospect ?? false,
       })
       .select()
       .single()
@@ -122,37 +123,39 @@ export const createPartialIntakeForm = authActionClient
       (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
     const formLink = `${baseUrl}/intake?token=${token}`
     
-    // Send email with form link based on scenario (fire and forget - don't await)
-    sendPartialIntakeFormEmail(
-      recipientEmail,
-      recipientName || (parsedInput.filled_by === 'self' 
-        ? `${parsedInput.first_name || ''} ${parsedInput.last_name || ''}`.trim()
-        : `${parsedInput.filler_first_name || ''} ${parsedInput.filler_last_name || ''}`.trim()),
-      parsedInput.first_name || null,
-      parsedInput.last_name || null,
-      formLink,
-      parsedInput.mode,
-      parsedInput.filled_by,
-      parsedInput.filler_first_name || null,
-      parsedInput.filler_last_name || null
-    )
-    .then(async (emailResult) => {
-      // Check if email was sent successfully and update email_sent_at
-      // sendEmailDirect returns { success, error?, messageId? }
-      if (emailResult?.success) {
-        await supabase
-          .from('partial_intake_forms')
-          .update({ email_sent_at: new Date().toISOString() })
-          .eq('id', data.id)
-        console.log('[createPartialIntakeForm] Email sent and email_sent_at updated')
-      } else {
-        console.error('[createPartialIntakeForm] Email send failed:', emailResult?.error)
-      }
-    })
-    .catch((error) => {
-      // Log error but don't fail the action
-      console.error('Failed to send email:', error)
-    })
+    // Send email with form link only when not a prospect (prospects do not receive fill-application email)
+    const isProspect = parsedInput.is_prospect ?? false
+    if (!isProspect) {
+      sendPartialIntakeFormEmail(
+        recipientEmail,
+        recipientName || (parsedInput.filled_by === 'self'
+          ? `${parsedInput.first_name || ''} ${parsedInput.last_name || ''}`.trim()
+          : `${parsedInput.filler_first_name || ''} ${parsedInput.filler_last_name || ''}`.trim()),
+        parsedInput.first_name || null,
+        parsedInput.last_name || null,
+        formLink,
+        parsedInput.mode,
+        parsedInput.filled_by,
+        parsedInput.filler_first_name || null,
+        parsedInput.filler_last_name || null
+      )
+        .then(async (emailResult) => {
+          if (emailResult?.success) {
+            await supabase
+              .from('partial_intake_forms')
+              .update({ email_sent_at: new Date().toISOString() })
+              .eq('id', data.id)
+            console.log('[createPartialIntakeForm] Email sent and email_sent_at updated')
+          } else {
+            console.error('[createPartialIntakeForm] Email send failed:', emailResult?.error)
+          }
+        })
+        .catch((error) => {
+          console.error('Failed to send email:', error)
+        })
+    } else {
+      console.log('[createPartialIntakeForm] Prospect: skipping fill-application email')
+    }
     
     return { 
       success: true, 

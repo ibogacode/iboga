@@ -105,7 +105,8 @@ export const submitPatientIntakeForm = actionClient
       return { success: false, error: error.message }
     }
     
-    // If this form was created from a partial form, link them
+    // If this form was created from a partial form, link them and get is_prospect
+    let partialFormIsProspect = false
     if (parsedInput.partialFormId) {
       const { error: linkError } = await supabase
         .from('partial_intake_forms')
@@ -117,7 +118,13 @@ export const submitPatientIntakeForm = actionClient
       
       if (linkError) {
         console.error('Error linking partial form to completed form:', linkError)
-        // Don't fail the submission if linking fails, but log it
+      } else {
+        const { data: partialForm } = await supabase
+          .from('partial_intake_forms')
+          .select('is_prospect')
+          .eq('id', parsedInput.partialFormId)
+          .single()
+        partialFormIsProspect = partialForm?.is_prospect === true
       }
     }
     
@@ -128,6 +135,14 @@ export const submitPatientIntakeForm = actionClient
       .eq('email', parsedInput.email)
       .eq('role', 'patient')
       .maybeSingle()
+    
+    // If completing a partial form marked as prospect, set is_prospect on existing profile too
+    if (existingProfile && partialFormIsProspect) {
+      await supabase
+        .from('profiles')
+        .update({ is_prospect: true })
+        .eq('id', existingProfile.id)
+    }
     
     // Track if we need to send login credentials email
     let shouldSendLoginCredentials = false
@@ -180,6 +195,7 @@ export const submitPatientIntakeForm = actionClient
               phone: parsedInput.phone_number || null,
               is_active: true,
               must_change_password: true, // Require password change on first login
+              ...(partialFormIsProspect && { is_prospect: true }),
             })
             .eq('id', authData.user.id)
         } else {
@@ -195,6 +211,7 @@ export const submitPatientIntakeForm = actionClient
               phone: parsedInput.phone_number || null,
               is_active: true,
               must_change_password: true, // Require password change on first login
+              ...(partialFormIsProspect && { is_prospect: true }),
             })
         }
         

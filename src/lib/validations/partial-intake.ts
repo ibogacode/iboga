@@ -28,6 +28,7 @@ export const minimalIntakeSchema = z.object({
     .optional()
     .nullable()
     .or(z.literal('')),
+  is_prospect: z.boolean().optional(),
 }).refine((data) => {
   // If filled by self, require patient information
   if (data.filled_by === 'self') {
@@ -125,6 +126,7 @@ export const partialIntakeSchema = z.object({
   emergency_contact_address: z.string().optional().nullable(),
   emergency_contact_relationship: z.string().optional().nullable(),
   program_type: z.enum(['neurological', 'mental_health', 'addiction']).optional().nullable(),
+  is_prospect: z.boolean().optional(),
 }).refine((data) => {
   // If filled by self, require patient information
   if (data.filled_by === 'self') {
