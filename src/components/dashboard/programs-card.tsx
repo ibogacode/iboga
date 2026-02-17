@@ -43,10 +43,10 @@ export function ProgramsCard({ programs = [], facilityUtilizationPercent = 0 }: 
         ))}
       </div>
 
-      {/* Facility Capacity Utilization - current month, 4 clients/day */}
+      {/* Facility Capacity Utilization - current month, 5 clients/day */}
       <div className="flex flex-col gap-2 sm:gap-2.5 pt-2 sm:pt-2.5 px-2 sm:px-2.5">
         <p className="text-xs sm:text-sm leading-[1.193em] tracking-[-0.04em] text-[#2B2820]">
-          Facility capacity utilization (current month, 4 clients/day)
+          Facility capacity utilization (current month, 5 clients/day)
         </p>
         <div className="flex items-center gap-2">
           <div className="flex-1 h-2 sm:h-2.5 rounded-full bg-[#F5F4F0] overflow-hidden">
