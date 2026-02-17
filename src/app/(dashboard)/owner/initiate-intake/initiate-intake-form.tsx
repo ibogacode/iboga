@@ -59,7 +59,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
   const [submittedData, setSubmittedData] = useState<{
     recipient_name: string
     recipient_email: string
-    mode: 'minimal' | 'partial'
+    mode: 'minimal' | 'partial' | 'existing'
     is_prospect?: boolean
   } | null>(null)
   const [isSuccess, setIsSuccess] = useState<boolean>(true)
@@ -201,7 +201,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
         setSubmittedData({
           recipient_name: `${data.first_name} ${data.last_name}`,
           recipient_email: data.email,
-          mode: 'existing' as any,
+          mode: 'existing',
         })
         setCurrentStep('confirmation')
         if (onStepChange) {
