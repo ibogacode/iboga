@@ -53,6 +53,17 @@ export const getPatientProfile = authActionClient
       if (patientProfile) {
         patientData = patientProfile
       }
+      // If no profile found, id may be a partial form id (e.g. prospect added via Add Client)
+      if (!patientData) {
+        const { data: partialById } = await adminClient
+          .from('partial_intake_forms')
+          .select('*')
+          .eq('id', parsedInput.patientId)
+          .maybeSingle()
+        if (partialById) {
+          partialForm = partialById
+        }
+      }
     } else if (parsedInput.email) {
       // Get by email
       const { data: patientProfile } = await adminClient

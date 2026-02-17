@@ -250,6 +250,9 @@ export const getPartialIntakeForms = authActionClient
       return !movedPatientsEmails.has(primaryEmail)
     })
 
+    // Exclude partial forms added as prospect — they appear only in the Prospects list
+    filteredPartialForms = filteredPartialForms.filter((pf: any) => !pf.is_prospect)
+
     // Filter out forms whose patient is marked as prospect (show only in Prospects table)
     const filteredEmails = [...new Set(
       filteredPartialForms.flatMap((pf: any) => [

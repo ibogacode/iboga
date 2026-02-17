@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { partialIntakeFormSchema, type PartialIntakeFormSchemaValues } from '@/lib/validations/partial-intake'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
@@ -58,7 +59,8 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
   const [submittedData, setSubmittedData] = useState<{
     recipient_name: string
     recipient_email: string
-    mode: 'minimal' | 'partial'
+    mode: 'minimal' | 'partial' | 'existing'
+    is_prospect?: boolean
   } | null>(null)
   const [isSuccess, setIsSuccess] = useState<boolean>(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -78,6 +80,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
       first_name: '',
       last_name: '',
       email: '',
+      is_prospect: false,
     },
   })
 
@@ -97,7 +100,8 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
       setSubmittedData({
         recipient_name: recipientName,
         recipient_email: recipientEmail || '',
-        mode: data.mode
+        mode: data.mode,
+        is_prospect: data.is_prospect ?? false,
       })
       
       if (result?.serverError) {
@@ -197,7 +201,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
         setSubmittedData({
           recipient_name: `${data.first_name} ${data.last_name}`,
           recipient_email: data.email,
-          mode: 'existing' as any,
+          mode: 'existing',
         })
         setCurrentStep('confirmation')
         if (onStepChange) {
@@ -265,6 +269,7 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
       first_name: '',
       last_name: '',
       email: '',
+      is_prospect: false,
     })
     setMode('minimal')
     setCurrentStep('entry-mode')
@@ -877,8 +882,28 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                 </>
               )}
 
+              {/* Mark as prospect - do not send application email */}
+              <div className="flex items-start space-x-3 rounded-lg border border-[#D6D2C8] bg-[#F5F4F0]/50 p-4">
+                <Checkbox
+                  id="is_prospect"
+                  checked={form.watch('is_prospect') ?? false}
+                  onCheckedChange={(checked) => form.setValue('is_prospect', !!checked)}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <Label
+                    htmlFor="is_prospect"
+                    className="text-base font-medium text-[#2B2820] cursor-pointer"
+                  >
+                    Mark as prospect
+                  </Label>
+                  <p className="text-sm text-[#777777]">
+                    Do not send the application form email. Client will appear in pipeline; you can send the form link or mark as non‑prospect later.
+                  </p>
+                </div>
+              </div>
+
               {/* Invite Email Preview Card */}
-              {mode === 'minimal' && form.watch('filled_by') === 'self' && (
+              {mode === 'minimal' && form.watch('filled_by') === 'self' && !form.watch('is_prospect') && (
                 <div className="bg-[#F5F4F0] border border-[#D6D2C8] rounded-[10px] p-5 flex flex-col gap-[25px]">
                   <div className="flex flex-col gap-[3px]">
                     <h3 className="text-base font-normal text-black leading-[1.48em] tracking-[-0.04em]">Invite Email Preview</h3>
@@ -925,6 +950,8 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Creating...
                       </>
+                    ) : form.watch('is_prospect') ? (
+                      'Create Form (No Email)'
                     ) : (
                       'Create Form & Send Invite'
                     )}
@@ -953,11 +980,15 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                     className="text-[40px] font-normal text-black leading-[1.3em] text-center"
                     style={{ fontFamily: 'Instrument Serif, serif' }}
                   >
-                    {isSuccess ? 'Invite Sent Successfully' : 'Failed to Send Invite'}
+                    {isSuccess
+                      ? (submittedData.is_prospect ? 'Client Added' : 'Invite Sent Successfully')
+                      : 'Failed to Send Invite'}
                   </h1>
                   <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em] text-center">
                     {isSuccess 
-                      ? 'The client has received their application form via email.'
+                      ? (submittedData.mode !== 'existing' && submittedData.is_prospect
+                          ? 'Client record created. No application form email was sent (marked as prospect).'
+                          : 'The client has received their application form via email.')
                       : (errorMessage || 'There was an error sending the invite. Please try again or contact support.')}
                   </p>
                 </div>
@@ -981,11 +1012,13 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                       </span>
                     </div>
                   </div>
-                  <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center">
                     <div className="flex flex-col gap-[10px]">
                       <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">Next Step</p>
                       <p className="text-xs text-[#2B2820] leading-[1.193em] tracking-[-0.04em]">
-                        Waiting for client to complete the application (0/4)
+                        {submittedData.is_prospect
+                          ? 'Prospect — no application email sent. Send form link from profile when ready.'
+                          : 'Waiting for client to complete the application (0/4)'}
                       </p>
                     </div>
                     <div className="flex flex-col items-center gap-[10px]">
@@ -1025,8 +1058,8 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                 </div>
               )}
 
-              {/* Email Tracking Card - Only show on success */}
-              {isSuccess && (
+              {/* Email Tracking Card - Only show on success when email was sent (not prospect) */}
+              {isSuccess && !submittedData.is_prospect && (
                 <div className="bg-white border border-[#D6D2C8] rounded-[10px] p-5 flex flex-col gap-[25px]">
                   <div className="flex flex-col gap-[3px]">
                     <h3 className="text-base font-normal text-black leading-[1.48em] tracking-[-0.04em]">Email Tracking</h3>

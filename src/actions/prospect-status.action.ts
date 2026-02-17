@@ -16,8 +16,10 @@ export interface ProspectRow {
 }
 
 /**
- * Get all clients in prospect stage (profiles with role=patient and is_prospect=true).
- * Staff can view; uses admin client to read profiles.
+ * Get all clients in prospect stage:
+ * - Profiles with role=patient and is_prospect=true
+ * - Partial intake forms with is_prospect=true and not yet completed (added by admin/owner as prospect).
+ * Staff can view; uses admin client to read.
  */
 export async function getProspects(): Promise<{ success: boolean; data?: ProspectRow[]; error?: string }> {
   const supabase = await createClient()
@@ -39,40 +41,77 @@ export async function getProspects(): Promise<{ success: boolean; data?: Prospec
     return { success: false, error: 'Unauthorized - Staff access required' }
   }
 
-  const { data: rows, error } = await admin
+  // 1) Prospects from profiles (role=patient, is_prospect=true)
+  const { data: profileRows, error: profileError } = await admin
     .from('profiles')
     .select('id, first_name, last_name, email, phone, prospect_marked_at')
     .eq('role', 'patient')
     .eq('is_prospect', true)
     .order('prospect_marked_at', { ascending: false })
 
-  if (error) {
+  if (profileError) {
     if (process.env.NODE_ENV === 'development') {
-      console.error('[getProspects] Query error:', error.message)
+      console.error('[getProspects] Profile query error:', profileError.message)
     }
-    return { success: false, error: error.message }
+    return { success: false, error: profileError.message }
   }
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[getProspects] Rows count:', rows?.length ?? 0, rows ? 'sample:' : '', rows?.[0])
+  const profileProspectEmails = new Set(
+    (profileRows || []).map((p: any) => p.email?.toLowerCase().trim()).filter(Boolean)
+  )
+
+  // 2) Prospects from partial forms (is_prospect=true, not completed) — exclude emails that already have a profile prospect
+  const { data: partialRows, error: partialError } = await admin
+    .from('partial_intake_forms')
+    .select('id, first_name, last_name, email, recipient_email, recipient_name, phone_number, created_at')
+    .eq('is_prospect', true)
+    .is('completed_at', null)
+    .order('created_at', { ascending: false })
+
+  if (partialError) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[getProspects] Partial forms query error:', partialError.message)
+    }
+    return { success: false, error: partialError.message }
   }
 
-  // Derive source: Admin/Owner if email appears in partial_intake_forms, else Public
-  const prospectEmails = [...new Set((rows || []).map((p: any) => p.email?.toLowerCase().trim()).filter(Boolean))]
-  let adminOwnerEmails = new Set<string>()
-  if (prospectEmails.length > 0) {
-    const { data: partialForms } = await admin
-      .from('partial_intake_forms')
-      .select('email, recipient_email')
-    ;(partialForms || []).forEach((pf: any) => {
-      const e = pf.email?.toLowerCase().trim()
-      const r = pf.recipient_email?.toLowerCase().trim()
-      if (e) adminOwnerEmails.add(e)
-      if (r) adminOwnerEmails.add(r)
+  const partialProspects: ProspectRow[] = (partialRows || [])
+    .filter((pf: any) => {
+      const email = (pf.recipient_email || pf.email)?.toLowerCase().trim()
+      return email && !profileProspectEmails.has(email)
     })
-  }
+    .map((pf: any) => {
+      const name =
+        [pf.first_name, pf.last_name].filter(Boolean).join(' ') ||
+        pf.recipient_name?.trim() ||
+        '—'
+      const email = (pf.recipient_email || pf.email) || ''
+      const dateContacted = pf.created_at
+        ? new Date(pf.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+        : '—'
+      return {
+        id: pf.id,
+        name,
+        email,
+        phone: pf.phone_number || '',
+        dateContacted,
+        dateContactedIso: pf.created_at || null,
+        source: 'Admin/Owner',
+        status: 'Prospect',
+      }
+    })
 
-  const prospects: ProspectRow[] = (rows || []).map((p: {
+  // Build set of admin/owner emails (from partial forms) for source labeling on profile prospects
+  const adminOwnerEmails = new Set<string>()
+  const allPartialForms = await admin.from('partial_intake_forms').select('email, recipient_email')
+  ;(allPartialForms.data || []).forEach((pf: any) => {
+    const e = pf.email?.toLowerCase().trim()
+    const r = pf.recipient_email?.toLowerCase().trim()
+    if (e) adminOwnerEmails.add(e)
+    if (r) adminOwnerEmails.add(r)
+  })
+
+  const profileProspects: ProspectRow[] = (profileRows || []).map((p: {
     id: string
     first_name: string | null
     last_name: string | null
@@ -97,6 +136,16 @@ export async function getProspects(): Promise<{ success: boolean; data?: Prospec
       status: 'Prospect',
     }
   })
+
+  // Merge: profile prospects first, then partial-form prospects (no duplicate emails)
+  const prospects: ProspectRow[] = [
+    ...profileProspects,
+    ...partialProspects,
+  ]
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[getProspects] Count:', { profiles: profileProspects.length, partial: partialProspects.length, total: prospects.length })
+  }
 
   return { success: true, data: prospects }
 }
