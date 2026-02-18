@@ -1,16 +1,45 @@
-<!DOCTYPE html>
+/**
+ * Filler confirmation email HTML (sent to the person who submitted the application on behalf of the patient).
+ * Same design as application confirmation; copy is tailored for the filler.
+ *
+ * Placeholders (replaced at send time):
+ *   __FILLER_FIRST_NAME__   - Filler's first name
+ *   __PATIENT_FULL_NAME__   - Patient full name (e.g. "Jane Smith")
+ *   __PATIENT_FIRST_NAME__  - Patient first name (for sign-off)
+ *   __SCHEDULING_LINK__     - Link to schedule a call
+ *   __PROGRAM_BROCHURE_URL__ - Link for "Download Program Brochure"
+ *   __CONTACT_EMAIL__       - Contact email (e.g. contactus@theibogainstitute.org)
+ */
+
+export interface FillerConfirmationParams {
+  fillerFirstName: string
+  patientFullName: string
+  patientFirstName: string
+  schedulingLink: string
+  programBrochureUrl: string
+  contactEmail: string
+}
+
+/** Build HTML for the filler confirmation email. */
+export function getFillerConfirmationHtml(params: FillerConfirmationParams): string {
+  return FILLER_CONFIRMATION_TEMPLATE.replace(/__FILLER_FIRST_NAME__/g, params.fillerFirstName)
+    .replace(/__PATIENT_FULL_NAME__/g, params.patientFullName)
+    .replace(/__PATIENT_FIRST_NAME__/g, params.patientFirstName)
+    .replace(/__SCHEDULING_LINK__/g, params.schedulingLink)
+    .replace(/__PROGRAM_BROCHURE_URL__/g, params.programBrochureUrl)
+    .replace(/__CONTACT_EMAIL__/g, params.contactEmail)
+}
+
+// Same layout as application confirmation; copy tailored for filler (person who submitted on behalf).
+const FILLER_CONFIRMATION_TEMPLATE = `<!DOCTYPE html>
 <html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Thank You for Your Application</title>
+<title>Application Form Submitted - Confirmation</title>
 <link href="https://fonts.googleapis.com/css?family=Instrument+Serif:ital,wght@0,400" rel="stylesheet" />
 <link href="https://fonts.googleapis.com/css?family=Inter:ital,wght@0,400;0,500;0,600" rel="stylesheet" />
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital,wght@0,400&display=swap');
-body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;} table{border-collapse:collapse;}
-.banner-heading{font-family:'Instrument Serif',Georgia,serif;}
-</style>
+<style>body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;} table{border-collapse:collapse;} .pc-font-alt{font-family:Arial,Helvetica,sans-serif;}</style>
 </head>
 <body style="margin:0;padding:0;background-color:#ece9df" bgcolor="#ece9df">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ece9df" bgcolor="#ece9df">
@@ -23,32 +52,30 @@ body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;
 <img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="140" height="39" alt="" style="display:block;border:0" />
 </td></tr>
 <tr><td style="padding-top:20px">
-<div class="banner-heading" style="font-family:'Instrument Serif',Georgia,serif;font-size:50px;line-height:130%;color:#fff;letter-spacing:-0.03em">Your Wellness Journey Begins</div>
+<div class="pc-font-alt" style="font-family:'Instrument Serif',Arial,sans-serif;font-size:50px;line-height:130%;color:#fff;letter-spacing:-0.03em">Your Wellness Journey Begins</div>
 </td></tr></table>
 </td></tr></table>
 </td></tr>
 <tr><td style="padding:0">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fff;border-radius:10px 10px 0 0" bgcolor="#ffffff">
 <tr><td style="padding:48px">
-<p style="margin:0 0 15px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Hello __FIRST_NAME__</p>
-<p style="margin:0 0 8px;font-size:16px;line-height:150%;color:#141414;font-weight:500">Thank you for submitting your application to Iboga Wellness Institute. We're honored that you're considering taking this important step in your wellness journey.</p>
-__FILLER_MESSAGE__
+<p style="margin:0 0 15px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Hello __FILLER_FIRST_NAME__</p>
+<p style="margin:0 0 8px;font-size:16px;line-height:150%;color:#141414;font-weight:500">Thank you for submitting the application on behalf of __PATIENT_FULL_NAME__. We have received the form and will contact the patient directly regarding their eligibility and next steps.</p>
 <table role="presentation" width="100%"><tr><td style="padding:24px 0"><table role="presentation" width="100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #eeedff">&nbsp;</td></tr></table></td></tr></table>
-<p style="margin:0 0 10px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Application Received</p>
-<p style="margin:0 0 20px;font-size:16px;line-height:150%;color:#535065">Our team has successfully received your application and will carefully review your information. We will be in touch soon regarding your eligibility and next steps. We truly appreciate your patience during this process.</p>
-__CREDENTIALS_SECTION__
+<p style="margin:0 0 10px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Form Submitted on Behalf</p>
+<p style="margin:0 0 20px;font-size:16px;line-height:150%;color:#535065">Our team has successfully received the application you submitted for __PATIENT_FULL_NAME__. We will carefully review the information and contact the patient directly regarding their eligibility and next steps. We appreciate you helping them take this important step in their wellness journey.</p>
 <table role="presentation" width="100%"><tr><td style="padding:10px 0 20px">
 <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0"><tr><td valign="top" style="padding:30px 20px;background-color:#d4dabb;border-radius:11px 11px 11px 11px;border-left:6px solid #6e7a46" bgcolor="#d4dabb">
-<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="left" valign="top" style="padding:0 0 5px"><p style="margin:0;font-size:19px;line-height:150%;color:#28243d;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif">Schedule Your Consultation</p></td></tr>
-<tr><td align="left" valign="top" style="padding:5px 0 0"><table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="left" valign="top"><p style="margin:0 0 0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif;letter-spacing:-0.2px">In the meantime, we invite you to schedule a confidential consultation call with our team.</p></td></tr>
-<tr><td align="center" valign="top" style="padding:20px 0;text-align:center;font-weight:normal"><a href="__SCHEDULING_LINK__" target="_blank" style="display:inline-block;box-sizing:border-box;border-radius:8px;background-color:#6e7a46;color:#fff !important;padding:10px 24px;text-decoration:none;font-size:16px;line-height:200%;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif" bgcolor="#6e7a46">Schedule Your Consultation</a></td></tr>
-<tr><td align="left" valign="top"><p style="margin:0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif;letter-spacing:-0.2px">During this call, we'll discuss:</p><div><br /></div><ul style="margin:0;padding:0 0 0 20px;font-family:'Inter',Arial,Helvetica,sans-serif;color:#28243d"><li style="margin-bottom:0;font-weight:400;font-size:16px;line-height:182%;text-transform:none;color:#28243d"><span style="font-weight:400;font-size:16px;line-height:182%;color:#28243d">Your health goals and expectations</span></li><li style="margin-bottom:0;font-weight:400;font-size:16px;line-height:182%;text-transform:none;color:#28243d"><span style="font-weight:400;font-size:16px;line-height:182%;color:#28243d">The treatment process and what to expect</span></li><li style="margin-bottom:0;font-weight:400;font-size:16px;line-height:182%;text-transform:none;color:#28243d"><span style="font-weight:400;font-size:16px;line-height:182%;color:#28243d">Any questions or concerns you may have</span></li><li style="margin-bottom:0;font-weight:400;font-size:16px;line-height:182%;text-transform:none;color:#28243d"><span style="font-weight:400;font-size:16px;line-height:182%;color:#28243d">Recommended next steps in your journey</span></li></ul></td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="left" valign="top" style="padding:0 0 5px"><p style="margin:0;font-size:19px;line-height:150%;color:#28243d;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif">Schedule a Call</p></td></tr>
+<tr><td align="left" valign="top" style="padding:5px 0 0"><table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="left" valign="top"><p style="margin:0 0 0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif;letter-spacing:-0.2px">If you have any questions about the application or the process, we invite you to schedule a call with our team.</p></td></tr>
+<tr><td align="center" valign="top" style="padding:20px 0;text-align:center;font-weight:normal"><a href="__SCHEDULING_LINK__" target="_blank" style="display:inline-block;box-sizing:border-box;border-radius:8px;background-color:#6e7a46;color:#fff !important;padding:10px 24px;text-decoration:none;font-size:16px;line-height:200%;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif" bgcolor="#6e7a46">Schedule a Call</a></td></tr>
+<tr><td align="left" valign="top"><p style="margin:0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif;letter-spacing:-0.2px">During this call, we can discuss:</p><div><br /></div><ul style="margin:0;padding:0 0 0 20px;font-family:'Inter',Arial,Helvetica,sans-serif;color:#28243d"><li style="margin-bottom:0;font-weight:400;font-size:16px;line-height:182%;text-transform:none;color:#28243d"><span style="font-weight:400;font-size:16px;line-height:182%;color:#28243d">Any questions about the application you submitted</span></li><li style="margin-bottom:0;font-weight:400;font-size:16px;line-height:182%;text-transform:none;color:#28243d"><span style="font-weight:400;font-size:16px;line-height:182%;color:#28243d">The treatment process and what to expect</span></li><li style="margin-bottom:0;font-weight:400;font-size:16px;line-height:182%;text-transform:none;color:#28243d"><span style="font-weight:400;font-size:16px;line-height:182%;color:#28243d">How we can support __PATIENT_FIRST_NAME__ on their wellness journey</span></li><li style="margin-bottom:0;font-weight:400;font-size:16px;line-height:182%;text-transform:none;color:#28243d"><span style="font-weight:400;font-size:16px;line-height:182%;color:#28243d">Next steps in the process</span></li></ul></td></tr></table></td></tr></table>
 </td></tr></table>
 </td></tr></table>
 <table role="presentation" width="100%"><tr><td style="padding:0 0 20px">
 <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:20px;background-color:#ece9df;border-radius:12px 12px 12px 12px" bgcolor="#ece9df">
 <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="left" valign="top" style="padding:0 0 10px"><p style="margin:0;font-size:19px;line-height:150%;color:#28243d;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif">Program Overview</p></td></tr>
-<tr><td align="left" valign="top" style="padding:0 0 20px"><p style="margin:0;font-size:16px;line-height:150%;color:#333;font-family:'Inter',Arial,Helvetica,sans-serif;letter-spacing:-0.2px">You can download the Program Overview PDF below for more details about the program. We encourage you to review it prior to your consultation so we can address any questions you may have.</p></td></tr>
+<tr><td align="left" valign="top" style="padding:0 0 20px"><p style="margin:0;font-size:16px;line-height:150%;color:#333;font-family:'Inter',Arial,Helvetica,sans-serif;letter-spacing:-0.2px">You may download the program brochure for your reference or to share with the patient.</p></td></tr>
 <tr><td align="center" valign="top" style="padding:20px 0 0;text-align:center;font-weight:normal"><a href="__PROGRAM_BROCHURE_URL__" target="_blank" style="display:inline-block;box-sizing:border-box;border-radius:8px;background-color:#6e7a46;color:#fff !important;padding:10px 24px;text-decoration:none;font-size:16px;line-height:200%;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif" bgcolor="#6e7a46">Download Program Brochure</a></td></tr>
 </table>
 </td></tr></table>
@@ -63,7 +90,7 @@ __CREDENTIALS_SECTION__
 </td></tr></table>
 </td></tr>
 <tr><td style="padding:48px;background-color:#6e7a46;border-radius:0" bgcolor="#6e7a46">
-<p style="margin:0 0 24px;font-size:21px;line-height:150%;color:#fff;font-weight:600">Thank you for your time and trust. We look forward to supporting you on your wellness journey.</p>
+<p style="margin:0 0 24px;font-size:21px;line-height:150%;color:#fff;font-weight:600">Thank you for helping __PATIENT_FIRST_NAME__ take this important step in their wellness journey.</p>
 <p style="margin:0;font-size:16px;line-height:150%;color:#ece9df">Warm regards,<br>The Iboga Wellness Institute Team</p>
 </td></tr>
 <tr><td style="padding:48px;background-color:#272315;border-radius:0 0 10px 10px" bgcolor="#272315">
@@ -77,4 +104,4 @@ __CREDENTIALS_SECTION__
 </td></tr></table>
 </td></tr></table>
 </body>
-</html>
+</html>`

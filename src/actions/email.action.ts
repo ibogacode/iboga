@@ -17,7 +17,7 @@ export async function sendEmailDirect(params: { to: string; subject: string; bod
 
     try {
       const url = `${supabaseUrl}/functions/v1/send-email`
-    console.log('[sendEmailDirect] Calling edge function:', url, 'to:', params.to)
+    //console.log('[sendEmailDirect] Calling edge function:', url, 'to:', params.to)
       
       const response = await fetch(url, {
         method: 'POST',
@@ -33,7 +33,7 @@ export async function sendEmailDirect(params: { to: string; subject: string; bod
       })
 
       const responseText = await response.text()
-    console.log('[sendEmailDirect] Edge function response:', response.status, responseText)
+    //console.log('[sendEmailDirect] Edge function response:', response.status, responseText)
 
       let result
       try {
@@ -48,7 +48,7 @@ export async function sendEmailDirect(params: { to: string; subject: string; bod
         return { success: false, error: result.error || 'Failed to send email' }
       }
 
-    console.log('[sendEmailDirect] Email sent successfully, messageId:', result.messageId)
+    //console.log('[sendEmailDirect] Email sent successfully, messageId:', result.messageId)
       return { success: true, messageId: result.messageId }
     } catch (error) {
     console.error('[sendEmailDirect] Email send error:', error)
@@ -66,7 +66,7 @@ async function sendEmailTemplate(
 
   try {
     const url = `${supabaseUrl}/functions/v1/send-email-template`
-    console.log('[sendEmailTemplate] Calling edge function:', url, 'type:', type, 'to:', params.to)
+    //console.log('[sendEmailTemplate] Calling edge function:', url, 'type:', type, 'to:', params.to)
     
     const response = await fetch(url, {
       method: 'POST',
@@ -139,8 +139,9 @@ export async function sendEmployeeWelcomeEmail(
   return result
 }
 
-// Helper function to send patient login credentials email (second email, sent separately)
-// This is sent after the application confirmation email
+// Helper function to send patient login credentials email (or only filler notification when sendToPatient is false).
+// When credentials are merged into the application confirmation email, call with sendToPatient: false and isFiller: true
+// to send only the "Patient Account Created" email to the filler.
 export async function sendPatientLoginCredentialsEmail(
   patientEmail: string,
   firstName: string,
@@ -149,9 +150,10 @@ export async function sendPatientLoginCredentialsEmail(
   isFiller: boolean = false,
   fillerEmail?: string,
   fillerFirstName?: string,
-  fillerLastName?: string
+  fillerLastName?: string,
+  sendToPatient: boolean = true
 ) {
-  console.log('[sendPatientLoginCredentialsEmail] Called with:', { patientEmail, firstName, lastName, isFiller, fillerEmail })
+  console.log('[sendPatientLoginCredentialsEmail] Called with:', { patientEmail, firstName, lastName, isFiller, fillerEmail, sendToPatient })
   
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
     (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
@@ -242,7 +244,7 @@ export async function sendPatientLoginCredentialsEmail(
               <strong>🔒 Security Note:</strong> We've included the login credentials here in case you need to help ${firstName} access their account. Please share these credentials securely with them. ${firstName} will be required to change their password on first login for security.
             </div>
             
-            <p>${firstName} will also receive a separate email with their login credentials. They will be required to change their password on first login for security.</p>
+            <p>${firstName}'s confirmation email includes their login credentials. They will be required to change their password on first login for security.</p>
             
             <div style="text-align: center; margin: 30px 0;">
               <a href="${loginUrl}" style="display: inline-block; background: #5D7A5F; color: white !important; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-size: 16px; font-weight: 600;">Login to Patient Portal</a>
@@ -278,7 +280,11 @@ export async function sendPatientLoginCredentialsEmail(
     }
   }
 
-  // Send welcome email to patient with password included
+  // Send credentials email to patient unless credentials were already included in confirmation email
+  if (!sendToPatient) {
+    return { success: true }
+  }
+
   const htmlBody = `
     <!DOCTYPE html>
     <html>
@@ -382,7 +388,7 @@ export async function sendPatientLoginCredentialsEmail(
           <h1>Iboga Wellness Institute</h1>
         </div>
         <div class="content">
-          <h2>Your Patient Portal Account is Ready, ${firstName}!</h2>
+          <h2>Your Client Portal Account is Ready, ${firstName}!</h2>
           ${isFiller && fillerFirstName ? `
           <div class="info-box" style="background: #f9f9f9; border-left: 4px solid #5D7A5F; padding: 20px; margin: 20px 0;">
             <p><strong>Account Created on Your Behalf</strong></p>
@@ -390,7 +396,7 @@ export async function sendPatientLoginCredentialsEmail(
             <p>You can now access your portal using the login credentials below.</p>
           </div>
           ` : `
-          <p>We have created your patient portal account. You can now access your portal using the login credentials below.</p>
+          <p>We have created your client portal account. You can now access your portal using the login credentials below.</p>
           `}
           
           <div class="credentials-box">
@@ -710,7 +716,7 @@ export async function sendPatientPasswordSetupEmail(
         </div>
         <div class="content">
           <h2>Welcome to Your Patient Portal, ${firstName}!</h2>
-          <p>We have created your patient portal account based on your application form submission.</p>
+          <p>We have created your client portal account based on your application form submission.</p>
           
           <div class="info-box">
             <p><strong>📧 Next Step - Set Up Your Password:</strong></p>

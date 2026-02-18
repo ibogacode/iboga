@@ -95,7 +95,7 @@ export function TreatmentDateCalendar({
         const schedule = result.data.data.schedule || []
         const patientsByDate = result.data.data.patientsByDate || {}
         const occupancyByDate = result.data.data.occupancyByDate || {}
-        const capacityMax = 4
+        const capacityMax = 5
 
         function getStatus(date: string): 'available' | 'limited' | 'full' {
           const newArrivalsCount = (patientsByDate[date] || []).length
@@ -139,7 +139,7 @@ export function TreatmentDateCalendar({
               date,
               capacityUsed: totalOccupancy,
               capacityMax,
-              status: totalOccupancy >= 4 ? 'full' : totalOccupancy >= 2 ? 'limited' : 'available',
+              status: totalOccupancy >= capacityMax ? 'full' : totalOccupancy >= 2 ? 'limited' : 'available',
               patients: [],
             })
           }
@@ -165,7 +165,7 @@ export function TreatmentDateCalendar({
         const schedule = result.data.data.schedule || []
         const patientsByDate = result.data.data.patientsByDate || {}
         const occupancyByDate = result.data.data.occupancyByDate || {}
-        const capacityMax = 4
+        const capacityMax = 5
 
         function getStatus(date: string): 'available' | 'limited' | 'full' {
           const newArrivalsCount = (patientsByDate[date] || []).length
@@ -210,7 +210,7 @@ export function TreatmentDateCalendar({
               date,
               capacityUsed: totalOccupancy,
               capacityMax,
-              status: totalOccupancy >= 4 ? 'full' : totalOccupancy >= 2 ? 'limited' : 'available',
+              status: totalOccupancy >= capacityMax ? 'full' : totalOccupancy >= 2 ? 'limited' : 'available',
               patients: [],
             })
           }
@@ -315,7 +315,7 @@ export function TreatmentDateCalendar({
     const dateStr = format(day, 'yyyy-MM-dd')
     const capacity = dateCapacities.get(dateStr)
     if (capacity) return { used: capacity.capacityUsed, max: capacity.capacityMax }
-    return { used: 0, max: 4 }
+    return { used: 0, max: 5 }
   }
 
   const selectedCapacity = selectedDate ? dateCapacities.get(selectedDate) : null
@@ -420,7 +420,7 @@ export function TreatmentDateCalendar({
                 <div className="w-3 h-3 bg-red-100 border-2 border-red-200 rounded" />
                 <span className="text-gray-700">Full</span>
               </div>
-              <div className="ml-auto text-gray-500 text-xs">Max 4/day</div>
+              <div className="ml-auto text-gray-500 text-xs">Max 5/day</div>
             </div>
           </div>
 

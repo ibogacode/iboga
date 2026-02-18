@@ -33,7 +33,8 @@ export const getDashboardStats = authActionClient
     const monthStartStr = monthStart.toISOString().split('T')[0]
     const monthEndStr = monthEnd.toISOString().split('T')[0]
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-    const capacityPerDay = 4
+    const BEDS_LIMIT = 5
+    const capacityPerDay = BEDS_LIMIT
 
     const [
       allAgreementsResult,
@@ -134,7 +135,9 @@ export const getDashboardStats = authActionClient
       }>
       const occupancy = occupancyByDate[todayStr] ?? 0
       const scheduleEntry = schedule.find((s) => s.treatment_date === todayStr)
-      const capacityMax = scheduleEntry?.capacity_max ?? 4
+      // Facility utilization based on 5 beds; treat legacy 4 as 5
+      const rawMax = scheduleEntry?.capacity_max ?? BEDS_LIMIT
+      const capacityMax = rawMax === 4 ? BEDS_LIMIT : rawMax
       facilityUtilization =
         capacityMax > 0 ? Math.round((occupancy / capacityMax) * 100) : 0
     }
@@ -171,6 +174,7 @@ export const getDashboardStats = authActionClient
         const dayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
         totalPatientDays += occupancyByDate[dayStr] ?? 0
       }
+      // Month utilization = total patient-days / (5 beds × days in month)
       const monthCapacity = capacityPerDay * daysInMonth
       facilityUtilizationMonth =
         monthCapacity > 0

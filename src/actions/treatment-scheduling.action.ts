@@ -199,10 +199,18 @@ export const getAvailableTreatmentDates = authActionClient
       }
     })
 
+    // Normalize capacity_max: treat legacy 4 as 5 so UI shows current bed limit everywhere
+    const BEDS_LIMIT = 5
+    type ScheduleRow = { treatment_date: string; capacity_max?: number; [k: string]: unknown }
+    const schedule = (scheduleData || []).map((row: ScheduleRow) => ({
+      ...row,
+      capacity_max: row.capacity_max === 4 ? BEDS_LIMIT : (row.capacity_max ?? BEDS_LIMIT),
+    })) as ScheduleRow[]
+
     return {
       success: true,
       data: {
-        schedule: scheduleData || [],
+        schedule,
         patientsByDate: Object.fromEntries(patientsByDate),
         occupancyByDate: Object.fromEntries(occupancyByDate),
       },
@@ -252,7 +260,7 @@ export const assignTreatmentDate = authActionClient
         .maybeSingle()
 
       const capacityUsed = schedule?.capacity_used || 0
-      const capacityMax = schedule?.capacity_max || 4
+      const capacityMax = schedule?.capacity_max || 5
 
       if (capacityUsed >= capacityMax) {
         return {

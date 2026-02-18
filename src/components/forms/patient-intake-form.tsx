@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { patientIntakeFormSchema, type PatientIntakeFormValues } from '@/lib/validations/patient-intake'
+import { PROGRAM_BROCHURE_URLS } from '@/lib/program-brochure-urls'
 import { submitPatientIntakeForm } from '@/actions/patient-intake.action'
 import { getPartialIntakeForm } from '@/actions/partial-intake.action'
 import { toast } from 'sonner'
@@ -773,9 +774,19 @@ function PatientIntakeFormContent() {
             <p className="text-lg text-gray-600 mb-2">
               Your form has been submitted successfully.
             </p>
-            <p className="text-base text-gray-500">
+            <p className="text-base text-gray-500 mb-6">
               We will review your information and get back to you soon.
             </p>
+            {form.watch('program_type') && (
+              <a
+                href={PROGRAM_BROCHURE_URLS[form.watch('program_type')!]}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center rounded-lg bg-[#6e7a46] px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-[#5c6740] focus:outline-none focus:ring-2 focus:ring-[#6e7a46] focus:ring-offset-2"
+              >
+                Download Program Brochure
+              </a>
+            )}
           </div>
         ) : (
           <>
