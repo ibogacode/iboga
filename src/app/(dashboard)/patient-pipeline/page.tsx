@@ -98,6 +98,16 @@ export default function PatientPipelinePage() {
     }
   }
 
+  function formatProgramType(programType: 'neurological' | 'mental_health' | 'addiction' | null): string {
+    if (!programType) return '—'
+    const map: Record<string, string> = {
+      neurological: 'Neurological',
+      mental_health: 'Mental Health',
+      addiction: 'Addiction',
+    }
+    return map[programType] ?? programType
+  }
+
   function handleViewPartial(id: string) {
     // Navigate to client profile page using partial form ID
     router.push(`/patient-pipeline/patient-profile/${id}`)
@@ -845,21 +855,21 @@ export default function PatientPipelinePage() {
                   {paginatedPublicForms.map((form) => (
                     <div key={form.id} className="px-3 py-[15px] h-[66px] border-b border-[#D6D2C8] flex items-center">
                       <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">
-                        {form.email} {form.phone_number ? `• ${form.phone_number}` : ''}
+                        {form.email}{form.phone_number && ` • ${form.phone_number}`}
                       </p>
                     </div>
                   ))}
                 </div>
 
-                {/* Phone Column */}
+                {/* Program Type Column */}
                 <div className="flex flex-col w-[150px] md:w-[192px] shrink-0">
                   <div className="px-3 py-2 h-[40px] border-b border-[rgba(28,28,28,0.2)] flex items-center">
-                    <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Phone</p>
+                    <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Program Type</p>
                   </div>
                   {paginatedPublicForms.map((form) => (
                     <div key={form.id} className="px-3 py-2 h-[66px] border-b border-[#D6D2C8] flex items-center">
                       <p className="text-sm text-[#2B2820] leading-[1.193em] tracking-[-0.04em]">
-                        {form.phone_number || 'N/A'}
+                        {formatProgramType(form.program_type)}
                       </p>
                     </div>
                   ))}
@@ -959,9 +969,7 @@ export default function PatientPipelinePage() {
                       <div className="flex-1">
                         <p className="text-base font-semibold text-black mb-1">{form.first_name} {form.last_name}</p>
                         <p className="text-xs text-[#777777] mb-1">{form.email}</p>
-                        {form.phone_number && (
-                          <p className="text-xs text-[#777777]">{form.phone_number}</p>
-                        )}
+                        <p className="text-xs text-[#777777]">{formatProgramType(form.program_type)}</p>
                       </div>
                       <span className={`px-3 py-1 h-[26px] rounded-[10px] text-xs flex items-center shrink-0`}
                         style={{ backgroundColor: statusBg, color: statusTextColor }}
