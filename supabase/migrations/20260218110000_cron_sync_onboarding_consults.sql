@@ -13,7 +13,7 @@ SELECT cron.schedule(
     url := 'https://ujbclldpvqhtkuoetkep.supabase.co/functions/v1/check-calendar-events',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqYmNsbGRwdnFodGt1b2V0a2VwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTM5NjIwOCwiZXhwIjoyMDgwOTcyMjA4fQ.TjxcCrxbyjOXeLm97Ss_FBGiwSC2ZjK1uJTShcXENqc'
+      'Authorization', 'Bearer xxxxxx'
     ),
     body := '{"syncOnboardingConsults": true}'::jsonb
   );
