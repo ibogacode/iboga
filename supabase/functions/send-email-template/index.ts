@@ -118,6 +118,7 @@ const DEFAULT_FROM_EMAIL = 'contactus@theibogainstitute.org'
 // Only these types use a different from address; all others use DEFAULT_FROM_EMAIL (contactus).
 const FROM_EMAIL_BY_TYPE: Partial<Record<string, string>> = {
   service_agreement_confirmation: 'guy@theibogainstitute.org',
+  onboarding_forms: 'daisy@theibogainstitute.org',
 }
 
 // Send email via Gmail API (fromEmailOverride: which address to send from)
@@ -131,7 +132,7 @@ async function sendGmailEmail(
   const fromEmail = fromEmailOverride ?? Deno.env.get('GMAIL_FROM_EMAIL')
 
   const emailContent = [
-    `From: Iboga Wellness Institute <${fromEmail}>`,
+    `From: The Iboga Wellness Institute <${fromEmail}>`,
     `To: ${to}`,
     `Subject: ${subject}`,
     'MIME-Version: 1.0',
@@ -221,7 +222,7 @@ const commonStyles = `
 // Email template generators
 function generateInquiryConfirmationEmail(firstName: string): { subject: string; body: string } {
   return {
-    subject: 'Thank you for your inquiry - Iboga Wellness Institute',
+    subject: 'Thank you for your inquiry - The Iboga Wellness Institute',
     body: `
       <!DOCTYPE html>
       <html>
@@ -234,7 +235,7 @@ function generateInquiryConfirmationEmail(firstName: string): { subject: string;
       <body>
         <div class="container">
           <div class="header">
-            <h1>Iboga Wellness Institute</h1>
+            <h1>The Iboga Wellness Institute</h1>
           </div>
           <div class="content">
             <h2>Thank you, ${firstName}!</h2>
@@ -244,7 +245,7 @@ function generateInquiryConfirmationEmail(firstName: string): { subject: string;
             <p>Warm regards,<br>The Iboga Wellness Institute</p>
           </div>
           <div class="footer">
-            <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
             <p>https://theibogainstitute.org</p>
           </div>
         </div>
@@ -266,7 +267,7 @@ function generateEmployeeWelcomeEmail(
   const roleDisplayName = role.charAt(0).toUpperCase() + role.slice(1)
 
   return {
-    subject: 'Welcome to Iboga Wellness Institute - Your Portal Access',
+    subject: 'Welcome to The Iboga Wellness Institute - Your Portal Access',
     body: `
       <!DOCTYPE html>
       <html>
@@ -317,11 +318,11 @@ function generateEmployeeWelcomeEmail(
       <body>
         <div class="container">
           <div class="header">
-            <h1>Iboga Wellness Institute</h1>
+            <h1>The Iboga Wellness Institute</h1>
           </div>
           <div class="content">
             <h2>Welcome to the Team, ${firstName}!</h2>
-            <p>Your account has been created for the Iboga Wellness Institute portal. You can now access the system with your role as <strong>${roleDisplayName}</strong>.</p>
+            <p>Your account has been created for The Iboga Wellness Institute portal. You can now access the system with your role as <strong>${roleDisplayName}</strong>.</p>
             
             <div class="credentials-box">
               <p><strong>Email:</strong> ${email}</p>
@@ -341,7 +342,7 @@ function generateEmployeeWelcomeEmail(
             <p>Welcome aboard!<br>The Iboga Wellness Institute Team</p>
           </div>
           <div class="footer">
-            <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
             <p>https://theibogainstitute.org</p>
           </div>
         </div>
@@ -362,7 +363,7 @@ function generatePatientLoginReminderEmail(
   const forgotPasswordUrl = `${baseUrl}/forgot-password`
 
   return {
-    subject: 'Reminder: Please Login and Change Your Password | Iboga Wellness Institute',
+    subject: 'Reminder: Please Login and Change Your Password | The Iboga Wellness Institute',
     body: `
       <!DOCTYPE html>
       <html>
@@ -417,7 +418,7 @@ function generatePatientLoginReminderEmail(
       <body>
         <div class="container">
           <div class="header">
-            <h1>Iboga Wellness Institute</h1>
+            <h1>The Iboga Wellness Institute</h1>
           </div>
           <div class="content">
             <h2>Reminder: Please Login and Change Your Password, ${firstName}!</h2>
@@ -461,7 +462,7 @@ function generatePatientLoginReminderEmail(
             <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
           </div>
           <div class="footer">
-            <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
             <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
           </div>
         </div>
@@ -484,7 +485,7 @@ function generateFillerLoginReminderEmail(
   const loginUrl = `${baseUrl}/login`
 
   return {
-    subject: `Reminder: Help ${patientFirstName} ${patientLastName} Complete Portal Setup | Iboga Wellness Institute`,
+    subject: `Reminder: Help ${patientFirstName} ${patientLastName} Complete Portal Setup | The Iboga Wellness Institute`,
     body: `
       <!DOCTYPE html>
       <html>
@@ -524,7 +525,7 @@ function generateFillerLoginReminderEmail(
       <body>
         <div class="container">
           <div class="header">
-            <h1>Iboga Wellness Institute</h1>
+            <h1>The Iboga Wellness Institute</h1>
           </div>
           <div class="content">
             <h2>Reminder: Help ${patientFirstName} Complete Portal Setup, ${fillerFirstName}!</h2>
@@ -559,7 +560,7 @@ function generateFillerLoginReminderEmail(
             <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
           </div>
           <div class="footer">
-            <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
             <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
           </div>
         </div>
@@ -580,7 +581,7 @@ function generateFormActivationEmail(
   const formLink = `${baseUrl}/patient/tasks`
 
   return {
-    subject: `Your ${formName} Form is Now Available | Iboga Wellness Institute`,
+    subject: `Your ${formName} Form is Now Available | The Iboga Wellness Institute`,
     body: `
       <!DOCTYPE html>
       <html>
@@ -613,7 +614,7 @@ function generateFormActivationEmail(
       <body>
         <div class="container">
           <div class="header">
-            <h1>Iboga Wellness Institute</h1>
+            <h1>The Iboga Wellness Institute</h1>
           </div>
           <div class="content">
             <h2>Your ${formName} Form is Now Available, ${firstName}!</h2>
@@ -639,7 +640,7 @@ function generateFormActivationEmail(
             <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
           </div>
           <div class="footer">
-            <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
             <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
           </div>
         </div>
@@ -660,7 +661,7 @@ function generateFormActivationReminderEmail(
   const formLink = `${baseUrl}/patient/tasks`
 
   return {
-    subject: `Reminder: Complete Your ${formName} Form | Iboga Wellness Institute`,
+    subject: `Reminder: Complete Your ${formName} Form | The Iboga Wellness Institute`,
     body: `
       <!DOCTYPE html>
       <html>
@@ -693,7 +694,7 @@ function generateFormActivationReminderEmail(
       <body>
         <div class="container">
           <div class="header">
-            <h1>Iboga Wellness Institute</h1>
+            <h1>The Iboga Wellness Institute</h1>
           </div>
           <div class="content">
             <h2>Reminder: Complete Your ${formName} Form, ${firstName}!</h2>
@@ -724,7 +725,7 @@ function generateFormActivationReminderEmail(
             <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
           </div>
           <div class="footer">
-            <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
             <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
           </div>
         </div>
@@ -747,8 +748,8 @@ function generateMedicalHistoryConfirmationEmail(
 
   return {
     subject: isFiller
-      ? `Medical History Form Completed for ${patientName} | Iboga Wellness Institute`
-      : `Thank You for Completing Your Medical History Form | Iboga Wellness Institute`,
+      ? `Medical History Form Completed for ${patientName} | The Iboga Wellness Institute`
+      : `Thank You for Completing Your Medical History Form | The Iboga Wellness Institute`,
     body: `
       <!DOCTYPE html>
       <html>
@@ -766,7 +767,7 @@ function generateMedicalHistoryConfirmationEmail(
       <body>
         <div class="container">
           <div class="header">
-            <h1>Iboga Wellness Institute</h1>
+            <h1>The Iboga Wellness Institute</h1>
           </div>
           <div class="content">
             <h2>Thank You for Completing Your Medical History Form</h2>
@@ -796,7 +797,7 @@ function generateMedicalHistoryConfirmationEmail(
             <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
           </div>
           <div class="footer">
-            <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
             <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
           </div>
         </div>
@@ -819,8 +820,8 @@ function generateServiceAgreementConfirmationEmail(
 
   return {
     subject: isFiller
-      ? `Service Agreement Completed for ${patientName} | Iboga Wellness Institute`
-      : `Thank You for Completing Your Service Agreement | Iboga Wellness Institute`,
+      ? `Service Agreement Completed for ${patientName} | The Iboga Wellness Institute`
+      : `Thank You for Completing Your Service Agreement | The Iboga Wellness Institute`,
     body: `
       <!DOCTYPE html>
       <html>
@@ -838,7 +839,7 @@ function generateServiceAgreementConfirmationEmail(
       <body>
         <div class="container">
           <div class="header">
-            <h1>Iboga Wellness Institute</h1>
+            <h1>The Iboga Wellness Institute</h1>
           </div>
           <div class="content">
             <h2>Thank You for Completing Your Service Agreement</h2>
@@ -868,7 +869,7 @@ function generateServiceAgreementConfirmationEmail(
             <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
           </div>
           <div class="footer">
-            <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
             <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
           </div>
         </div>
@@ -891,8 +892,8 @@ function generateIbogaineConsentConfirmationEmail(
 
   return {
     subject: isFiller
-      ? `Ibogaine Consent Form Completed for ${patientName} | Iboga Wellness Institute`
-      : `Thank You for Completing Your Ibogaine Consent Form | Iboga Wellness Institute`,
+      ? `Ibogaine Consent Form Completed for ${patientName} | The Iboga Wellness Institute`
+      : `Thank You for Completing Your Ibogaine Consent Form | The Iboga Wellness Institute`,
     body: `
       <!DOCTYPE html>
       <html>
@@ -910,7 +911,7 @@ function generateIbogaineConsentConfirmationEmail(
       <body>
         <div class="container">
           <div class="header">
-            <h1>Iboga Wellness Institute</h1>
+            <h1>The Iboga Wellness Institute</h1>
           </div>
           <div class="content">
             <h2>Thank You for Completing Your Ibogaine Consent Form</h2>
@@ -934,7 +935,7 @@ function generateIbogaineConsentConfirmationEmail(
             <p>Warm regards,<br>The Iboga Wellness Institute Team</p>
           </div>
           <div class="footer">
-            <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
             <p>https://theibogainstitute.org</p>
           </div>
         </div>
@@ -947,14 +948,19 @@ function generateIbogaineConsentConfirmationEmail(
 function generateOnboardingFormsEmail(
   firstName: string,
   lastName: string,
-  onboardingId: string
+  onboardingId: string,
+  schedulingLink?: string
 ): { subject: string; body: string } {
   const baseUrl = getBaseUrl()
   const formLink = `${baseUrl}/onboarding-forms/${onboardingId}`
   const displayName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'there'
+  const consultBlock = schedulingLink
+    ? `<p style="margin-top: 12px;"><strong>Schedule a consult with the Clinical Director:</strong></p>
+              <p style="margin-top: 8px;"><a href="${schedulingLink}" class="cta-button" style="margin: 0;">Schedule Your Consult with Clinical Director</a></p>`
+    : `<p style="margin-top: 12px;"><strong>Schedule a consult:</strong> Please book a call with the Clinical Director to discuss your onboarding. You can do this from your patient portal Tasks, or reply to this email to arrange a time.</p>`
 
   return {
-    subject: `Complete Your 3 Onboarding Forms | Iboga Wellness Institute`,
+    subject: `Complete Your Onboarding – Forms, EKG, Bloodwork & Consult with Clinical Director | The Iboga Wellness Institute`,
     body: `
       <!DOCTYPE html>
       <html>
@@ -983,39 +989,40 @@ function generateOnboardingFormsEmail(
       <body>
         <div class="container">
           <div class="header">
-            <h1>Iboga Wellness Institute</h1>
+            <h1>The Iboga Wellness Institute</h1>
           </div>
           <div class="content">
-            <h2>Onboarding Forms – Please Complete</h2>
+            <h2>Onboarding – Next Steps</h2>
             <p>Hello ${displayName},</p>
-            <p>You have been moved to the onboarding stage. <strong>3 forms are now activated for you. Please finish them</strong> and upload your EKG and Bloodwork results before we can assign your treatment date.</p>
+            <p>You have been moved to the onboarding stage. Please complete the following so we can assign your treatment date:</p>
             <div class="info-box">
-              <p><strong>Forms to complete:</strong></p>
+              <p><strong>1. Complete 3 forms:</strong></p>
               <ul>
                 <li><strong>Release Form</strong> – Legal release and acknowledgment</li>
                 <li><strong>Outing Consent Form</strong> – Permission for therapeutic outings</li>
                 <li><strong>Internal Regulations Form</strong> – Facility rules and guidelines</li>
               </ul>
-              <p style="margin-top: 12px;"><strong>Documents to upload (in Tasks):</strong></p>
+              <p style="margin-top: 12px;"><strong>2. Upload (in Tasks):</strong></p>
               <ul>
                 <li><strong>EKG results</strong></li>
                 <li><strong>Bloodwork results</strong></li>
               </ul>
+              ${consultBlock}
             </div>
             <p style="text-align: center;">
               <a href="${formLink}" class="cta-button">Complete Your 3 Forms</a>
             </p>
-            <p>In your patient portal <strong>Tasks</strong> you will also see options to upload your <strong>EKG</strong> and <strong>Bloodwork</strong> results. Please complete the 3 forms and upload both documents so we can prepare your tapering schedule.</p>
-            <p><strong>Important:</strong> These forms and documents must be completed before we can assign your treatment date. Please complete them as soon as possible.</p>
-            <p>If you have any questions, please contact us:</p>
+            <p>In your patient portal <strong>Tasks</strong> you will see all of the above: the 3 forms, EKG and Bloodwork uploads, and an option to schedule a consult with the Clinical Director. Please complete them as soon as possible.</p>
+            <p><strong>Important:</strong> These items must be completed before we can assign your treatment date.</p>
+            <p>If you have any questions, reply to this email or contact us:</p>
             <p>
               <strong>Phone:</strong> +1 (800) 604-7294<br>
-              <strong>Email:</strong> contactus@theibogainstitute.org
+              <strong>Email:</strong> daisy@theibogainstitute.org
             </p>
-            <p>Thank you,<br><strong>The Iboga Wellness Institute Team</strong></p>
+            <p>Thank you,<br><strong>Clinical Director</strong><br>The Iboga Wellness Institute</p>
           </div>
           <div class="footer">
-            <p>Iboga Wellness Institute | Cozumel, Mexico</p>
+            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
             <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
           </div>
         </div>
@@ -1167,10 +1174,12 @@ serve(async (req) => {
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
+        const clinicalDirectorCalendarLink = 'https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ0cMnBbm_aBy3dpuD0i5OCegv_FYMNskCyHkVgD8qHc4Enl99atTmXmyrpHcqVTML19PzmgEAl-?gv=true'
         emailContent = generateOnboardingFormsEmail(
           request.firstName || 'there',
           request.lastName || '',
-          request.onboardingId
+          request.onboardingId,
+          request.schedulingLink ?? clinicalDirectorCalendarLink
         )
         break
 

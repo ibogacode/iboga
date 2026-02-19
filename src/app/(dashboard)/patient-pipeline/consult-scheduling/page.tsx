@@ -2,9 +2,18 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
-import { getAllCalendarEvents } from '@/actions/calendar.action'
-import { Loader2 } from 'lucide-react'
+import { getAllCalendarEvents, syncOnboardingConsultsFromCalendar } from '@/actions/calendar.action'
+import { Loader2, RefreshCw } from 'lucide-react'
+import { useUser } from '@/hooks/use-user.hook'
+import { toast } from 'sonner'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, getDay, addMonths, subMonths, parseISO, startOfWeek, endOfWeek, addWeeks, subWeeks, addDays, subDays, getHours, getMinutes, getTime } from 'date-fns'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface CalendarEvent {
   id: string
@@ -21,27 +30,30 @@ interface CalendarEvent {
 }
 
 
+type CalendarUser = 'contactus' | 'daisy'
+
 export default function ConsultSchedulingPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([])
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('week')
   const [selectedDay, setSelectedDay] = useState<Date>(new Date())
+  const [calendarUser, setCalendarUser] = useState<CalendarUser>('daisy')
+  const [syncing, setSyncing] = useState(false)
+  const { profile } = useUser()
+  const isAdmin = profile?.role && ['owner', 'admin', 'manager'].includes(profile.role)
 
   useEffect(() => {
     async function loadData() {
       setIsLoading(true)
-      
       try {
-        const calendarResult = await getAllCalendarEvents({})
+        const calendarResult = await getAllCalendarEvents({ calendarUser })
 
         if (calendarResult?.data?.success) {
           const events = calendarResult.data.data || []
-          console.log('[ConsultScheduling] Loaded calendar events:', events.length)
-          // Filter out cancelled events for display, but keep all others
+          console.log('[ConsultScheduling] Loaded calendar events:', events.length, 'calendar:', calendarUser)
           const activeEvents = events.filter((event: CalendarEvent) => event.status !== 'cancelled')
           setCalendarEvents(activeEvents)
-          console.log('[ConsultScheduling] Active calendar events:', activeEvents.length)
         } else {
           console.warn('[ConsultScheduling] Failed to load calendar events:', calendarResult?.data)
         }
@@ -53,7 +65,7 @@ export default function ConsultSchedulingPage() {
     }
 
     loadData()
-  }, [])
+  }, [calendarUser])
 
 
   // Get events for a specific date - show ALL events regardless of patient association
@@ -274,14 +286,52 @@ export default function ConsultSchedulingPage() {
 
       {/* Calendar Section - Full Width */}
       <div className="bg-white rounded-2xl p-5 shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-medium text-black leading-[1.193em] tracking-[-0.04em]">
-              Consult Calendar - {viewMode === 'week' 
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2 className="text-lg font-medium text-black leading-[1.193em] tracking-[-0.04em]">
+                Consult Calendar - {viewMode === 'week' 
                 ? `${format(startOfWeek(currentDate, { weekStartsOn: 1 }), 'MMM d')} - ${format(endOfWeek(currentDate, { weekStartsOn: 1 }), 'MMM d, yyyy')}`
                 : viewMode === 'day'
                 ? format(selectedDay, 'EEEE, MMMM d, yyyy')
                 : format(currentDate, 'MMMM yyyy')}
-            </h2>
+              </h2>
+              <Select value={calendarUser} onValueChange={(v) => setCalendarUser(v as CalendarUser)}>
+                <SelectTrigger className="w-[180px] border-[#D6D2C8] rounded-full h-10">
+                  <SelectValue placeholder="Calendar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="contactus">Contactus</SelectItem>
+                  <SelectItem value="daisy">Clinical Director</SelectItem>
+                </SelectContent>
+              </Select>
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full h-10 border-[#D6D2C8]"
+                  disabled={syncing}
+                  onClick={async () => {
+                    setSyncing(true)
+                    try {
+                      const result = await syncOnboardingConsultsFromCalendar({})
+                      if (result?.data?.success && result.data.data) {
+                        const d = result.data.data as { updatedOnboardingCount?: number; eventsCount?: number; attendeeEmailsCount?: number }
+                        toast.success(
+                          `Sync done. Updated ${d.updatedOnboardingCount ?? 0} onboarding row(s). Events: ${d.eventsCount ?? 0}, Attendees: ${d.attendeeEmailsCount ?? 0}.`
+                        )
+                      } else {
+                        toast.error(result?.data?.error ?? 'Sync failed')
+                      }
+                    } finally {
+                      setSyncing(false)
+                    }
+                  }}
+                >
+                  {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  <span className="ml-1.5">Sync now</span>
+                </Button>
+              )}
+            </div>
             
             <div className="flex items-center gap-2 bg-white rounded-full p-1 border border-[#D6D2C8]">
               <button

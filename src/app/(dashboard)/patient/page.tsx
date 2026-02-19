@@ -127,7 +127,7 @@ export default async function PatientHomePage() {
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-50 border border-blue-200">
                 <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></div>
                 <span className="text-xs font-medium text-blue-700">
-                  Onboarding: {onboardingStatus.formsCompleted || 0}/{onboardingStatus.formsTotal || 3}
+                  Onboarding: {onboardingStatus.formsCompleted ?? 0}/{onboardingStatus.formsTotal ?? 6}
                 </span>
               </div>
             </div>

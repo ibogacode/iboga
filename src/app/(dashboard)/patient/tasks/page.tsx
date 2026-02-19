@@ -14,6 +14,7 @@ import { MedicalHistoryFormView } from '@/components/admin/medical-history-form-
 import { ServiceAgreementFormView } from '@/components/admin/service-agreement-form-view'
 import { IbogaineConsentFormView } from '@/components/admin/ibogaine-consent-form-view'
 import { toast } from 'sonner'
+import { format } from 'date-fns'
 
 export default function PatientTasksPage() {
   const router = useRouter()
@@ -174,8 +175,12 @@ export default function PatientTasksPage() {
         setLoadingViewForm(null)
       }
     } else if (task.link && task.link !== '#') {
-      // Navigate to form for not started forms
-      router.push(task.link)
+      // External links (e.g. Clinical Director scheduling) open in new tab
+      if (task.link.startsWith('http://') || task.link.startsWith('https://')) {
+        window.open(task.link, '_blank')
+      } else {
+        router.push(task.link)
+      }
     }
   }
 
@@ -252,7 +257,7 @@ export default function PatientTasksPage() {
                     Onboarding
                   </span>
                   <span className="text-xs text-blue-600">
-                    {onboardingStatus.formsCompleted || 0}/{onboardingStatus.formsTotal || 3} forms
+                    {onboardingStatus.formsCompleted ?? 0}/{onboardingStatus.formsTotal ?? 6} steps
                   </span>
                 </div>
               </div>
@@ -441,6 +446,14 @@ export default function PatientTasksPage() {
                           {task.status === 'skipped' && (task.type === 'onboarding_ekg_upload' || task.type === 'onboarding_bloodwork_upload') && (
                             <p className="text-xs text-amber-700 mt-1">Tests will be done at the institute after arrival (free of cost).</p>
                           )}
+                          {task.type === 'onboarding_consult_clinical_director' && task.status !== 'completed' && task.link && (task.link.startsWith('http://') || task.link.startsWith('https://')) && (
+                            <p className="text-xs text-[#6E7A46] mt-1">Click below to open the calendar and pick a time for your call with the Clinical Director.</p>
+                          )}
+                          {task.type === 'onboarding_consult_clinical_director' && task.status === 'completed' && task.completedAt && (
+                            <p className="text-xs text-[#6E7A46] mt-1">
+                              Call scheduled for {format(new Date(task.completedAt), 'MMM d, yyyy, h:mm a')}.
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -469,21 +482,27 @@ export default function PatientTasksPage() {
                       {/* Action Column */}
                       <div className="flex items-center md:col-span-1">
                         {task.status === 'completed' ? (
-                          <Button
-                            variant="outline"
-                            className="w-full md:w-auto h-10 px-4 rounded-3xl text-sm bg-white border border-gray-200 text-[#777777] hover:bg-gray-50"
-                            onClick={() => handleTaskAction(task)}
-                            disabled={loadingViewForm === task.id}
-                          >
-                            {loadingViewForm === task.id ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Loading...
-                              </>
-                            ) : (
-                              'View'
-                            )}
-                          </Button>
+                          task.type === 'onboarding_consult_clinical_director' && task.completedAt ? (
+                            <p className="text-sm text-[#2B2820] font-medium">
+                              {format(new Date(task.completedAt), 'MMM d, yyyy, h:mm a')}
+                            </p>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              className="w-full md:w-auto h-10 px-4 rounded-3xl text-sm bg-white border border-gray-200 text-[#777777] hover:bg-gray-50"
+                              onClick={() => handleTaskAction(task)}
+                              disabled={loadingViewForm === task.id}
+                            >
+                              {loadingViewForm === task.id ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Loading...
+                                </>
+                              ) : (
+                                'View'
+                              )}
+                            </Button>
+                          )
                         ) : task.status === 'skipped' ? (
                           <Button
                             variant="outline"

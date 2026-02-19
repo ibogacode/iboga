@@ -6,10 +6,10 @@ import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalH
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { sendFormEmail } from '@/actions/send-form-email.action'
 import { sendRequestLabsEmail } from '@/actions/email.action'
-import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding, uploadOnboardingFormDocument, moveToPatientManagement } from '@/actions/onboarding-forms.action'
+import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding, uploadOnboardingFormDocument, moveToPatientManagement, markOnboardingConsultScheduled } from '@/actions/onboarding-forms.action'
 import { getOnboardingMedicalDocumentViewUrl, adminSkipOnboardingMedicalDocument } from '@/actions/onboarding-documents.action'
 import { markAsProspect, removeProspectStatus } from '@/actions/prospect-status.action'
-import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload, ClipboardList, Stethoscope, LayoutGrid, ChevronDown, FlaskConical, PauseCircle, UserCheck, Heart, TestTube2 } from 'lucide-react'
+import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload, ClipboardList, Stethoscope, LayoutGrid, ChevronDown, FlaskConical, PauseCircle, UserCheck, Heart, TestTube2, CalendarCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -49,6 +49,8 @@ import { ProspectBadge } from '@/components/ui/prospect-badge'
 import { recordBillingPayment, getBillingPayments, turnOffBillingReminder, updateBillingPayment } from '@/actions/patient-billing.action'
 import { TreatmentDateCalendar } from '@/components/treatment-scheduling/treatment-date-calendar'
 import { getTaperingScheduleByOnboarding } from '@/actions/tapering-schedule.action'
+import { getClinicalDirectorConsultFormByOnboarding } from '@/actions/clinical-director-consult-form.action'
+import type { ClinicalDirectorConsultFormData } from '@/actions/clinical-director-consult-form.types'
 import {
   getLeadTasks,
   createLeadTask,
@@ -58,7 +60,29 @@ import {
   getStaffForAssign,
   type LeadTaskRow,
 } from '@/actions/lead-tasks.action'
+import { getLeadNote, updateLeadNote } from '@/actions/lead-notes.action'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+const CLINICAL_DIRECTOR_CONSULT_QUESTION_LABELS: { key: string; label: string }[] = [
+  { key: 'psychedelics_before', label: 'Have you used psychedelics before?' },
+  { key: 'psychedelics_which', label: 'If yes, which psychedelics have you used?' },
+  { key: 'supplements_regular', label: 'What supplements do you take regularly?' },
+  { key: 'arrival_date', label: 'Arrival date' },
+  { key: 'arrival_time', label: 'Arrival time' },
+  { key: 'questions_concerns_prior_arrival', label: 'Questions or concerns prior to arrival?' },
+  { key: 'dietary_restrictions_allergies', label: 'Dietary restrictions or allergies?' },
+  { key: 'substance_use_caffeine_nicotine_alcohol', label: 'Caffeine, nicotine, alcohol, cannabis, or other substances?' },
+  { key: 'substance_use_frequency_amount', label: 'If yes, frequency and amount?' },
+  { key: 'diagnosed_conditions', label: 'Diagnosed conditions' },
+  { key: 'substances_used_past', label: 'Substances used in the past?' },
+  { key: 'substances_started_when', label: 'When did you start using substances?' },
+  { key: 'substances_current', label: 'Substances currently using?' },
+  { key: 'substances_current_frequency_amount', label: 'Frequency and amount' },
+  { key: 'substances_current_last_use_date', label: 'Last use date' },
+  { key: 'withdrawal_symptoms_before', label: 'Experienced withdrawal symptoms before?' },
+  { key: 'previous_detox_rehab', label: 'Previous detox or rehab?' },
+  { key: 'previous_detox_rehab_times', label: 'How many times?' },
+]
 
 interface PatientProfileData {
   patient: any
@@ -168,9 +192,10 @@ export default function PatientProfilePage() {
   const [loadingMedicalDocView, setLoadingMedicalDocView] = useState<'ekg' | 'bloodwork' | null>(null)
   const [adminSkippingMedical, setAdminSkippingMedical] = useState<'ekg' | 'bloodwork' | null>(null)
   const [confirmSkipMedical, setConfirmSkipMedical] = useState<'ekg' | 'bloodwork' | null>(null)
+  const [markingConsultScheduled, setMarkingConsultScheduled] = useState(false)
   const onboardingFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const onboardingFormContentRef = useRef<HTMLDivElement>(null)
-  const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'billing' | 'travel' | 'notes'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'billing' | 'travel'>('overview')
   const [quickNote, setQuickNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [billingPayments, setBillingPayments] = useState<Array<{
@@ -246,7 +271,9 @@ export default function PatientProfilePage() {
     sent_at?: string
   } | null>(null)
   const [loadingTaperingSchedule, setLoadingTaperingSchedule] = useState(false)
-  
+  const [clinicalDirectorConsultForm, setClinicalDirectorConsultForm] = useState<ClinicalDirectorConsultFormData | null>(null)
+  const [loadingClinicalDirectorConsultForm, setLoadingClinicalDirectorConsultForm] = useState(false)
+
   const isAdminOrOwner = profile?.role === 'admin' || profile?.role === 'owner'
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'manager'
   const isStaff = isAdmin || profile?.role === 'doctor' || profile?.role === 'psych' || profile?.role === 'nurse'
@@ -393,6 +420,26 @@ export default function PatientProfilePage() {
       .finally(() => setLoadingTaperingSchedule(false))
   }, [profileData?.onboarding?.onboarding?.id, isStaff])
 
+  // Fetch Clinical Director consult form when onboarding exists (shown when consult is scheduled)
+  useEffect(() => {
+    const onboardingId = profileData?.onboarding?.onboarding?.id
+    if (!onboardingId || !isStaff) {
+      setClinicalDirectorConsultForm(null)
+      return
+    }
+    setLoadingClinicalDirectorConsultForm(true)
+    getClinicalDirectorConsultFormByOnboarding({ onboarding_id: onboardingId })
+      .then((result) => {
+        if (result?.data?.success && result.data.data) {
+          setClinicalDirectorConsultForm(result.data.data)
+        } else {
+          setClinicalDirectorConsultForm(null)
+        }
+      })
+      .catch(() => setClinicalDirectorConsultForm(null))
+      .finally(() => setLoadingClinicalDirectorConsultForm(false))
+  }, [profileData?.onboarding?.onboarding?.id, isStaff])
+
   function loadLeadTasks() {
     if (!id || !isStaff) return
     setLoadingLeadTasks(true)
@@ -435,7 +482,16 @@ export default function PatientProfilePage() {
 
         // Onboarding data is now included in the initial load
         setProfileData(data as PatientProfileData)
-        
+
+        // Load quick note for this lead
+        getLeadNote({ leadId: id })
+          .then((res) => {
+            if (res?.data?.success && res.data.data) {
+              setQuickNote(res.data.data.notes ?? '')
+            }
+          })
+          .catch(() => {})
+
         // Set form data for editing
         setFormData({
           first_name: data.patient?.first_name || data.intakeForm?.first_name || data.partialForm?.first_name || '',
@@ -973,6 +1029,12 @@ export default function PatientProfilePage() {
     : profileData.onboarding
     ? 'Onboarding'
     : 'Pipeline'
+  const patientProgramType =
+    managementRecord?.program_type ??
+    profileData?.serviceAgreement?.program_type ??
+    profileData?.intakeForm?.program_type ??
+    null
+  const patientProgramLabel = patientProgramType ? formatProgramLabel(patientProgramType) : '—'
   const leadId = patient?.id ? `L-${patient.id.slice(0, 8).toUpperCase().replace(/-/g, '')}` : '—'
   const inquiryDate =
     profileData.intakeForm?.created_at || profileData.partialForm?.created_at
@@ -1439,12 +1501,20 @@ export default function PatientProfilePage() {
                 <p className="text-xs text-[#777777]">Lead ID: {leadId}</p>
               </div>
             </div>
-            {/* Current Stage */}
-            <div className="flex flex-col gap-2.5">
-              <p className="text-xs text-[#777777]">Current Stage</p>
-              <span className="inline-flex items-center justify-center self-start px-3 py-1.5 rounded-[10px] text-sm bg-[#FFFBD4] text-[#F59E0B]">
-                {currentStageLabel}
+            {/* Current Stage + Patient Program side by side */}
+            <div className="flex flex-wrap items-stretch gap-4">
+              <div className="flex flex-col gap-2.5">
+                <p className="text-xs text-[#777777]">Current Stage</p>
+                <span className="inline-flex items-center justify-center self-start px-3 py-1.5 rounded-[10px] text-sm bg-[#FFFBD4] text-[#F59E0B]">
+                  {currentStageLabel}
+                </span>
+              </div>
+              <div className="flex flex-col gap-2.5">
+                <p className="text-xs text-[#777777]">Patient Program</p>
+<span className="inline-flex items-center justify-center self-start px-3 py-1.5 rounded-[10px] text-sm bg-[#6E7A46]/15 text-[#6E7A46]">
+                {patientProgramLabel}
               </span>
+              </div>
             </div>
             {/* Key Dates */}
             <div className="flex flex-col gap-2.5">
@@ -1503,10 +1573,15 @@ export default function PatientProfilePage() {
                   size="sm"
                   className="flex-1 rounded-3xl bg-[#6E7A46] hover:bg-[#5c6840] text-white text-sm shadow-sm"
                   disabled={savingNote}
-                  onClick={() => {
+                  onClick={async () => {
                     setSavingNote(true)
-                    toast.info('Save Note – coming soon')
-                    setTimeout(() => setSavingNote(false), 500)
+                    const result = await updateLeadNote({ leadId: id, notes: quickNote })
+                    setSavingNote(false)
+                    if (result?.data?.success) {
+                      toast.success('Note saved')
+                    } else {
+                      toast.error(result?.data?.error ?? 'Failed to save note')
+                    }
                   }}
                 >
                   {savingNote ? (
@@ -1560,12 +1635,6 @@ export default function PatientProfilePage() {
           >
             Travel
           </TabsTrigger>
-          <TabsTrigger
-            value="notes"
-            className="rounded-full px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-[#6E7A46] data-[state=active]:shadow-md data-[state=inactive]:text-[#090909]"
-          >
-            Notes
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-0">
@@ -1586,6 +1655,7 @@ export default function PatientProfilePage() {
                 body: string
                 bullets?: string[]
                 formRows?: { label: string; completed: boolean; completedAt: string | null }[]
+                consultRow?: { scheduledAt: string | null; formData?: ClinicalDirectorConsultFormData | null }
                 isNext?: boolean
                 isPending?: boolean
                 managementSection?: boolean
@@ -1661,6 +1731,7 @@ export default function PatientProfilePage() {
               if (profileData.onboarding?.onboarding) {
                 const ob = profileData.onboarding.onboarding
                 const forms = profileData.onboarding.forms
+                const consultScheduledAt = (ob as { consult_scheduled_at?: string | null }).consult_scheduled_at
                 const taperingComplete = taperingSchedule && (taperingSchedule.status === 'sent' || taperingSchedule.status === 'acknowledged')
                 const onboardingFormRows: { label: string; completed: boolean; completedAt: string | null }[] = [
                   {
@@ -1704,6 +1775,7 @@ export default function PatientProfilePage() {
                   time: lastOnboardingCompletedAt ?? '',
                   body: onboardingCount === 4 ? 'All onboarding forms completed.' : `${onboardingCount} of 4 onboarding forms completed.`,
                   formRows: onboardingFormRows,
+                  consultRow: { scheduledAt: consultScheduledAt ?? null, formData: clinicalDirectorConsultForm ?? null },
                 })
               }
               if (managementRecord) {
@@ -1830,6 +1902,57 @@ export default function PatientProfilePage() {
                             </li>
                           ))}
                         </ul>
+                      )}
+                      {item.consultRow && (
+                        <div className="mt-4 pt-3 border-t border-[#E5E7EB]">
+                          <h5 className="text-sm font-semibold text-[#0A0A0A] mb-1">Consultation with Clinical Director</h5>
+                          {item.consultRow.scheduledAt ? (
+                            <>
+                              <p className="text-sm text-[#777777]">{format(new Date(item.consultRow.scheduledAt), 'MMM d, yyyy • h:mm a')}</p>
+                              <p className="text-sm text-[#777777] mt-0.5">Consult call with Clinical Director is scheduled.</p>
+                              {isStaff && (
+                                <>
+                                  {item.consultRow.formData && (
+                                    <ul className="mt-3 space-y-2 text-sm">
+                                      {CLINICAL_DIRECTOR_CONSULT_QUESTION_LABELS.map(({ key, label }) => {
+                                        const raw = (item.consultRow!.formData as any)?.[key]
+                                        let value: string | null = null
+                                        if (raw === true || raw === false) value = raw ? 'Yes' : 'No'
+                                        else if (typeof raw === 'number') value = String(raw)
+                                        else if (key === 'diagnosed_conditions' && typeof raw === 'string') {
+                                          try {
+                                            const arr = JSON.parse(raw) as string[]
+                                            value = Array.isArray(arr) && arr.length ? arr.join(', ') : null
+                                          } catch {
+                                            value = raw.trim() || null
+                                          }
+                                        }
+                                        else if (typeof raw === 'string' && raw.trim()) value = raw.trim()
+                                        if (!value) return null
+                                        return (
+                                          <li key={key} className="flex flex-col gap-0.5">
+                                            <span className="font-medium text-[#2B2820]">{label}</span>
+                                            <span className="text-[#777777]">{value}</span>
+                                          </li>
+                                        )
+                                      })}
+                                    </ul>
+                                  )}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="mt-3 rounded-full border-[#D6D2C8] text-xs text-[#6E7A46] hover:bg-[#F5F4F0]"
+                                    onClick={() => router.push(`/patient-pipeline/patient-profile/${id}/clinical-director-consult-form`)}
+                                  >
+                                    {item.consultRow.formData ? 'View / Edit form' : 'Fill questionnaire'}
+                                  </Button>
+                                </>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-sm text-[#777777]">Consult with Clinical Director has not been scheduled yet.</p>
+                          )}
+                        </div>
                       )}
                       {item.bullets && item.bullets.length > 0 && !item.formRows && (
                         <ul className="mt-3 space-y-1 text-sm text-[#777777]">
@@ -2376,6 +2499,54 @@ export default function PatientProfilePage() {
                       </div>
                     )}
 
+                    {/* Consult with Clinical Director row */}
+                    {profileData?.onboarding?.onboarding?.id && (
+                      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0 last:border-b-0">
+                        <div className="text-sm text-[#2B2820] py-2 flex items-center gap-2">
+                          <CalendarCheck className="h-4 w-4 text-[#6E7A46]" />
+                          Consult with Clinical Director
+                        </div>
+                        <div className="py-2 px-3">
+                          {(profileData.onboarding.onboarding as { consult_scheduled_at?: string | null })?.consult_scheduled_at ? (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Scheduled</span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-gray-100 text-gray-500">Pending</span>
+                          )}
+                        </div>
+                        <div className="text-sm text-[#2B2820] py-2 px-3">
+                          {(profileData.onboarding.onboarding as { consult_scheduled_at?: string | null })?.consult_scheduled_at
+                            ? format(new Date((profileData.onboarding.onboarding as { consult_scheduled_at: string }).consult_scheduled_at), 'MMM d, yyyy, h:mm a')
+                            : '—'}
+                        </div>
+                        <div className="py-2 px-3 flex gap-2 flex-wrap">
+                          {isAdmin && !(profileData.onboarding.onboarding as { consult_scheduled_at?: string | null })?.consult_scheduled_at && (
+                            <Button
+                              size="sm"
+                              className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white border-0"
+                              disabled={markingConsultScheduled}
+                              onClick={async () => {
+                                setMarkingConsultScheduled(true)
+                                try {
+                                  const result = await markOnboardingConsultScheduled({ onboarding_id: profileData.onboarding!.onboarding.id })
+                                  if (result?.data?.success) {
+                                    toast.success('Consult marked as scheduled')
+                                    const profileRes = await getPatientProfile({ patientId: id as string })
+                                    if (profileRes?.data?.success && profileRes.data.data) setProfileData(profileRes.data.data)
+                                  } else {
+                                    toast.error(result?.data?.error ?? 'Failed to mark consult scheduled')
+                                  }
+                                } finally {
+                                  setMarkingConsultScheduled(false)
+                                }
+                              }}
+                            >
+                              {markingConsultScheduled ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Mark consult scheduled'}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Tapering Schedule row - visible to all staff, Create/Edit for admin/manager only */}
                     {isStaff && (
                       <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0 last:border-b-0">
@@ -2424,6 +2595,59 @@ export default function PatientProfilePage() {
                               )}
                             </>
                           )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Clinical Director Consult Questionnaire – visible when consult is scheduled */}
+                    {isStaff && profileData?.onboarding?.onboarding?.id && (profileData.onboarding.onboarding as { consult_scheduled_at?: string | null }).consult_scheduled_at && (
+                      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0 last:border-b-0">
+                        <div className="text-sm text-[#2B2820] py-2 flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-[#6E7A46]" />
+                          Clinical Director Consult Questionnaire
+                        </div>
+                        <div className="py-2 px-3">
+                          {loadingClinicalDirectorConsultForm ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                          ) : clinicalDirectorConsultForm && (() => {
+                            const f = clinicalDirectorConsultForm as any
+                            return CLINICAL_DIRECTOR_CONSULT_QUESTION_LABELS.some(({ key }) => {
+                              const v = f?.[key]
+                              if (v === true || v === false) return true
+                              if (typeof v === 'number') return true
+                              if (key === 'diagnosed_conditions' && typeof v === 'string') {
+                                try { const arr = JSON.parse(v); return Array.isArray(arr) && arr.length > 0 } catch { return !!v?.trim() }
+                              }
+                              return typeof v === 'string' && v.trim() !== ''
+                            })
+                          })() ? (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Completed</span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-gray-100 text-gray-500">Not started</span>
+                          )}
+                        </div>
+                        <div className="text-sm text-[#2B2820] py-2 px-3">
+                          {clinicalDirectorConsultForm?.updated_at ? format(new Date(clinicalDirectorConsultForm.updated_at), 'MMM d, yyyy, h:mm a') : '—'}
+                        </div>
+                        <div className="py-2 px-3 flex gap-2 flex-wrap">
+                          <Button
+                            size="sm"
+                            className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white shadow-sm"
+                            onClick={() => router.push(`/patient-pipeline/patient-profile/${id}/clinical-director-consult-form`)}
+                          >
+                            {clinicalDirectorConsultForm && (() => {
+                            const f = clinicalDirectorConsultForm as any
+                            return CLINICAL_DIRECTOR_CONSULT_QUESTION_LABELS.some(({ key }) => {
+                              const v = f?.[key]
+                              if (v === true || v === false) return true
+                              if (typeof v === 'number') return true
+                              if (key === 'diagnosed_conditions' && typeof v === 'string') {
+                                try { const arr = JSON.parse(v); return Array.isArray(arr) && arr.length > 0 } catch { return !!v?.trim() }
+                              }
+                              return typeof v === 'string' && v.trim() !== ''
+                            })
+                          })() ? 'View' : 'Fill form'}
+                          </Button>
                         </div>
                       </div>
                     )}
@@ -3075,12 +3299,6 @@ export default function PatientProfilePage() {
             <p className="text-sm text-[#777777]">Travel details will appear here.</p>
           </div>
         </TabsContent>
-        <TabsContent value="notes" className="mt-0">
-          <div className="rounded-[14px] bg-[#F5F4F0] p-6">
-            <h3 className="text-lg font-medium text-black mb-2">Notes</h3>
-            <p className="text-sm text-[#777777]">Notes about this lead will appear here.</p>
-          </div>
-        </TabsContent>
       </Tabs>
       </div>
         </div>
@@ -3405,6 +3623,13 @@ export default function PatientProfilePage() {
                         : paymentStatus === 'Not Started'
                           ? 'Not Started'
                           : 'Pending'
+                  const consultScheduledAt = (profileData?.onboarding?.onboarding as { consult_scheduled_at?: string | null })?.consult_scheduled_at
+                  const medicalClearanceStatus = !consultScheduledAt
+                    ? 'Not Started'
+                    : new Date(consultScheduledAt) <= new Date()
+                      ? 'Completed'
+                      : 'Call scheduled'
+                  const medicalClearanceStyle = medicalClearanceStatus === 'Completed' ? 'Done' : medicalClearanceStatus === 'Call scheduled' ? 'Pending' : 'Not Started'
                   const requirements: Array<{ label: string; status: string; statusStyle: string }> = [
                     {
                       label: `Forms Complete (${formsCompletedCount}/4)`,
@@ -3413,7 +3638,7 @@ export default function PatientProfilePage() {
                     },
                     { label: paymentLabel, status: paymentStatus, statusStyle: paymentStatusStyle },
                     { label: 'Labs Uploaded', status: 'Missing', statusStyle: 'Missing' },
-                    { label: 'Medical Clearance', status: 'Not Started', statusStyle: 'Not Started' },
+                    { label: 'Medical Clearance', status: medicalClearanceStatus, statusStyle: medicalClearanceStyle },
                     { label: 'Travel Details', status: 'Pending', statusStyle: 'Pending' },
                   ]
                   return requirements

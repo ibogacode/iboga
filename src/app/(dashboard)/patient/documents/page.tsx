@@ -41,7 +41,8 @@ export default async function PatientDocumentsPage() {
           task.status === 'completed' &&
           task.formId &&
           task.type !== 'onboarding_ekg_upload' &&
-          task.type !== 'onboarding_bloodwork_upload'
+          task.type !== 'onboarding_bloodwork_upload' &&
+          task.type !== 'onboarding_consult_clinical_director'
       )
       // Sort by completion date (most recent first)
       completedDocuments.sort((a, b) => {
