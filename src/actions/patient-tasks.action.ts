@@ -8,7 +8,7 @@ const getPatientTasksSchema = z.object({})
 
 export interface PatientTask {
   id: string
-  type: 'intake' | 'medical_history' | 'service_agreement' | 'ibogaine_consent' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | 'onboarding_ekg_upload' | 'onboarding_bloodwork_upload'
+  type: 'intake' | 'medical_history' | 'service_agreement' | 'ibogaine_consent' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | 'onboarding_ekg_upload' | 'onboarding_bloodwork_upload' | 'onboarding_consult_clinical_director'
   title: string
   description: string
   status: 'not_started' | 'in_progress' | 'completed' | 'locked' | 'skipped'
@@ -64,7 +64,7 @@ export const getPatientTasks = authActionClient
       // Check onboarding status (full query - no need to query again later)
       supabase
         .from('patient_onboarding')
-        .select('id, status, release_form_completed, outing_consent_completed, internal_regulations_completed, ekg_skipped, ekg_skipped_at, bloodwork_skipped, bloodwork_skipped_at')
+        .select('id, status, release_form_completed, outing_consent_completed, internal_regulations_completed, ekg_skipped, ekg_skipped_at, bloodwork_skipped, bloodwork_skipped_at, consult_scheduled_at')
         .eq('patient_id', patientId)
         .maybeSingle(),
       // Try to find intake form by patient_id match in profiles
@@ -555,12 +555,8 @@ export const getPatientTasks = authActionClient
         isInOnboarding: true,
         status: onboardingFull.status as 'in_progress' | 'completed' | 'moved_to_management',
         onboardingId: onboardingFull.id,
-        formsCompleted: [
-          onboardingFull.release_form_completed,
-          onboardingFull.outing_consent_completed,
-          onboardingFull.internal_regulations_completed,
-        ].filter(Boolean).length,
-        formsTotal: 3,
+        formsCompleted: 0, // set after all 6 onboarding tasks are added
+        formsTotal: 6, // 3 forms + 2 uploads (EKG, bloodwork) + 1 Clinical Director consult
         ekgSkipped: !!onboardingFull.ekg_skipped,
         bloodworkSkipped: !!onboardingFull.bloodwork_skipped,
       }
@@ -663,6 +659,29 @@ export const getPatientTasks = authActionClient
         formId: onboardingFull.id,
         link: '/patient/documents',
       })
+
+      // Schedule a meeting with Clinical Director (consult) – required onboarding task
+      const consultScheduledAt = onboardingFull.consult_scheduled_at
+      const CLINICAL_DIRECTOR_CALENDAR_LINK = 'https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ0cMnBbm_aBy3dpuD0i5OCegv_FYMNskCyHkVgD8qHc4Enl99atTmXmyrpHcqVTML19PzmgEAl-?gv=true'
+      tasks.push({
+        id: `onboarding-consult-clinical-director-${onboardingFull.id}`,
+        type: 'onboarding_consult_clinical_director',
+        title: 'Consultation with Clinical Director',
+        description: 'Book a consult call with the Clinical Director to discuss your onboarding and next steps.',
+        status: consultScheduledAt ? 'completed' : 'not_started',
+        estimatedTime: '~5 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: consultScheduledAt ?? undefined,
+        formId: onboardingFull.id,
+        link: CLINICAL_DIRECTOR_CALENDAR_LINK,
+      })
+
+      // Count completed onboarding steps (3 forms + EKG + bloodwork + Clinical Director consult = 6)
+      const onboardingTaskTypes = ['onboarding_release', 'onboarding_outing', 'onboarding_regulations', 'onboarding_ekg_upload', 'onboarding_bloodwork_upload', 'onboarding_consult_clinical_director'] as const
+      onboardingStatus.formsCompleted = tasks.filter(
+        (t) => onboardingTaskTypes.includes(t.type as (typeof onboardingTaskTypes)[number]) && (t.status === 'completed' || t.status === 'skipped')
+      ).length
     }
 
     // Calculate task statistics (include onboarding forms; skipped counts as done for progress)

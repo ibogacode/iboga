@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Patient Journey – Iboga Wellness Institute Portal</title>
+  <style>
+    :root {
+      --brand: #5D7A5F;
+      --brand-light: #6E7A46;
+      --accent: #DEF8EE;
+      --bg: #f8f9f7;
+      --card: #fff;
+      --text: #2B2820;
+      --muted: #777;
+      --email: #2563eb;
+      --reminder: #d97706;
+      --staff: #7c3aed;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem 1rem 4rem;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: var(--brand);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      padding: 1rem 1.25rem;
+      background: var(--card);
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      font-size: 0.9rem;
+    }
+    .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .legend .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .legend .dot.email { background: var(--email); }
+    .legend .dot.reminder { background: var(--reminder); }
+    .legend .dot.staff { background: var(--staff); }
+    .legend .dot.step { background: var(--brand); }
+
+    .flow {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .step-card {
+      background: var(--card);
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 0.75rem;
+      position: relative;
+      padding-left: 3rem;
+    }
+    .step-card::before {
+      content: '';
+      position: absolute;
+      left: 1rem;
+      top: 1.25rem;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--brand);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+    .step-card.step-1::before { content: '1'; }
+    .step-card.step-2::before { content: '2'; }
+    .step-card.step-3::before { content: '3'; }
+    .step-card.step-4::before { content: '4'; }
+    .step-card.step-5::before { content: '5'; }
+    .step-card.step-6::before { content: '6'; }
+
+    .step-title {
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: var(--brand);
+      margin-bottom: 0.5rem;
+    }
+    .step-desc { color: var(--muted); font-size: 0.95rem; margin-bottom: 1rem; }
+    .step-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 640px) { .step-grid { grid-template-columns: 1fr; } }
+    .step-box {
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      border-left: 3px solid #e5e7eb;
+    }
+    .step-box.client { border-left-color: var(--brand-light); }
+    .step-box.staff-box { border-left-color: var(--staff); }
+    .step-box h4 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+    .step-box ul { list-style: none; font-size: 0.9rem; }
+    .step-box li { padding: 0.2rem 0; padding-left: 1.2rem; position: relative; }
+    .step-box li::before { content: '•'; position: absolute; left: 0; color: var(--brand); }
+
+    .email-tag {
+      display: inline-block;
+      background: #eff6ff;
+      color: var(--email);
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      margin-top: 0.35rem;
+    }
+    .reminder-tag {
+      display: inline-block;
+      background: #fffbeb;
+      color: var(--reminder);
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      margin-top: 0.35rem;
+    }
+
+    .connector {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin: 0.25rem 0;
+    }
+    .connector::after { content: '▼'; display: block; margin-top: 0.2rem; }
+
+    section.section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 2.5rem 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--brand);
+    }
+
+    .email-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+      font-size: 0.9rem;
+    }
+    .email-table th,
+    .email-table td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #f3f4f6; }
+    .email-table th { background: #f9fafb; color: var(--muted); font-weight: 600; }
+    .email-table tr:last-child td { border-bottom: 0; }
+    .email-table .who { color: var(--staff); font-weight: 500; }
+    .email-table .to { color: var(--email); }
+
+    .access-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .access-card {
+      background: var(--card);
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 1rem;
+    }
+    .access-card strong { color: var(--brand); display: block; margin-bottom: 0.35rem; }
+    .access-card p { font-size: 0.9rem; color: var(--muted); }
+
+    .footer-note {
+      margin-top: 2.5rem;
+      padding: 1rem;
+      background: #f0fdf4;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      color: #166534;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Patient journey & portal workflow</h1>
+    <p class="subtitle">From first inquiry to treatment — what happens, who gets emails, and where staff and clients work.</p>
+
+    <div class="legend">
+      <span><span class="dot step"></span> Pipeline step</span>
+      <span><span class="dot email"></span> Email to client or staff</span>
+      <span><span class="dot reminder"></span> Automated reminder</span>
+      <span><span class="dot staff"></span> Staff-only action</span>
+    </div>
+
+    <!-- STEPS -->
+    <section class="flow">
+      <div class="step-card step-1">
+        <div class="step-title">1. Inquiry</div>
+        <div class="step-desc">Client submits the initial application (intake) form from the website.</div>
+        <div class="step-grid">
+          <div class="step-box client">
+            <h4>Client</h4>
+            <ul>
+              <li>Fills out Client Application (intake) form</li>
+              <li>May receive login link to patient portal later</li>
+            </ul>
+          </div>
+          <div class="step-box staff-box">
+            <h4>Staff</h4>
+            <ul>
+              <li>See new lead in Patient Pipeline</li>
+              <li>Can add patient manually or activate forms</li>
+            </ul>
+            <span class="email-tag">Inquiry confirmation (if sent)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector">Then</div>
+
+      <div class="step-card step-2">
+        <div class="step-title">2. Forms & agreements</div>
+        <div class="step-desc">Client completes four pre-arrival forms in the patient portal (or staff sends links).</div>
+        <div class="step-grid">
+          <div class="step-box client">
+            <h4>Client (portal)</h4>
+            <ul>
+              <li>Medical Health History</li>
+              <li>Service Agreement</li>
+              <li>Ibogaine Consent</li>
+            </ul>
+            <span class="email-tag">Form activation / login emails</span>
+            <span class="reminder-tag">Login & form reminders (scheduled)</span>
+          </div>
+          <div class="step-box staff-box">
+            <h4>Staff</h4>
+            <ul>
+              <li>Activate forms from Patient Profile</li>
+              <li>Send “Request labs” email (EKG/bloodwork)</li>
+              <li>Move client to Onboarding when ready</li>
+            </ul>
+            <span class="email-tag">Lab Work Request → client (portal task)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector">When Ibogaine Consent is completed</div>
+
+      <div class="step-card step-3">
+        <div class="step-title">3. Onboarding</div>
+        <div class="step-desc">Client is in onboarding: completes release forms, EKG/bloodwork (or skips for institute), then tapering schedule.</div>
+        <div class="step-grid">
+          <div class="step-box client">
+            <h4>Client (portal)</h4>
+            <ul>
+              <li>Release Form, Outing Consent, Internal Regulations</li>
+              <li>Upload EKG & bloodwork — or “Skip for now” (done at institute)</li>
+              <li>View tapering schedule when sent</li>
+            </ul>
+            <span class="email-tag">Onboarding forms email</span>
+            <span class="reminder-tag">Onboarding form reminders (scheduled)</span>
+          </div>
+          <div class="step-box staff-box">
+            <h4>Staff</h4>
+            <ul>
+              <li>Omar (one email when EKG + bloodwork done or skipped): “New patient onboarding” + “Client ready for tapering” (when EKG/bloodwork done or skipped)</li>
+              <li>Create/send tapering schedule from profile</li>
+              <li>Move to Patient Management when ready</li>
+            </ul>
+            <span class="email-tag">Omar: client ready for tapering (one email when EKG + bloodwork complete)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector">When onboarding is complete</div>
+
+      <div class="step-card step-4">
+        <div class="step-title">4. Medical review & arrival</div>
+        <div class="step-desc">Client is in “management”: at or near the institute; one-time and daily forms as needed.</div>
+        <div class="step-grid">
+          <div class="step-box client">
+            <h4>Client / on-site</h4>
+            <ul>
+              <li>One-time forms (e.g. Intake Report, Medical Intake Report)</li>
+              <li>Daily forms (medical, psychological, etc.) as required</li>
+            </ul>
+          </div>
+          <div class="step-box staff-box">
+            <h4>Staff</h4>
+            <ul>
+              <li>Patient Management dashboard</li>
+              <li>Record payments, view daily forms, discharge</li>
+            </ul>
+            <span class="reminder-tag">Billing balance reminders (if set)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector">Then</div>
+
+      <div class="step-card step-5">
+        <div class="step-title">5. Treatment & discharge</div>
+        <div class="step-desc">Client completes treatment; staff marks discharge and closes the stay.</div>
+        <div class="step-grid">
+          <div class="step-box client">
+            <h4>Client</h4>
+            <ul>
+              <li>Ongoing daily forms as per program</li>
+            </ul>
+          </div>
+          <div class="step-box staff-box">
+            <h4>Staff</h4>
+            <ul>
+              <li>Discharge from Patient Management</li>
+              <li>Notes and follow-up as needed</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-title">Every email in the process (by scenario)</section>
+    <p style="color: var(--muted); font-size: 0.95rem; margin-bottom: 1rem;">Below is a full list of every email the system can send. Each row shows the scenario, recipient, and subject or description.</p>
+
+    <h3 style="font-size: 1rem; color: var(--brand); margin: 1.25rem 0 0.5rem;">Inquiry & application</h3>
+    <table class="email-table">
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>Recipient</th>
+          <th>Email subject / description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Inquiry confirmation (if enabled)</td>
+          <td class="to">Client</td>
+          <td>Template: inquiry_confirmation</td>
+        </tr>
+        <tr>
+          <td>Client submits full intake form</td>
+          <td class="to">Client</td>
+          <td>Thank You for Your Application - Schedule Your Consultation | Iboga Wellness Institute</td>
+        </tr>
+        <tr>
+          <td>Someone else submits intake for client (filler)</td>
+          <td class="to">Filler (person who submitted)</td>
+          <td>Application Form Submitted - Confirmation for [Patient Name] | Iboga Wellness Institute</td>
+        </tr>
+        <tr>
+          <td>Staff sends partial/minimal intake form link</td>
+          <td class="to">Client or filler</td>
+          <td>Complete Your Application Form - [Name] | Iboga Wellness Institute (or “Complete a patient application” variant)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 1rem; color: var(--brand); margin: 1.25rem 0 0.5rem;">Portal access & form activation</h3>
+    <table class="email-table">
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>Recipient</th>
+          <th>Email subject / description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Staff creates account with temporary password (login credentials)</td>
+          <td class="to">Client</td>
+          <td>Your Patient Portal Login Credentials | Iboga Wellness Institute</td>
+        </tr>
+        <tr>
+          <td>Same as above, when a filler submitted the form</td>
+          <td class="to">Filler</td>
+          <td>Patient Account Created for [Patient Name] | Iboga Wellness Institute (includes credentials to share)</td>
+        </tr>
+        <tr>
+          <td>Staff triggers “set password” (reset link)</td>
+          <td class="to">Client</td>
+          <td>Supabase password reset email (link to set password)</td>
+        </tr>
+        <tr>
+          <td>Same as above, when account was created by filler</td>
+          <td class="to">Filler</td>
+          <td>Patient Account Created for [Patient Name] | Iboga Wellness Institute</td>
+        </tr>
+        <tr>
+          <td>Welcome after password setup</td>
+          <td class="to">Client</td>
+          <td>Welcome to Your Patient Portal | Iboga Wellness Institute</td>
+        </tr>
+        <tr>
+          <td>Staff activates Service Agreement or Ibogaine Consent form</td>
+          <td class="to">Client</td>
+          <td>Template: form_activation (form activation email)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 1rem; color: var(--brand); margin: 1.25rem 0 0.5rem;">Sending a form link (staff action)</h3>
+    <table class="email-table">
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>Recipient</th>
+          <th>Email subject / description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Staff sends Medical History form link</td>
+          <td class="to">Client or filler</td>
+          <td>Complete Your Medical Health History Form - [Patient Name] | Iboga Wellness Institute</td>
+        </tr>
+        <tr>
+          <td>Staff sends Service Agreement form link</td>
+          <td class="to">Client or filler</td>
+          <td>Review and Sign Service Agreement - [Patient Name] | Iboga Wellness Institute</td>
+        </tr>
+        <tr>
+          <td>Staff sends Ibogaine Consent form link</td>
+          <td class="to">Client or filler</td>
+          <td>Complete Your Ibogaine Therapy Consent Form - [Patient Name] | Iboga Wellness Institute</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 1rem; color: var(--brand); margin: 1.25rem 0 0.5rem;">After a form is completed (confirmations & staff alerts)</h3>
+    <table class="email-table">
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>Recipient</th>
+          <th>Email subject / description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Client completes Medical History</td>
+          <td class="to">Client</td>
+          <td>Template: medical_history_confirmation</td>
+        </tr>
+        <tr>
+          <td>Medical History completed</td>
+          <td class="who">James</td>
+          <td>Client Ready for Service Agreement - [Client Name] | Iboga Wellness Institute</td>
+        </tr>
+        <tr>
+          <td>Client completes Service Agreement</td>
+          <td class="to">Client</td>
+          <td>Template: service_agreement_confirmation</td>
+        </tr>
+        <tr>
+          <td>Service Agreement completed</td>
+          <td class="who">James</td>
+          <td>Client Service Agreement Completed - [Client Name] | Iboga Wellness Institute</td>
+        </tr>
+        <tr>
+          <td>Client completes Ibogaine Consent</td>
+          <td class="to">Client</td>
+          <td>Template: ibogaine_consent_confirmation</td>
+        </tr>
+        <tr>
+          <td>Ibogaine Consent completed</td>
+          <td class="who">James</td>
+          <td>Client Ibogaine Consent Form Completed - [Client Name] | Ready for Onboarding</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 1rem; color: var(--brand); margin: 1.25rem 0 0.5rem;">Reminders (scheduled or manual)</h3>
+    <table class="email-table">
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>Recipient</th>
+          <th>Email subject / description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Login reminder (cron / scheduled)</td>
+          <td class="to">Client</td>
+          <td>Template: patient_login_reminder (not sent to prospects)</td>
+        </tr>
+        <tr>
+          <td>Login reminder when someone else filled form</td>
+          <td class="to">Filler</td>
+          <td>Template: filler_login_reminder</td>
+        </tr>
+        <tr>
+          <td>Form activation reminder (e.g. 48h after activation)</td>
+          <td class="to">Client</td>
+          <td>Template: form_activation_reminder</td>
+        </tr>
+        <tr>
+          <td>Onboarding form reminder (cron / scheduled)</td>
+          <td class="to">Client</td>
+          <td>Reminder to complete onboarding forms (not sent to prospects)</td>
+        </tr>
+        <tr>
+          <td>Staff records payment and sets “send reminder” or next reminder date</td>
+          <td class="to">Client</td>
+          <td>Reminder: Balance payment due - Iboga Wellness Institute (not sent to prospects)</td>
+        </tr>
+        <tr>
+          <td>Staff sends balance reminder manually</td>
+          <td class="to">Client</td>
+          <td>Reminder: Balance payment due - The Iboga Wellness Institute (not sent to prospects)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 1rem; color: var(--brand); margin: 1.25rem 0 0.5rem;">Labs & onboarding</h3>
+    <table class="email-table">
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>Recipient</th>
+          <th>Email subject / description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Staff clicks “Request labs” on patient profile</td>
+          <td class="to">Client</td>
+          <td>Lab Work Request | Iboga Wellness Institute</td>
+        </tr>
+        <tr>
+          <td>Client is moved to onboarding (manual or auto after Ibogaine Consent)</td>
+          <td class="to">Client</td>
+          <td>Template: onboarding_forms (link to complete release, consent, regulations, EKG/bloodwork)</td>
+        </tr>
+        <tr>
+          <td>Patient auto-moved to onboarding (after Ibogaine Consent)</td>
+          <td class="who">James</td>
+          <td>Patient Automatically Moved to Onboarding - [Client Name] | Iboga Wellness Institute</td>
+        </tr>
+        <tr>
+          <td>Client completes all 3 onboarding forms (release, outing, regulations)</td>
+          <td class="who">James</td>
+          <td>Client Onboarding Complete - [Client Name] | Iboga Wellness Institute</td>
+        </tr>
+        <tr>
+          <td>EKG and bloodwork both uploaded (or both skipped)</td>
+          <td class="who">Omar</td>
+          <td>Client Ready for Tapering Schedule: [Patient Name] (may note if EKG/bloodwork skipped)</td>
+        </tr>
+        <tr>
+          <td>Staff sends tapering schedule to client</td>
+          <td class="to">Client</td>
+          <td>Your Tapering Schedule is Ready | Iboga Wellness Institute</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size: 1rem; color: var(--brand); margin: 1.25rem 0 0.5rem;">Staff / internal only</h3>
+    <table class="email-table">
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>Recipient</th>
+          <th>Email subject / description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>New employee added to portal</td>
+          <td class="who">Employee</td>
+          <td>Template: employee_welcome (login credentials and role)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <section class="section-title">Quick reference: who receives which emails</section>
+    <table class="email-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Who gets it</th>
+          <th>What it is</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>After inquiry</td>
+          <td class="to">Client</td>
+          <td>Inquiry confirmation (if enabled)</td>
+        </tr>
+        <tr>
+          <td>When forms are activated</td>
+          <td class="to">Client</td>
+          <td>Form activation email / login or set-password link</td>
+        </tr>
+        <tr>
+          <td>Reminders (scheduled)</td>
+          <td class="to">Client / Filler</td>
+          <td>Login reminder, form activation reminder, onboarding form reminder</td>
+        </tr>
+        <tr>
+          <td>Staff sends “Request labs”</td>
+          <td class="to">Client</td>
+          <td>Lab Work Request — complete task in portal</td>
+        </tr>
+        <tr>
+          <td>When moved to onboarding</td>
+          <td class="to">Client</td>
+          <td>Onboarding forms email (release, consent, regulations, EKG/bloodwork)</td>
+        </tr>
+        <tr>
+          <td>EKG + bloodwork done or skipped</td>
+          <td class="who">Omar</td>
+          <td>Client ready for tapering schedule</td>
+        </tr>
+        <tr>
+          <td>When tapering schedule is sent</td>
+          <td class="to">Client</td>
+          <td>Tapering schedule email</td>
+        </tr>
+        <tr>
+          <td>All onboarding forms completed</td>
+          <td class="who">James</td>
+          <td>Client onboarding complete</td>
+        </tr>
+        <tr>
+          <td>Auto-move to onboarding (after consent)</td>
+          <td class="who">James</td>
+          <td>Patient automatically moved to onboarding</td>
+        </tr>
+        <tr>
+          <td>Medical History completed</td>
+          <td class="who">James</td>
+          <td>Client ready for Service Agreement</td>
+        </tr>
+        <tr>
+          <td>Service Agreement / Ibogaine Consent completed</td>
+          <td class="who">James</td>
+          <td>Client completed form / Ready for Onboarding</td>
+        </tr>
+        <tr>
+          <td>Billing (when staff sets reminder or sends manually)</td>
+          <td class="to">Client</td>
+          <td>Balance payment reminder (not sent to prospects)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <section class="section-title">Where people work (access)</section>
+    <div class="access-cards">
+      <div class="access-card">
+        <strong>Patient portal</strong>
+        <p>Clients log in to complete forms, upload EKG/bloodwork, view documents and tapering schedule.</p>
+      </div>
+      <div class="access-card">
+        <strong>Patient pipeline</strong>
+        <p>Staff see all leads and patients; open a profile to activate forms, move stage, request labs, view documents.</p>
+      </div>
+      <div class="access-card">
+        <strong>Patient profile</strong>
+        <p>Single place for one patient: forms, onboarding, EKG/bloodwork, tapering, billing, notes, move to management.</p>
+      </div>
+      <div class="access-card">
+        <strong>Onboarding</strong>
+        <p>Staff view onboarding list and completion status.</p>
+      </div>
+      <div class="access-card">
+        <strong>Patient management</strong>
+        <p>After “move to management”: arrival, daily forms, one-time forms, discharge.</p>
+      </div>
+    </div>
+
+    <section class="section-title">Reminders (automated)</section>
+    <ul style="list-style: none; font-size: 0.95rem;">
+      <li style="padding: 0.4rem 0; padding-left: 1.5rem; position: relative;">
+        <span style="position: absolute; left: 0;">📧</span>
+        <strong>Login reminder</strong> — reminds client to log in to the portal (scheduled).
+      </li>
+      <li style="padding: 0.4rem 0; padding-left: 1.5rem; position: relative;">
+        <span style="position: absolute; left: 0;">📋</span>
+        <strong>Form reminder</strong> — reminds client to complete incomplete forms (scheduled).
+      </li>
+      <li style="padding: 0.4rem 0; padding-left: 1.5rem; position: relative;">
+        <span style="position: absolute; left: 0;">📋</span>
+        <strong>Onboarding reminder</strong> — reminds client to complete onboarding forms; not sent to prospects (scheduled).
+      </li>
+      <li style="padding: 0.4rem 0; padding-left: 1.5rem; position: relative;">
+        <span style="position: absolute; left: 0;">💳</span>
+        <strong>Billing reminder</strong> — balance due reminder when staff records a payment and sets a next reminder date; not sent to prospects.
+      </li>
+    </ul>
+
+    <p class="footer-note">
+      <strong>Prospects:</strong> If a client is marked as “Prospect”, they do not receive login, form, onboarding, or billing reminder emails. Remove prospect status to resume reminders.
+    </p>
+  </div>
+</body>
+</html>

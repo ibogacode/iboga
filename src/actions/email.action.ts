@@ -1401,18 +1401,22 @@ export async function sendIbogaineConsentConfirmationEmail(
   return result
 }
 
-// Helper function to send onboarding forms email (via send-email-template edge function; from contactus)
+// Helper function to send onboarding forms email (via send-email-template edge function; from Clinical Director)
 export async function sendOnboardingFormsEmail(
   recipientEmail: string,
   recipientFirstName: string,
   recipientLastName: string,
-  onboardingId: string
+  onboardingId: string,
+  options?: { schedulingLink?: string }
 ) {
+  const DAISY_CALENDAR_LINK = 'https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ0cMnBbm_aBy3dpuD0i5OCegv_FYMNskCyHkVgD8qHc4Enl99atTmXmyrpHcqVTML19PzmgEAl-?gv=true'
+  const schedulingLink = options?.schedulingLink ?? DAISY_CALENDAR_LINK
   const result = await sendEmailTemplate('onboarding_forms', {
     to: recipientEmail,
     firstName: recipientFirstName,
     lastName: recipientLastName,
     onboardingId,
+    schedulingLink,
   })
   if (!result.success) {
     console.error('[sendOnboardingFormsEmail] Failed to send:', result.error)

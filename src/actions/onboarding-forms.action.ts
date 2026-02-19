@@ -329,6 +329,40 @@ export const linkPatientToOnboarding = authActionClient
   })
 
 // =============================================================================
+// MARK ONBOARDING CONSULT SCHEDULED (Staff)
+// =============================================================================
+const markOnboardingConsultScheduledSchema = z.object({
+  onboarding_id: z.string().uuid(),
+})
+
+/** Staff only: mark that the client has scheduled a consult with the Clinical Director. Completes the "Consultation with Clinical Director" task. */
+export const markOnboardingConsultScheduled = authActionClient
+  .schema(markOnboardingConsultScheduledSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    if (!isAdminStaffRole(ctx.user.role)) {
+      return { success: false, error: 'Unauthorized: admin staff access required' }
+    }
+
+    const supabase = await createClient()
+    const now = new Date().toISOString()
+
+    const { error } = await supabase
+      .from('patient_onboarding')
+      .update({ consult_scheduled_at: now })
+      .eq('id', parsedInput.onboarding_id)
+
+    if (error) {
+      console.error('[markOnboardingConsultScheduled] Update error:', error)
+      return { success: false, error: handleSupabaseError(error, 'Failed to mark consult scheduled') }
+    }
+
+    revalidatePath('/onboarding')
+    revalidatePath('/patient-pipeline')
+    revalidatePath('/patient/tasks')
+    return { success: true, data: { consult_scheduled_at: now } }
+  })
+
+// =============================================================================
 // GET ONBOARDING BY ID
 // =============================================================================
 export const getOnboardingById = authActionClient
