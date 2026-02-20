@@ -1,5 +1,5 @@
 -- ============================================================================
--- CRON: Sync onboarding consults from Google Calendar (Clinical Director)
+-- CRON: Sync onboarding consults from Google Calendar (Daisy)
 -- ============================================================================
 -- Every 15 min: sync calendar attendees to patient_onboarding.consult_scheduled_at
 -- Replace URL and Bearer token with your project's if different.

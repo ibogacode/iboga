@@ -105,7 +105,9 @@ export const createPartialIntakeForm = authActionClient
         emergency_contact_phone: parsedInput.mode === 'partial' ? parsedInput.emergency_contact_phone : null,
         emergency_contact_address: parsedInput.mode === 'partial' ? parsedInput.emergency_contact_address : null,
         emergency_contact_relationship: parsedInput.mode === 'partial' ? parsedInput.emergency_contact_relationship : null,
-        program_type: parsedInput.mode === 'partial' ? parsedInput.program_type : null,
+        program_type: parsedInput.mode === 'partial' ? parsedInput.program_type : (parsedInput.program_type ?? null),
+        lead_source: parsedInput.lead_source ?? null,
+        lead_source_other: parsedInput.lead_source_other?.trim() || null,
         recipient_email: recipientEmail,
         recipient_name: recipientName,
         created_by: ctx.user.id,
@@ -116,6 +118,21 @@ export const createPartialIntakeForm = authActionClient
     
     if (error) {
       return { success: false, error: error.message }
+    }
+
+    // Link notes to patient profile (lead_notes): one row per lead, same notes shown on profile
+    const notesValue = parsedInput.notes?.trim()
+    if (notesValue) {
+      await supabase
+        .from('lead_notes')
+        .upsert(
+          {
+            lead_id: data.id,
+            notes: notesValue,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'lead_id' }
+        )
     }
     
     // Generate form link

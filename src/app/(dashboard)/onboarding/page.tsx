@@ -162,10 +162,11 @@ export default function OnboardingPage() {
 
   // Calculate stats
   const totalOnboarding = patients.length
-  const completedForms = patients.filter(p => p.forms_completed === 3).length
-  const inProgress = patients.filter(p => p.forms_completed < 3).length
-  const totalFormsCompleted = patients.reduce((sum, p) => sum + p.forms_completed, 0)
-  const totalFormsPossible = patients.length * 3
+  const ONBOARDING_STEPS_TOTAL = 6
+  const completedSteps = patients.filter(p => p.steps_completed === ONBOARDING_STEPS_TOTAL).length
+  const inProgress = patients.filter(p => p.steps_completed < ONBOARDING_STEPS_TOTAL).length
+  const totalStepsCompleted = patients.reduce((sum, p) => sum + p.steps_completed, 0)
+  const totalStepsPossible = patients.length * ONBOARDING_STEPS_TOTAL
 
   return (
     <div className="p-4 sm:p-6">
@@ -211,10 +212,10 @@ export default function OnboardingPage() {
           ) : (
             <>
               <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">
-                {totalFormsCompleted}/{totalFormsPossible}
+                {totalStepsCompleted}/{totalStepsPossible}
               </p>
               <p className="text-emerald-600 text-xs sm:text-sm font-medium">
-                {totalFormsPossible > 0 ? Math.round((totalFormsCompleted / totalFormsPossible) * 100) : 0}% completion rate
+                {totalStepsPossible > 0 ? Math.round((totalStepsCompleted / totalStepsPossible) * 100) : 0}% completion rate
               </p>
             </>
           )}
@@ -227,8 +228,8 @@ export default function OnboardingPage() {
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           ) : (
             <>
-              <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">{completedForms}</p>
-              <p className="text-emerald-600 text-xs sm:text-sm font-medium">All 3 forms completed</p>
+              <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">{completedSteps}</p>
+              <p className="text-emerald-600 text-xs sm:text-sm font-medium">All 6 steps completed</p>
             </>
           )}
         </div>
@@ -241,7 +242,7 @@ export default function OnboardingPage() {
           ) : (
             <>
               <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">
-                {totalFormsPossible - totalFormsCompleted}
+                {patients.length * ONBOARDING_STEPS_TOTAL - totalStepsCompleted}
               </p>
               <p className="text-amber-600 text-xs sm:text-sm font-medium">Awaiting completion</p>
             </>
@@ -308,7 +309,7 @@ export default function OnboardingPage() {
                       Program
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Form Status
+                      Steps
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Treatment Date
@@ -320,7 +321,7 @@ export default function OnboardingPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {patients.map((patient) => {
-                    const allFormsCompleted = patient.forms_completed === 3
+                    const allStepsCompleted = patient.steps_completed === ONBOARDING_STEPS_TOTAL
                     
                     return (
                       <tr key={patient.id} className="hover:bg-gray-50">
@@ -339,9 +340,9 @@ export default function OnboardingPage() {
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                           <span className={`text-sm font-medium ${
-                            allFormsCompleted ? 'text-emerald-600' : 'text-amber-600'
+                            allStepsCompleted ? 'text-emerald-600' : 'text-amber-600'
                           }`}>
-                            {patient.forms_completed}/3
+                            {patient.steps_completed}/6
                           </span>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
@@ -385,7 +386,7 @@ export default function OnboardingPage() {
                               <Eye className="h-4 w-4 mr-1" />
                               <span className="hidden sm:inline">View</span>
                             </Button>
-                            {allFormsCompleted && (
+                            {allStepsCompleted && (
                               <Button
                                 size="sm"
                                 onClick={() => handleMoveToManagement(patient.id)}

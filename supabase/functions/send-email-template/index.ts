@@ -116,6 +116,7 @@ function base64UrlEncode(str: string): string {
 const DEFAULT_FROM_EMAIL = 'contactus@theibogainstitute.org'
 
 // Only these types use a different from address; all others use DEFAULT_FROM_EMAIL (contactus).
+// onboarding_forms = "Complete your 3 forms" email is sent from Clinical Director (Daisy).
 const FROM_EMAIL_BY_TYPE: Partial<Record<string, string>> = {
   service_agreement_confirmation: 'guy@theibogainstitute.org',
   onboarding_forms: 'daisy@theibogainstitute.org',
@@ -954,81 +955,93 @@ function generateOnboardingFormsEmail(
   const baseUrl = getBaseUrl()
   const formLink = `${baseUrl}/onboarding-forms/${onboardingId}`
   const displayName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'there'
-  const consultBlock = schedulingLink
-    ? `<p style="margin-top: 12px;"><strong>Schedule a consult with the Clinical Director:</strong></p>
-              <p style="margin-top: 8px;"><a href="${schedulingLink}" class="cta-button" style="margin: 0;">Schedule Your Consult with Clinical Director</a></p>`
-    : `<p style="margin-top: 12px;"><strong>Schedule a consult:</strong> Please book a call with the Clinical Director to discuss your onboarding. You can do this from your patient portal Tasks, or reply to this email to arrange a time.</p>`
+  const daisyEmail = 'daisy@theibogainstitute.org'
+  const calendarLink = schedulingLink ?? 'https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ0cMnBbm_aBy3dpuD0i5OCegv_FYMNskCyHkVgD8qHc4Enl99atTmXmyrpHcqVTML19PzmgEAl-?gv=true'
+
+  // Application confirmation design: Instrument Serif, Inter, banner, CTA box, contact, footer
+  const body = `<!DOCTYPE html>
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Preparatory Instructions for Treatment</title>
+<link href="https://fonts.googleapis.com/css?family=Instrument+Serif:ital,wght@0,400" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css?family=Inter:ital,wght@0,400;0,500;0,600" rel="stylesheet" />
+<style>
+body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;} table{border-collapse:collapse;}
+.banner-heading{font-family:'Instrument Serif',Georgia,serif;}
+@media (max-width:620px){ table[role="presentation"]{max-width:100% !important;} .email-banner-title{font-size:36px !important;line-height:1.2 !important;} }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#ece9df" bgcolor="#ece9df">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ece9df" bgcolor="#ece9df">
+<tr><td align="center" style="padding:20px 0">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px">
+<tr><td style="padding:0 0 15px">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+<tr><td style="background-image:url('https://postcards-cdn.designmodo.com/images-cdn/Iboga_wellness_institute_email_banner.png');background-size:cover;background-position:center right;background-repeat:no-repeat;padding:40px 48px;border-radius:10px;background-color:#036243" bgcolor="#036243">
+<table role="presentation" width="100%"><tr><td align="left" valign="middle">
+<img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="140" height="39" alt="" style="display:block;border:0" />
+</td></tr>
+<tr><td style="padding-top:20px">
+<div class="banner-heading email-banner-title" style="font-family:'Instrument Serif',Georgia,serif;font-size:50px;line-height:130%;color:#fff;letter-spacing:-0.03em">Preparatory Instructions for Treatment</div>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:0">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fff;border-radius:10px 10px 0 0" bgcolor="#ffffff">
+<tr><td style="padding:48px">
+<p style="margin:0 0 15px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Hello, ${displayName}</p>
+<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#141414;font-weight:500">Thank you for completing your intake and medical forms. We are honored to welcome you to The Iboga Wellness Institute — Cozumel, Mexico. Proper preparation ensures a safe and effective experience.</p>
+<table role="presentation" width="100%"><tr><td style="padding:24px 0"><table role="presentation" width="100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #eeedff">&nbsp;</td></tr></table></td></tr></table>
+<p style="margin:0 0 10px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Thank You & Next Steps</p>
+<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#535065">I'm Daisy, the Iboga Wellness Institute Clinical Director, and I'm reaching out to review your preparation.</p>
+<p style="margin:0 0 8px;font-size:16px;line-height:150%;color:#535065">We'll cover:</p>
+<ul style="margin:0 0 16px;padding-left:20px;font-size:16px;line-height:150%;color:#535065">
+<li style="margin-bottom:4px">Personalized nutrition</li>
+<li style="margin-bottom:4px">Travel and logistics</li>
+<li style="margin-bottom:4px">Allergies, sensitivities, and medical considerations</li>
+<li style="margin-bottom:4px">Final preparation before arrival</li>
+</ul>
+<p style="margin:0 0 20px;font-size:16px;line-height:150%;color:#535065">Please be available for the call and feel free to ask any questions.</p>
+<table role="presentation" width="100%"><tr><td style="padding:10px 0 20px">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0"><tr><td valign="top" style="padding:30px 20px;background-color:#d4dabb;border-radius:11px;border-left:6px solid #6e7a46" bgcolor="#d4dabb">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="left" valign="top" style="padding:0 0 5px"><p style="margin:0;font-size:19px;line-height:150%;color:#28243d;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif">What to do now</p></td></tr>
+<tr><td align="left" valign="top" style="padding:5px 0 12px"><p style="margin:0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">1. Complete your 3 onboarding forms (Release, Outing Consent, Internal Regulations). In Tasks you can also upload EKG and bloodwork. These must be done before we can assign your treatment date.</p></td></tr>
+<tr><td align="center" valign="top" style="padding:12px 0;text-align:center"><a href="${formLink}" target="_blank" style="display:inline-block;box-sizing:border-box;border-radius:8px;background-color:#6e7a46;color:#fff !important;padding:10px 24px;text-decoration:none;font-size:16px;line-height:200%;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif" bgcolor="#6e7a46">Complete Your 3 Forms</a></td></tr>
+<tr><td align="left" valign="top" style="padding:8px 0 0"><p style="margin:0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">2. Schedule your call with Daisy using the calendar link below.</p></td></tr>
+<tr><td align="center" valign="top" style="padding:12px 0 0;text-align:center"><a href="${calendarLink}" target="_blank" style="display:inline-block;box-sizing:border-box;border-radius:8px;background-color:#6e7a46;color:#fff !important;padding:10px 24px;text-decoration:none;font-size:16px;line-height:200%;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif" bgcolor="#6e7a46">Schedule Call with Daisy</a></td></tr>
+</table></td></tr></table>
+</td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:20px 0 0"><p style="margin:0 0 8px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Contact</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">Questions? Reply to this email or reach Daisy directly.</p>
+<ul style="margin:0;padding:0 0 0 20px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">
+<li style="margin-bottom:0">Phone: +1 (800) 604-7294</li>
+<li style="margin-bottom:0">Email: <a href="mailto:${daisyEmail}" style="color:inherit;text-decoration:none">${daisyEmail}</a></li>
+</ul>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:48px;background-color:#6e7a46;border-radius:0" bgcolor="#6e7a46">
+<p style="margin:0 0 24px;font-size:21px;line-height:150%;color:#fff;font-weight:600">We look forward to supporting you on your wellness journey.</p>
+<p style="margin:0;font-size:16px;line-height:150%;color:#ece9df">Warm regards,<br><strong>Daisy</strong><br>Iboga Wellness Institute Clinical Director<br>Cozumel, Mexico</p>
+</td></tr>
+<tr><td style="padding:48px;background-color:#272315;border-radius:0 0 10px 10px" bgcolor="#272315">
+<table role="presentation" width="100%"><tr><td align="center" style="padding:0 0 20px"><img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="152" height="42" alt="" style="display:block;border:0;margin:0 auto" /></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:16px 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:16px 0 17px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/about/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">About Us</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/our-programs/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Programs</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/insights/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Insights</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/podcast/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Podcast</a></td></tr></table></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.facebook.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/49d3df40d21a60424c3bf0f27d4ce8f9.png" width="24" height="24" alt="Facebook" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.linkedin.com/company/iboga-wellness-institute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/f180a29d5510c0f44c08bdde9bc397f5.png" width="24" height="24" alt="LinkedIn" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.instagram.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/97d1e3e2fd722d0140b51806fa857340.png" width="24" height="24" alt="Instagram" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.youtube.com/@IbogaWellnessCenters" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/9807838a6a4c0dd0d700aff6f20f6d98.png" width="24" height="24" alt="YouTube" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.tiktok.com/@ibogawellnessinstitute" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/045f5352f42e1f3aad7a52d07f950976.png" width="24" height="24" alt="TikTok" style="display:block;border:0;line-height:100%" /></a></td></tr></table></td></tr></table>
+</td></tr>
+</table>
+</td></tr></table>
+</td></tr></table>
+</body>
+</html>`
 
   return {
-    subject: `Complete Your Onboarding – Forms, EKG, Bloodwork & Consult with Clinical Director | The Iboga Wellness Institute`,
-    body: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          ${commonStyles}
-          .info-box {
-            background: #f9f9f9;
-            border-left: 4px solid #5D7A5F;
-            padding: 20px;
-            margin: 20px 0;
-          }
-          .cta-button {
-            display: inline-block;
-            background: #5D7A5F;
-            color: white !important;
-            padding: 16px 32px;
-            text-decoration: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            margin: 20px 0;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>The Iboga Wellness Institute</h1>
-          </div>
-          <div class="content">
-            <h2>Onboarding – Next Steps</h2>
-            <p>Hello ${displayName},</p>
-            <p>You have been moved to the onboarding stage. Please complete the following so we can assign your treatment date:</p>
-            <div class="info-box">
-              <p><strong>1. Complete 3 forms:</strong></p>
-              <ul>
-                <li><strong>Release Form</strong> – Legal release and acknowledgment</li>
-                <li><strong>Outing Consent Form</strong> – Permission for therapeutic outings</li>
-                <li><strong>Internal Regulations Form</strong> – Facility rules and guidelines</li>
-              </ul>
-              <p style="margin-top: 12px;"><strong>2. Upload (in Tasks):</strong></p>
-              <ul>
-                <li><strong>EKG results</strong></li>
-                <li><strong>Bloodwork results</strong></li>
-              </ul>
-              ${consultBlock}
-            </div>
-            <p style="text-align: center;">
-              <a href="${formLink}" class="cta-button">Complete Your 3 Forms</a>
-            </p>
-            <p>In your patient portal <strong>Tasks</strong> you will see all of the above: the 3 forms, EKG and Bloodwork uploads, and an option to schedule a consult with the Clinical Director. Please complete them as soon as possible.</p>
-            <p><strong>Important:</strong> These items must be completed before we can assign your treatment date.</p>
-            <p>If you have any questions, reply to this email or contact us:</p>
-            <p>
-              <strong>Phone:</strong> +1 (800) 604-7294<br>
-              <strong>Email:</strong> daisy@theibogainstitute.org
-            </p>
-            <p>Thank you,<br><strong>Clinical Director</strong><br>The Iboga Wellness Institute</p>
-          </div>
-          <div class="footer">
-            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
-            <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    subject: 'Preparatory Instructions for Treatment: Next Steps with Clinical Director | The Iboga Wellness Institute',
+    body,
   }
 }
 
@@ -1190,10 +1203,10 @@ serve(async (req) => {
         )
     }
 
-    // Resolve "from" address: contactus for all, except service agreement uses guy
+    // Resolve "from" address: contactus default; service_agreement → guy; onboarding_forms → daisy (Clinical Director)
     const fromEmail = FROM_EMAIL_BY_TYPE[request.type] ?? DEFAULT_FROM_EMAIL
 
-    // Get access token: service account (impersonate fromEmail) or refresh token
+    // Get access token: service account (impersonate fromEmail) or refresh token. For onboarding_forms to send from Daisy, use service account with domain-wide delegation.
     const accessToken = isServiceAccountConfigured()
       ? await getAccessTokenForUser(fromEmail)
       : await getAccessToken()

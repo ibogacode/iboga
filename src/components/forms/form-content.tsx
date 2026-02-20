@@ -80,11 +80,6 @@ export const IBOGAINE_THERAPY_CONSENT_SECTIONS = [
     field: 'risks_and_benefits'
   },
   {
-    heading: 'Pre-Screening and Health Assessment',
-    text: `I confirm that I have undergone a comprehensive pre-screening and health assessment, including an EKG, blood work, and liver panel, conducted by Iboga Wellness Institute's onsite medical doctor. I have disclosed all relevant medical history, current medications, and substance use to ensure my suitability for Ibogaine therapy.`,
-    field: 'pre_screening_health_assessment'
-  },
-  {
     heading: 'Voluntary Participation',
     text: `I acknowledge that my participation in this therapy is entirely voluntary and that I have the right to withdraw my consent and discontinue participation at any time.`,
     field: 'voluntary_participation'

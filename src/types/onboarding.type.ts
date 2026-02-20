@@ -77,6 +77,9 @@ export interface PatientOnboarding {
 export interface PatientOnboardingWithProgress extends PatientOnboarding {
   forms_completed: number
   forms_total: number
+  /** Onboarding steps: 3 forms + EKG + bloodwork + Clinical Director consult = 6 */
+  steps_completed: number
+  steps_total: 6
 }
 
 // =============================================================================

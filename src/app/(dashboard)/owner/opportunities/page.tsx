@@ -28,7 +28,6 @@ interface Opportunity {
   privacy_policy_accepted: boolean
   consent_for_treatment: boolean
   risks_and_benefits: boolean
-  pre_screening_health_assessment: boolean
   voluntary_participation: boolean
   confidentiality: boolean
   liability_release: boolean

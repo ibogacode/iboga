@@ -28,11 +28,6 @@ const CONSENT_SECTIONS = [
     field: 'risks_and_benefits' as const,
   },
   {
-    heading: 'Pre-Screening and Health Assessment',
-    text: `I confirm that I have undergone a comprehensive pre-screening and health assessment, including an EKG, blood work, and liver panel, conducted by Iboga Wellness Institute's onsite medical doctor. I have disclosed all relevant medical history, current medications, and substance use to ensure my suitability for Ibogaine therapy.`,
-    field: 'pre_screening_health_assessment' as const,
-  },
-  {
     heading: 'Voluntary Participation',
     text: `I acknowledge that my participation in this therapy is entirely voluntary and that I have the right to withdraw my consent and discontinue participation at any time.`,
     field: 'voluntary_participation' as const,
@@ -86,7 +81,6 @@ export function IbogaineConsentForm({ prefillPatientData = false }: IbogaineCons
       facilitator_doctor_name: '',
       consent_for_treatment: false,
       risks_and_benefits: false,
-      pre_screening_health_assessment: false,
       voluntary_participation: false,
       confidentiality: false,
       liability_release: false,
@@ -216,9 +210,6 @@ export function IbogaineConsentForm({ prefillPatientData = false }: IbogaineCons
           if (existing.risks_and_benefits !== undefined) {
             form.setValue('risks_and_benefits', existing.risks_and_benefits)
           }
-          if (existing.pre_screening_health_assessment !== undefined) {
-            form.setValue('pre_screening_health_assessment', existing.pre_screening_health_assessment)
-          }
           if (existing.voluntary_participation !== undefined) {
             form.setValue('voluntary_participation', existing.voluntary_participation)
           }
@@ -339,9 +330,6 @@ export function IbogaineConsentForm({ prefillPatientData = false }: IbogaineCons
             }
             if (existing.risks_and_benefits !== undefined) {
               form.setValue('risks_and_benefits', existing.risks_and_benefits)
-            }
-            if (existing.pre_screening_health_assessment !== undefined) {
-              form.setValue('pre_screening_health_assessment', existing.pre_screening_health_assessment)
             }
             if (existing.voluntary_participation !== undefined) {
               form.setValue('voluntary_participation', existing.voluntary_participation)
@@ -885,7 +873,7 @@ export function IbogaineConsentForm({ prefillPatientData = false }: IbogaineCons
                       : currentStep === 2
                       ? ['facilitator_doctor_name']
                       : currentStep === 3
-                      ? ['consent_for_treatment', 'risks_and_benefits', 'pre_screening_health_assessment', 'voluntary_participation', 'confidentiality', 'liability_release', 'payment_collection']
+                      ? ['consent_for_treatment', 'risks_and_benefits', 'voluntary_participation', 'confidentiality', 'liability_release', 'payment_collection']
                       : []
                   
                   form.trigger(fieldsToValidate).then((isValid) => {
