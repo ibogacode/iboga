@@ -613,6 +613,26 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                 )}
               </div>
 
+              {/* Mark as prospect - do not send application email (above client name) */}
+              <div className="flex items-start space-x-3 rounded-lg border border-[#D6D2C8] bg-[#F5F4F0]/50 p-4">
+                <Checkbox
+                  id="is_prospect"
+                  checked={form.watch('is_prospect') ?? false}
+                  onCheckedChange={(checked) => form.setValue('is_prospect', !!checked)}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <Label
+                    htmlFor="is_prospect"
+                    className="text-base font-medium text-[#2B2820] cursor-pointer"
+                  >
+                    Mark as prospect
+                  </Label>
+                  <p className="text-sm text-[#777777]">
+                    Do not send the application form email. Client will appear in pipeline; you can send the form link or mark as non‑prospect later.
+                  </p>
+                </div>
+              </div>
+
               {/* Client Information - Only show if client is filling themselves */}
               {form.watch('filled_by') === 'self' && (
                 <>
@@ -960,26 +980,6 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                   </Select>
                 </div>
               )}
-
-              {/* Mark as prospect - do not send application email */}
-              <div className="flex items-start space-x-3 rounded-lg border border-[#D6D2C8] bg-[#F5F4F0]/50 p-4">
-                <Checkbox
-                  id="is_prospect"
-                  checked={form.watch('is_prospect') ?? false}
-                  onCheckedChange={(checked) => form.setValue('is_prospect', !!checked)}
-                />
-                <div className="grid gap-1.5 leading-none">
-                  <Label
-                    htmlFor="is_prospect"
-                    className="text-base font-medium text-[#2B2820] cursor-pointer"
-                  >
-                    Mark as prospect
-                  </Label>
-                  <p className="text-sm text-[#777777]">
-                    Do not send the application form email. Client will appear in pipeline; you can send the form link or mark as non‑prospect later.
-                  </p>
-                </div>
-              </div>
 
               {/* Invite Email Preview Card */}
               {mode === 'minimal' && form.watch('filled_by') === 'self' && !form.watch('is_prospect') && (
