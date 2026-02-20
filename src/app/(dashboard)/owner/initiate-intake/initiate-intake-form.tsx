@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -81,6 +82,10 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
       last_name: '',
       email: '',
       is_prospect: false,
+      notes: '',
+      lead_source: null,
+      lead_source_other: '',
+      program_type: null,
     },
   })
 
@@ -270,6 +275,10 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
       last_name: '',
       email: '',
       is_prospect: false,
+      notes: '',
+      lead_source: null,
+      lead_source_other: '',
+      program_type: null,
     })
     setMode('minimal')
     setCurrentStep('entry-mode')
@@ -880,6 +889,76 @@ export default function InitiateIntakeForm({ onSuccess, onClose, onStepChange }:
                     </>
                   )}
                 </>
+              )}
+
+              {/* Notes (linked to patient profile notes) */}
+              <div className="flex flex-col gap-3">
+                <Label htmlFor="notes" className="text-base font-medium text-[#2B2820]">
+                  Notes
+                </Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Add notes for this lead. These appear on the patient profile."
+                  {...form.register('notes')}
+                  className="min-h-[80px] bg-white border border-[#D6D2C8] rounded-[14px] resize-y"
+                  rows={3}
+                />
+              </div>
+
+              {/* Lead source */}
+              <div className="flex flex-col gap-3">
+                <Label htmlFor="lead_source" className="text-base font-medium text-[#2B2820]">
+                  Lead source
+                </Label>
+                <Select
+                  value={form.watch('lead_source') ?? ''}
+                  onValueChange={(value) => {
+                    form.setValue('lead_source', value === '' ? null : (value as 'instagram' | 'facebook' | 'website' | 'tiktok' | 'youtube' | 'recovery_com' | 'other'))
+                    if (value !== 'other') form.setValue('lead_source_other', '')
+                  }}
+                >
+                  <SelectTrigger className="h-12 bg-white border border-[#D6D2C8] rounded-[14px]">
+                    <SelectValue placeholder="Select lead source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="facebook">Facebook</SelectItem>
+                    <SelectItem value="website">Website</SelectItem>
+                    <SelectItem value="tiktok">TikTok</SelectItem>
+                    <SelectItem value="youtube">YouTube</SelectItem>
+                    <SelectItem value="recovery_com">Recovery.com</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                {form.watch('lead_source') === 'other' && (
+                  <Input
+                    placeholder="Specify other lead source"
+                    {...form.register('lead_source_other')}
+                    className="h-12 bg-white border border-[#D6D2C8] rounded-[14px] mt-1"
+                  />
+                )}
+              </div>
+
+              {/* Program type (minimal mode only; partial has it in its section) */}
+              {mode === 'minimal' && (
+                <div className="flex flex-col gap-3">
+                  <Label htmlFor="program_type" className="text-base font-medium text-[#2B2820]">
+                    Program type
+                  </Label>
+                  <Select
+                    value={form.watch('program_type') ?? ''}
+                    onValueChange={(value) => form.setValue('program_type', value === '' ? null : (value as 'neurological' | 'mental_health' | 'addiction'))}
+                  >
+                    <SelectTrigger className="h-12 bg-white border border-[#D6D2C8] rounded-[14px]">
+                      <SelectValue placeholder="Select program type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="neurological">Neurological</SelectItem>
+                      <SelectItem value="mental_health">Mental Health</SelectItem>
+                      <SelectItem value="addiction">Addiction</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
 
               {/* Mark as prospect - do not send application email */}

@@ -207,7 +207,7 @@ export const movePatientToOnboarding = authActionClient
       return { success: false, error: handleSupabaseError(error, 'Failed to create onboarding') }
     }
 
-    // Send onboarding forms email (3 forms) from contactus – fire and forget
+    // Send onboarding forms email (complete 3 forms) from Clinical Director (Daisy) – fire and forget
     const adminClient = createAdminClient()
     const { data: onboardingRow } = await adminClient
       .from('patient_onboarding')
@@ -230,7 +230,7 @@ export const movePatientToOnboarding = authActionClient
       success: true,
       data: {
         onboarding_id: onboardingId as string,
-        message: 'Patient moved to onboarding successfully. 5 forms have been created.',
+        message: 'Patient moved to onboarding successfully. 3 forms have been created.',
       },
     }
   })
@@ -264,7 +264,7 @@ export const movePatientToOnboardingByEmail = authActionClient
       return { success: false, error: handleSupabaseError(error, 'Failed to create onboarding') }
     }
 
-    // Send onboarding forms email (3 forms) from contactus – fire and forget
+    // Send onboarding forms email (complete 3 forms) from Clinical Director (Daisy) – fire and forget
     const adminClient = createAdminClient()
     const { data: onboardingRow } = await adminClient
       .from('patient_onboarding')
@@ -287,7 +287,7 @@ export const movePatientToOnboardingByEmail = authActionClient
       success: true,
       data: {
         onboarding_id: onboardingId as string,
-        message: 'Patient moved to onboarding successfully. 5 forms have been created.',
+        message: 'Patient moved to onboarding successfully. 3 forms have been created.',
       },
     }
   })
@@ -438,18 +438,50 @@ export const getOnboardingPatients = authActionClient
       return { success: false, error: error.message }
     }
 
-    // Add computed fields
-    const patientsWithProgress: PatientOnboardingWithProgress[] = (data || []).map((patient) => {
+    const rows = data || []
+    const onboardingIds = rows.map((p: { id: string }) => p.id)
+
+    // Fetch medical documents to know EKG/bloodwork uploaded per onboarding
+    const { data: medicalDocs } = onboardingIds.length > 0
+      ? await supabase
+          .from('onboarding_medical_documents')
+          .select('onboarding_id, document_type')
+          .in('onboarding_id', onboardingIds)
+      : { data: [] }
+
+    const docsByOnboarding = (medicalDocs || []).reduce(
+      (acc: Record<string, { ekg: boolean; bloodwork: boolean }>, row: { onboarding_id: string; document_type: string }) => {
+        const id = row.onboarding_id
+        if (!acc[id]) acc[id] = { ekg: false, bloodwork: false }
+        if (row.document_type === 'ekg') acc[id].ekg = true
+        if (row.document_type === 'bloodwork') acc[id].bloodwork = true
+        return acc
+      },
+      {}
+    )
+
+    // Add computed fields: forms (3) + steps = 6 (forms + EKG + bloodwork + consult)
+    const patientsWithProgress: PatientOnboardingWithProgress[] = rows.map((patient: Record<string, unknown>) => {
       const completedForms = [
         patient.release_form_completed,
         patient.outing_consent_completed,
         patient.internal_regulations_completed,
       ].filter(Boolean).length
 
+      const docs = docsByOnboarding[patient.id as string] ?? { ekg: false, bloodwork: false }
+      const ekgDone = docs.ekg || !!(patient as { ekg_skipped?: boolean }).ekg_skipped
+      const bloodworkDone = docs.bloodwork || !!(patient as { bloodwork_skipped?: boolean }).bloodwork_skipped
+      const consultDone = !!(patient as { consult_scheduled_at?: string | null }).consult_scheduled_at
+
+      const steps_completed =
+        completedForms + (ekgDone ? 1 : 0) + (bloodworkDone ? 1 : 0) + (consultDone ? 1 : 0)
+
       return {
         ...patient,
         forms_completed: completedForms,
         forms_total: 3,
+        steps_completed,
+        steps_total: 6,
       } as PatientOnboardingWithProgress
     })
 

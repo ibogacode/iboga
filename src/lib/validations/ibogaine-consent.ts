@@ -27,9 +27,6 @@ export const ibogaineConsentFormSchema = z.object({
   risks_and_benefits: z.boolean().refine((val) => val === true, {
     message: 'You must acknowledge risks and benefits',
   }),
-  pre_screening_health_assessment: z.boolean().refine((val) => val === true, {
-    message: 'You must acknowledge pre-screening and health assessment',
-  }),
   voluntary_participation: z.boolean().refine((val) => val === true, {
     message: 'You must acknowledge voluntary participation',
   }),

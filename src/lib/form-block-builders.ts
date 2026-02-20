@@ -500,7 +500,6 @@ interface IbogaineConsentForm {
   facilitator_doctor_name: string
   consent_for_treatment: boolean
   risks_and_benefits: boolean
-  pre_screening_health_assessment: boolean
   voluntary_participation: boolean
   confidentiality: boolean
   liability_release: boolean
@@ -514,7 +513,6 @@ interface IbogaineConsentForm {
 const CONSENT_TEXTS: Record<string, string> = {
   consent_for_treatment: `I, hereby referred to as "the Patient", voluntarily consent to participate in the Ibogaine therapy monitored by Iboga Wellness Institute. I understand that this therapy involves Ibogaine, a psychoactive substance derived from the Tabernanthe iboga plant, used in the treatment of substance dependency, PTSD, depression, anxiety, and for personal growth.`,
   risks_and_benefits: `I acknowledge that I have been informed about the potential benefits, risks, and side effects associated with Ibogaine therapy, including but not limited to: changes in heart rate, blood pressure, nausea, hallucinations, emotional and psychological revelations, and in rare cases, severe health complications.`,
-  pre_screening_health_assessment: `I confirm that I have undergone a comprehensive pre-screening and health assessment, including an EKG, blood work, and liver panel, conducted by Iboga Wellness Institute's onsite medical doctor. I have disclosed all relevant medical history, current medications, and substance use to ensure my suitability for Ibogaine therapy.`,
   voluntary_participation: `I acknowledge that my participation in this therapy is entirely voluntary and that I have the right to withdraw my consent and discontinue participation at any time.`,
   confidentiality: `I understand that my privacy will be respected, and all personal and medical information will be handled in accordance with Iboga Wellness Institute's privacy policy and applicable laws regarding patient confidentiality.`,
   liability_release: `I release Iboga Wellness Institute, its medical team, therapists, administrative, and operational staff from all medical, legal, and administrative responsibility for any consequences arising from my participation in Ibogaine therapy, except in cases of gross negligence or willful misconduct.`,
@@ -524,7 +522,6 @@ const CONSENT_TEXTS: Record<string, string> = {
 const CONSENT_SECTIONS = [
   { heading: 'Consent for Treatment', field: 'consent_for_treatment' as const },
   { heading: 'Risks and Benefits', field: 'risks_and_benefits' as const },
-  { heading: 'Pre-Screening and Health Assessment', field: 'pre_screening_health_assessment' as const },
   { heading: 'Voluntary Participation', field: 'voluntary_participation' as const },
   { heading: 'Confidentiality', field: 'confidentiality' as const },
   { heading: 'Liability Release', field: 'liability_release' as const },

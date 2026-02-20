@@ -173,7 +173,6 @@ export async function checkIbogaineConsentActivation() {
         signature_name: existingForm.signature_name,
         consent_for_treatment: existingForm.consent_for_treatment,
         risks_and_benefits: existingForm.risks_and_benefits,
-        pre_screening_health_assessment: existingForm.pre_screening_health_assessment,
         voluntary_participation: existingForm.voluntary_participation,
         confidentiality: existingForm.confidentiality,
         liability_release: existingForm.liability_release,
@@ -264,7 +263,6 @@ export const submitIbogaineConsentForm = actionClient
         .update({
           consent_for_treatment: parsedInput.consent_for_treatment,
           risks_and_benefits: parsedInput.risks_and_benefits,
-          pre_screening_health_assessment: parsedInput.pre_screening_health_assessment,
           voluntary_participation: parsedInput.voluntary_participation,
           confidentiality: parsedInput.confidentiality,
           liability_release: parsedInput.liability_release,
@@ -466,7 +464,6 @@ export const submitIbogaineConsentForm = actionClient
           facilitator_doctor_name: parsedInput.facilitator_doctor_name,
           consent_for_treatment: parsedInput.consent_for_treatment,
           risks_and_benefits: parsedInput.risks_and_benefits,
-          pre_screening_health_assessment: parsedInput.pre_screening_health_assessment,
           voluntary_participation: parsedInput.voluntary_participation,
           confidentiality: parsedInput.confidentiality,
           liability_release: parsedInput.liability_release,

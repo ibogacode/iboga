@@ -433,7 +433,6 @@ export const uploadExistingPatientDocument = authActionClient
               privacy_policy_accepted: true, // Admin uploaded, assume consent
               consent_for_treatment: true,
               risks_and_benefits: true,
-              pre_screening_health_assessment: true,
               voluntary_participation: true,
               confidentiality: true,
               liability_release: true,

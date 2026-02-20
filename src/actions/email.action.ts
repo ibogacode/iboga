@@ -1,7 +1,19 @@
 'use server'
 
+import { DIRECT_EMAIL_TEST_KINDS, EMAIL_TEMPLATE_TYPES } from '@/constants/email-templates'
+import { getApplicationConfirmationHtml } from '@/emails/get-application-confirmation-html'
+import { getFillerConfirmationHtml } from '@/emails/get-filler-confirmation-html'
+import { PROGRAM_BROCHURE_URLS } from '@/lib/program-brochure-urls'
 import { actionClient } from '@/lib/safe-action'
 import { z } from 'zod'
+
+const baseTestHtml = (title: string, body: string) => `
+<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:system-ui;padding:20px;max-width:600px;margin:0 auto;">
+  <p style="color:#666;font-size:12px;">[Test email]</p>
+  <h2 style="color:#2B2820;">${title}</h2>
+  <div style="line-height:1.6;">${body}</div>
+  <p style="margin-top:24px;color:#888;font-size:13px;">Iboga Wellness Institute | theibogainstitute.org</p>
+</body></html>`
 
 const sendEmailSchema = z.object({
   to: z.string().email(),
@@ -100,6 +112,230 @@ export const sendEmail = actionClient
   .schema(sendEmailSchema)
   .action(async ({ parsedInput }) => {
     return sendEmailDirect(parsedInput)
+  })
+
+const sendTestEmailTemplateSchema = z.object({
+  type: z.enum(EMAIL_TEMPLATE_TYPES),
+  to: z.string().email(),
+})
+
+/** Send a test email for a given template type. Uses default test data for required fields. */
+export const sendTestEmailTemplateAction = actionClient
+  .schema(sendTestEmailTemplateSchema)
+  .action(async ({ parsedInput }) => {
+    const { type, to } = parsedInput
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    if (!supabaseServiceKey) {
+      return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY not configured' }
+    }
+
+    const firstName = 'Test'
+    const lastName = 'User'
+    const password = 'TestPassword123!'
+    const role = 'staff'
+    const onboardingId = '00000000-0000-0000-0000-000000000001'
+    const formName = 'Medical History'
+    const formType = 'medical_history'
+    const patientEmail = to
+    const patientFirstName = 'Jane'
+    const patientLastName = 'Doe'
+
+    const body: Record<string, unknown> = {
+      type,
+      to,
+      firstName,
+      lastName,
+    }
+    switch (type) {
+      case 'employee_welcome':
+        body.password = password
+        body.role = role
+        break
+      case 'patient_login_reminder':
+        body.password = password
+        break
+      case 'filler_login_reminder':
+        body.patientEmail = patientEmail
+        body.patientFirstName = patientFirstName
+        body.password = password
+        break
+      case 'form_activation':
+      case 'form_activation_reminder':
+        body.formName = formName
+        body.formType = formType
+        break
+      case 'medical_history_confirmation':
+      case 'service_agreement_confirmation':
+      case 'ibogaine_consent_confirmation':
+        body.patientFirstName = patientFirstName
+        body.patientLastName = patientLastName
+        break
+      case 'onboarding_forms':
+        body.onboardingId = onboardingId
+        break
+      default:
+        break
+    }
+
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/send-email-template`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify(body),
+      })
+      const result = await response.json()
+      if (!result.success) {
+        return { success: false, error: result.error || 'Failed to send email' }
+      }
+      return { success: true, messageId: result.messageId }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to send email'
+      return { success: false, error: message }
+    }
+  })
+
+const sendTestDirectEmailSchema = z.object({
+  kind: z.enum(DIRECT_EMAIL_TEST_KINDS),
+  to: z.string().email(),
+})
+
+/** Send a test email for a direct (sendEmailDirect) email kind. Uses test content. */
+export const sendTestDirectEmailAction = actionClient
+  .schema(sendTestDirectEmailSchema)
+  .action(async ({ parsedInput }) => {
+    const { kind, to } = parsedInput
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : 'https://portal.theibogainstitute.org')
+    const testLink = `${baseUrl}/forms/test-placeholder`
+
+    if (kind === 'request_labs') {
+      const result = await sendRequestLabsEmail(to, 'Test', 'User')
+      return result.success ? { success: true, messageId: (result as { messageId?: string }).messageId } : { success: false, error: result.error }
+    }
+
+    let subject: string
+    let body: string
+
+    switch (kind) {
+      case 'intake_confirmation': {
+        const schedulingLink =
+          baseUrl +
+          '/api/track-calendar-click/test?redirect=' +
+          encodeURIComponent('https://calendar.app.google/jkPEGqcQcf82W6aMA')
+        const programBrochureUrl = PROGRAM_BROCHURE_URLS.mental_health
+        const contactEmail = 'contactus@theibogainstitute.org'
+        body = getApplicationConfirmationHtml({
+          firstName: 'Test',
+          schedulingLink,
+          programBrochureUrl,
+          contactEmail,
+          fillerMessage: '',
+          credentialsSection: '',
+        })
+        subject = 'Thank You for Your Application - Schedule Your Consultation | Iboga Wellness Institute'
+        break
+      }
+      case 'filler_confirmation': {
+        const schedulingLink =
+          baseUrl +
+          '/api/track-calendar-click/test?redirect=' +
+          encodeURIComponent('https://calendar.app.google/jkPEGqcQcf82W6aMA')
+        const programBrochureUrl = PROGRAM_BROCHURE_URLS.mental_health
+        const contactEmail = 'contactus@theibogainstitute.org'
+        body = getFillerConfirmationHtml({
+          fillerFirstName: 'Test',
+          patientFullName: 'Jane Doe',
+          patientFirstName: 'Jane',
+          schedulingLink,
+          programBrochureUrl,
+          contactEmail,
+        })
+        subject = 'Application Form Submitted - Confirmation for Jane Doe | Iboga Wellness Institute'
+        break
+      }
+      case 'patient_login_credentials':
+        subject = 'Your portal access - Iboga Wellness Institute (Test)'
+        body = baseTestHtml(
+          'Portal credentials',
+          '<p>Email: ' + to + '</p><p>Temporary password: TestPassword123!</p><p><a href="' + baseUrl + '/login">Login</a></p>'
+        )
+        break
+      case 'filler_notification_account_created':
+        subject = 'Patient account created - Iboga Wellness Institute (Test)'
+        body = baseTestHtml('Patient account created', '<p>The patient account for Jane Doe has been created. They will receive their login details.</p>')
+        break
+      case 'patient_password_setup':
+        subject = 'Set your password - Iboga Wellness Institute (Test)'
+        body = baseTestHtml('Set your password', '<p>Please <a href="' + baseUrl + '/login">log in</a> and set your password.</p>')
+        break
+      case 'filler_notification_password_reset':
+        subject = 'Password reset link sent - Iboga Wellness Institute (Test)'
+        body = baseTestHtml('Password reset', '<p>A password reset link was sent to the patient.</p>')
+        break
+      case 'medical_history_form_link':
+        subject = 'Medical History form - Iboga Wellness Institute (Test)'
+        body = baseTestHtml('Medical History form', '<p>Please complete your <a href="' + testLink + '">Medical History form</a>.</p>')
+        break
+      case 'service_agreement_form_link':
+        subject = 'Service Agreement form - Iboga Wellness Institute (Test)'
+        body = baseTestHtml('Service Agreement form', '<p>Please complete your <a href="' + testLink + '">Service Agreement form</a>.</p>')
+        break
+      case 'ibogaine_consent_form_link':
+        subject = 'Ibogaine Consent form - Iboga Wellness Institute (Test)'
+        body = baseTestHtml('Ibogaine Consent form', '<p>Please complete your <a href="' + testLink + '">Ibogaine Consent form</a>.</p>')
+        break
+      case 'intake_form_link':
+        subject = 'Client application link - Iboga Wellness Institute (Test)'
+        body = baseTestHtml('Application link', '<p>Complete your application <a href="' + testLink + '">here</a>.</p>')
+        break
+      case 'onboarding_complete_admin':
+        subject = 'Client Onboarding Complete - Test User | Iboga Wellness Institute (Test)'
+        body = baseTestHtml(
+          'Onboarding forms completed',
+          '<p>A client has completed all onboarding forms.</p><p><strong>Name:</strong> Test User</p><p><strong>Email:</strong> ' + to + '</p>'
+        )
+        break
+      case 'medical_history_admin':
+        subject = 'Client Ready for Service Agreement - Test User | Iboga Wellness Institute (Test)'
+        body = baseTestHtml(
+          'Medical history submitted',
+          '<p>Client Test User has submitted their medical history and is ready for the service agreement.</p>'
+        )
+        break
+      case 'balance_reminder':
+        subject = 'Reminder: Balance payment due - Iboga Wellness Institute (Test)'
+        body = baseTestHtml(
+          'Balance payment reminder',
+          '<p>Dear Test User,</p><p>Balance due: <strong>$1,500.00</strong>.</p><p>Please contact us to arrange payment.</p>'
+        )
+        break
+      case 'tapering_schedule_client':
+        subject = 'Your Tapering Schedule is Ready | Iboga Wellness Institute (Test)'
+        body = baseTestHtml('Tapering schedule', '<p>Your tapering schedule is ready. Please log in to the portal to view it.</p>')
+        break
+      case 'tapering_admin':
+        subject = 'Tapering schedule sent - Test User | Iboga Wellness Institute (Test)'
+        body = baseTestHtml('Tapering schedule sent', '<p>A tapering schedule was sent to the client (test).</p>')
+        break
+      case 'client_ready_tapering':
+        subject = 'Client ready for tapering - Test User | Iboga Wellness Institute (Test)'
+        body = baseTestHtml('Client ready for tapering', '<p>Client is ready to receive their tapering schedule (test).</p>')
+        break
+      case 'form_automation_admin':
+        subject = 'Patient Moved to Onboarding - Test User | Iboga Wellness Institute (Test)'
+        body = baseTestHtml('Patient moved to onboarding', '<p>Patient was automatically moved to onboarding after completing the service agreement (test).</p>')
+        break
+      default:
+        subject = 'Test email - Iboga Wellness Institute'
+        body = baseTestHtml('Test', '<p>This is a test for: ' + kind + '</p>')
+    }
+
+    return sendEmailDirect({ to, subject, body })
   })
 
 // Helper function to send inquiry confirmation email
