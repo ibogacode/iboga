@@ -489,6 +489,17 @@ export const getPatientProfile = authActionClient
       ibogaineConsentForm ? 'pending' : // Form exists but patient hasn't filled signature - show as pending
       'not_started'
 
+    // Load billing payments in same request when service agreement is activated (so Billing tab and Upgrade Agreement are ready on first load)
+    let billingPayments: any[] = []
+    if (serviceAgreement?.id && serviceAgreement?.is_activated) {
+      const { data: payments } = await adminClient
+        .from('patient_billing_payments')
+        .select('*')
+        .eq('service_agreement_id', serviceAgreement.id)
+        .order('payment_received_at', { ascending: false })
+      if (payments) billingPayments = payments
+    }
+
     return {
       success: true,
       data: {
@@ -500,6 +511,7 @@ export const getPatientProfile = authActionClient
         ibogaineConsentForm,
         existingPatientDocuments, // Include uploaded documents
         onboarding: onboardingData, // Include onboarding data
+        billingPayments, // Include so Billing tab and sidebar show on first load without refresh
         formStatuses: {
           intake: intakeStatus,
           medicalHistory: medicalHistoryStatus,

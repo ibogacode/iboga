@@ -115,6 +115,14 @@ interface PatientProfileData {
       bloodwork: { id: string; document_path: string; document_name?: string | null; uploaded_at: string } | null
     }
   } | null
+  billingPayments?: Array<{
+    id: string
+    amount_received: number
+    is_full_payment: boolean
+    payment_received_at: string
+    next_reminder_date: string | null
+    balance_reminder_sent_at: string | null
+  }>
 }
 
 export default function PatientProfilePage() {
@@ -297,11 +305,17 @@ export default function PatientProfilePage() {
     loadPatientProfile()
   }, [id])
 
-  // Load billing payments when service agreement is activated (for Billing tab and right-sidebar payment status)
+  // Refetch billing payments when service agreement becomes available/activated (e.g. after activation) and was not included in initial profile
   useEffect(() => {
     const agreementId = profileData?.serviceAgreement?.id
     const isActivated = profileData?.serviceAgreement?.is_activated
     if (!agreementId || !isActivated) return
+    // Initial load now includes billingPayments in getPatientProfile; only refetch if profile didn't bring them (e.g. legacy or after activation)
+    const hasBillingFromProfile = Array.isArray(profileData?.billingPayments)
+    if (hasBillingFromProfile && profileData!.billingPayments) {
+      setBillingPayments(profileData!.billingPayments as typeof billingPayments)
+      return
+    }
     setLoadingBillingPayments(true)
     getBillingPayments({ service_agreement_id: agreementId })
       .then((res) => {
@@ -310,7 +324,7 @@ export default function PatientProfilePage() {
         }
       })
       .finally(() => setLoadingBillingPayments(false))
-  }, [profileData?.serviceAgreement?.id, profileData?.serviceAgreement?.is_activated])
+  }, [profileData?.serviceAgreement?.id, profileData?.serviceAgreement?.is_activated, profileData?.billingPayments])
 
   // Fetch active patient management (clinical stay) when profile is loaded and user is staff
   useEffect(() => {
@@ -480,8 +494,13 @@ export default function PatientProfilePage() {
         const data = result.data.data
         console.log('[PatientProfile] Profile data:', data)
 
-        // Onboarding data is now included in the initial load
+        // Onboarding and billing are included in the initial load so Billing tab and Upgrade Agreement are ready without refresh
         setProfileData(data as PatientProfileData)
+        setBillingPayments(
+          Array.isArray((data as PatientProfileData).billingPayments)
+            ? ((data as PatientProfileData).billingPayments as typeof billingPayments)
+            : []
+        )
 
         // Load quick note for this lead
         getLeadNote({ leadId: id })
