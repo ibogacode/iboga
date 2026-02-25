@@ -207,50 +207,51 @@ function toDateStr(val: string | null | undefined): string | null {
 }
 
 async function getEarliestFormDateByManagementId(supabase: Awaited<ReturnType<typeof createClient>>): Promise<Map<string, string>> {
-  const queries: Promise<{ data: { management_id: string; date: string }[] | null }>[] = [
-    supabase.from('patient_management_intake_reports').select('management_id, completed_at, filled_at').limit(5000).then((r) => ({
+  type QueryResult = { data: { management_id: string; date: string }[] | null }
+  const queries: Promise<QueryResult>[] = [
+    Promise.resolve(supabase.from('patient_management_intake_reports').select('management_id, completed_at, filled_at').limit(5000)).then((r) => ({
       data: (r.data as { management_id: string; completed_at?: string; filled_at?: string }[] | null)?.map((row) => ({
         management_id: row.management_id,
         date: toDateStr(row.completed_at ?? row.filled_at) ?? '',
       })).filter((x) => x.date) ?? null,
     })),
-    supabase.from('patient_management_medical_intake_reports').select('management_id, completed_at, submitted_at').limit(5000).then((r) => ({
+    Promise.resolve(supabase.from('patient_management_medical_intake_reports').select('management_id, completed_at, submitted_at').limit(5000)).then((r) => ({
       data: (r.data as { management_id: string; completed_at?: string; submitted_at?: string }[] | null)?.map((row) => ({
         management_id: row.management_id,
         date: toDateStr(row.completed_at ?? row.submitted_at) ?? '',
       })).filter((x) => x.date) ?? null,
     })),
-    supabase.from('patient_management_parkinsons_psychological_reports').select('management_id, completed_at, filled_at').limit(5000).then((r) => ({
+    Promise.resolve(supabase.from('patient_management_parkinsons_psychological_reports').select('management_id, completed_at, filled_at').limit(5000)).then((r) => ({
       data: (r.data as { management_id: string; completed_at?: string; filled_at?: string }[] | null)?.map((row) => ({
         management_id: row.management_id,
         date: toDateStr(row.completed_at ?? row.filled_at) ?? '',
       })).filter((x) => x.date) ?? null,
     })),
-    supabase.from('patient_management_parkinsons_mortality_scales').select('management_id, completed_at, filled_at').limit(5000).then((r) => ({
+    Promise.resolve(supabase.from('patient_management_parkinsons_mortality_scales').select('management_id, completed_at, filled_at').limit(5000)).then((r) => ({
       data: (r.data as { management_id: string; completed_at?: string; filled_at?: string }[] | null)?.map((row) => ({
         management_id: row.management_id,
         date: toDateStr(row.completed_at ?? row.filled_at) ?? '',
       })).filter((x) => x.date) ?? null,
     })),
-    supabase.from('patient_management_daily_psychological_updates').select('management_id, form_date').limit(5000).then((r) => ({
+    Promise.resolve(supabase.from('patient_management_daily_psychological_updates').select('management_id, form_date').limit(5000)).then((r) => ({
       data: (r.data as { management_id: string; form_date: string }[] | null)?.map((row) => ({
         management_id: row.management_id,
         date: toDateStr(row.form_date) ?? row.form_date ?? '',
       })).filter((x) => x.date) ?? null,
     })),
-    supabase.from('patient_management_daily_medical_updates').select('management_id, form_date').limit(5000).then((r) => ({
+    Promise.resolve(supabase.from('patient_management_daily_medical_updates').select('management_id, form_date').limit(5000)).then((r) => ({
       data: (r.data as { management_id: string; form_date: string }[] | null)?.map((row) => ({
         management_id: row.management_id,
         date: toDateStr(row.form_date) ?? row.form_date ?? '',
       })).filter((x) => x.date) ?? null,
     })),
-    supabase.from('patient_management_daily_sows').select('management_id, form_date').limit(5000).then((r) => ({
+    Promise.resolve(supabase.from('patient_management_daily_sows').select('management_id, form_date').limit(5000)).then((r) => ({
       data: (r.data as { management_id: string; form_date: string }[] | null)?.map((row) => ({
         management_id: row.management_id,
         date: toDateStr(row.form_date) ?? row.form_date ?? '',
       })).filter((x) => x.date) ?? null,
     })),
-    supabase.from('patient_management_daily_oows').select('management_id, form_date').limit(5000).then((r) => ({
+    Promise.resolve(supabase.from('patient_management_daily_oows').select('management_id, form_date').limit(5000)).then((r) => ({
       data: (r.data as { management_id: string; form_date: string }[] | null)?.map((row) => ({
         management_id: row.management_id,
         date: toDateStr(row.form_date) ?? row.form_date ?? '',
@@ -286,7 +287,8 @@ export const getPatientManagementList = authActionClient
       : [new Set<string>(), new Map<string, string>()]
     const formManagementIds = formManagementIdsSet
 
-    const applyProgram = (q: ReturnType<ReturnType<typeof createClient>['from']>) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const applyProgram = (q: any) =>
       programFilter ? q.eq('program_type', parsedInput.program_type!) : q
 
     let data: PatientManagement[] | null = null
@@ -379,7 +381,7 @@ export const getPatientManagementList = authActionClient
     }
 
     const todayStr = new Date().toISOString().split('T')[0]
-    const enriched = (data! as (PatientManagement & { display_status?: string; effective_arrival_date?: string })[]).map((row) => {
+    const enriched = (data! as (PatientManagement & { display_status?: 'Present' | 'Arriving Soon' | 'Discharged' | 'Transferred'; effective_arrival_date?: string })[]).map((row) => {
       const effectiveDate = earliestFormDateByManagementId.get(row.id)
       const hasEarlyForms = row.status === 'active' && row.arrival_date > todayStr && formManagementIds.has(row.id)
       return {
