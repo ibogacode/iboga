@@ -13,6 +13,38 @@ function isAdminStaffRole(role: string): boolean {
   return ['owner', 'admin', 'manager'].includes(role)
 }
 
+/** Returns YYYY-MM-DD from ISO timestamp or date string. */
+function toDateStr(val: string | null | undefined): string | null {
+  if (!val) return null
+  const d = val.split('T')[0]
+  return d.length === 10 ? d : null
+}
+
+/** Earliest form date (YYYY-MM-DD) per management_id from first submitted daily or one-time form. Used for facility occupancy so clients appear from first form date. */
+async function getEarliestFormDateByManagementId(supabase: Awaited<ReturnType<typeof createClient>>): Promise<Map<string, string>> {
+  const queries = [
+    supabase.from('patient_management_intake_reports').select('management_id, completed_at, filled_at').limit(5000).then((r) => (r.data as { management_id: string; completed_at?: string; filled_at?: string }[] | null)?.map((row) => ({ management_id: row.management_id, date: toDateStr(row.completed_at ?? row.filled_at) ?? '' })).filter((x) => x.date) ?? null),
+    supabase.from('patient_management_medical_intake_reports').select('management_id, completed_at, submitted_at').limit(5000).then((r) => (r.data as { management_id: string; completed_at?: string; submitted_at?: string }[] | null)?.map((row) => ({ management_id: row.management_id, date: toDateStr(row.completed_at ?? row.submitted_at) ?? '' })).filter((x) => x.date) ?? null),
+    supabase.from('patient_management_parkinsons_psychological_reports').select('management_id, completed_at, filled_at').limit(5000).then((r) => (r.data as { management_id: string; completed_at?: string; filled_at?: string }[] | null)?.map((row) => ({ management_id: row.management_id, date: toDateStr(row.completed_at ?? row.filled_at) ?? '' })).filter((x) => x.date) ?? null),
+    supabase.from('patient_management_parkinsons_mortality_scales').select('management_id, completed_at, filled_at').limit(5000).then((r) => (r.data as { management_id: string; completed_at?: string; filled_at?: string }[] | null)?.map((row) => ({ management_id: row.management_id, date: toDateStr(row.completed_at ?? row.filled_at) ?? '' })).filter((x) => x.date) ?? null),
+    supabase.from('patient_management_daily_psychological_updates').select('management_id, form_date').limit(5000).then((r) => (r.data as { management_id: string; form_date: string }[] | null)?.map((row) => ({ management_id: row.management_id, date: toDateStr(row.form_date) ?? row.form_date ?? '' })).filter((x) => x.date) ?? null),
+    supabase.from('patient_management_daily_medical_updates').select('management_id, form_date').limit(5000).then((r) => (r.data as { management_id: string; form_date: string }[] | null)?.map((row) => ({ management_id: row.management_id, date: toDateStr(row.form_date) ?? row.form_date ?? '' })).filter((x) => x.date) ?? null),
+    supabase.from('patient_management_daily_sows').select('management_id, form_date').limit(5000).then((r) => (r.data as { management_id: string; form_date: string }[] | null)?.map((row) => ({ management_id: row.management_id, date: toDateStr(row.form_date) ?? row.form_date ?? '' })).filter((x) => x.date) ?? null),
+    supabase.from('patient_management_daily_oows').select('management_id, form_date').limit(5000).then((r) => (r.data as { management_id: string; form_date: string }[] | null)?.map((row) => ({ management_id: row.management_id, date: toDateStr(row.form_date) ?? row.form_date ?? '' })).filter((x) => x.date) ?? null),
+  ]
+  const results = await Promise.all(queries)
+  const byId = new Map<string, string>()
+  for (const rows of results) {
+    if (!rows) continue
+    for (const { management_id, date } of rows) {
+      if (!management_id || !date) continue
+      const existing = byId.get(management_id)
+      if (!existing || date < existing) byId.set(management_id, date)
+    }
+  }
+  return byId
+}
+
 /** Format date as yyyy-MM-dd in local time (avoids UTC off-by-one for occupancy). */
 function toLocalDateStr(d: Date): string {
   const y = d.getFullYear()
@@ -105,6 +137,9 @@ export const getAvailableTreatmentDates = authActionClient
     // Combine active and relevant discharged patients
     const existingPatients = [...(activePatients || []), ...(dischargedPatients || [])]
 
+    // Effective arrival = first form date when available (matches client management logic)
+    const earliestFormDateByManagementId = await getEarliestFormDateByManagementId(supabase)
+
     // Get service agreements with number_of_days
     const patientIds = patients?.map((p) => p.patient_id).filter(Boolean) || []
     const existingPatientIds = existingPatients?.map((p) => p.patient_id).filter(Boolean) || []
@@ -158,8 +193,10 @@ export const getAvailableTreatmentDates = authActionClient
     })
 
     // Process existing patients from patient_management (already in facility)
+    // Use effective arrival date (first form date) when available so calendar matches client management
     existingPatients?.forEach((p) => {
-      if (p.arrival_date) {
+      const effectiveArrivalDate = earliestFormDateByManagementId.get(p.id) ?? p.arrival_date
+      if (effectiveArrivalDate) {
         // Use program_duration if available, otherwise fall back to service agreement or default
         const numberOfDays = p.program_duration || serviceAgreementMap.get(p.patient_id) || 14
         const patientInfo = {
@@ -169,16 +206,17 @@ export const getAvailableTreatmentDates = authActionClient
           program_type: p.program_type,
           number_of_days: numberOfDays,
           source: 'management', // Mark as existing patient
+          arrival_date: effectiveArrivalDate, // So UI can show and use effective date
         }
 
-        // Add patient to their arrival date
-        if (!patientsByDate.has(p.arrival_date)) {
-          patientsByDate.set(p.arrival_date, [])
+        // Add patient to their effective arrival date
+        if (!patientsByDate.has(effectiveArrivalDate)) {
+          patientsByDate.set(effectiveArrivalDate, [])
         }
-        patientsByDate.get(p.arrival_date)!.push(patientInfo)
+        patientsByDate.get(effectiveArrivalDate)!.push(patientInfo)
 
         // Calculate all days this patient is/was in the facility (local date to avoid off-by-one)
-        const arrivalDate = parseLocalDate(p.arrival_date)
+        const arrivalDate = parseLocalDate(effectiveArrivalDate)
         let actualEndDate: Date
 
         if (p.status === 'discharged' && p.discharged_at) {

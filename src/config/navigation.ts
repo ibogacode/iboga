@@ -28,6 +28,7 @@ import {
   Youtube,
   Globe,
   BookOpen,
+  Beaker,
   type LucideIcon,
 } from 'lucide-react'
 import { UserRole } from '@/types'
@@ -43,6 +44,8 @@ export interface NavItem {
 export interface NavigationConfig {
   mainNav: NavItem[]
   secondaryNav: NavItem[]
+  /** Optional Analytics section (e.g. Research) */
+  analyticsNav?: NavItem[]
 }
 
 // Navigation items for each role
@@ -68,7 +71,6 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
         ],
       },
       { title: 'Client Management', href: '/patient-management', icon: UserCheck },
-      { title: 'Research', href: '/research', icon: Search },
       {
         title: 'Marketing',
         icon: Megaphone,
@@ -84,6 +86,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
     ],
+    analyticsNav: [{ title: 'Research', href: '/research', icon: Beaker }],
   },
   owner: {
     mainNav: [
@@ -106,7 +109,6 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
         ],
       },
       { title: 'Client Management', href: '/patient-management', icon: UserCheck },
-      { title: 'Research', href: '/research', icon: Search },
       {
         title: 'Marketing',
         icon: Megaphone,
@@ -122,6 +124,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
     ],
+    analyticsNav: [{ title: 'Research', href: '/research', icon: Beaker }],
   },
   manager: {
     mainNav: [
@@ -146,12 +149,12 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
           { title: 'Web', href: '/marketing/web', icon: Globe },
         ],
       },
-      { title: 'Research', href: '/research', icon: Search },
       { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
     ],
+    analyticsNav: [{ title: 'Research', href: '/research', icon: Beaker }],
   },
   doctor: {
     mainNav: [
@@ -172,12 +175,12 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
           { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
         ]
       },
-      { title: 'Research', href: '/research', icon: Search },
       { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
     ],
+    analyticsNav: [{ title: 'Research', href: '/research', icon: Beaker }],
   },
   psych: {
     mainNav: [
@@ -198,12 +201,12 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
           { title: 'Facebook', href: '/marketing/facebook', icon: Facebook },
         ]
       },
-      { title: 'Research', href: '/research', icon: Search },
       { title: 'Messages', href: '/messages', icon: MessageSquare },
     ],
     secondaryNav: [
       { title: 'Settings', href: '/settings', icon: Settings },
     ],
+    analyticsNav: [{ title: 'Research', href: '/research', icon: Beaker }],
   },
   nurse: {
     mainNav: [

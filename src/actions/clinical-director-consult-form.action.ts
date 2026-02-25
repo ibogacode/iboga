@@ -5,6 +5,7 @@ import { authActionClient } from '@/lib/safe-action'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ClinicalDirectorConsultFormData } from './clinical-director-consult-form.types'
+import { sendPreIntegrationSchedulingEmail } from './email.action'
 
 function isStaffRole(role: string | null): boolean {
   return role === 'owner' || role === 'admin' || role === 'manager' || role === 'doctor' || role === 'nurse' || role === 'psych'
@@ -92,6 +93,21 @@ export const upsertClinicalDirectorConsultForm = authActionClient
       console.error('[upsertClinicalDirectorConsultForm] Error:', error)
       return { success: false, error: 'Failed to save form' }
     }
+
+    // Send pre-integration scheduling email from Ray (fire-and-forget)
+    const { data: onboarding } = await supabase
+      .from('patient_onboarding')
+      .select('email, first_name, last_name')
+      .eq('id', parsedInput.onboarding_id)
+      .maybeSingle()
+    if (onboarding?.email) {
+      sendPreIntegrationSchedulingEmail(
+        onboarding.email,
+        onboarding.first_name ?? '',
+        onboarding.last_name ?? ''
+      ).catch((err) => console.error('[upsertClinicalDirectorConsultForm] Pre-integration email failed:', err))
+    }
+
     revalidatePath('/patient-pipeline/patient-profile')
     return { success: true, data: { id: data.id } }
   })

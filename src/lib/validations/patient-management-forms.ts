@@ -563,10 +563,13 @@ export const getPatientManagementByPatientIdSchema = z.object({
 })
 
 export const getPatientManagementListSchema = z.object({
-  status: z.enum(['active', 'discharged', 'transferred', 'all']).default('all'),
+  /** present = in institute (active + arrival_date <= today); arriving_soon = active + arrival_date > today; discharged = discharged/transferred; all = no filter */
+  status: z.enum(['present', 'arriving_soon', 'discharged', 'all']).default('present'),
   program_type: z.enum(['neurological', 'mental_health', 'addiction', 'all']).optional(),
   limit: z.number().min(1).max(100).default(50),
   offset: z.number().min(0).default(0),
+  /** Include counts for filter badges (present, arriving_soon, discharged, all) */
+  include_counts: z.boolean().optional().default(true),
 })
 
 export const getDailyFormsByManagementIdSchema = z.object({

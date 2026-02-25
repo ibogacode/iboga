@@ -58,6 +58,7 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
   // Get navigation items based on role
   const navConfig = navigationByRole[role] || navigationByRole.patient
   const mainNavItems = navConfig.mainNav
+  const analyticsNavItems = navConfig.analyticsNav ?? []
   
   // Get user info
   const userName = profile?.name || 
@@ -291,6 +292,47 @@ export function Sidebar({ role = 'patient', user, profile, isMobile = false }: S
             })}
           </nav>
         </div>
+
+        {/* Analytics Section */}
+        {analyticsNavItems.length > 0 && (
+          <div className="mb-6">
+            <h3 className={cn(
+              "px-4 mb-3 text-xs font-medium text-gray-500 uppercase tracking-wider transition-opacity duration-200 whitespace-nowrap",
+              showExpanded ? "opacity-100" : "opacity-0"
+            )}>
+              Analytics
+            </h3>
+            <nav className="space-y-1 px-3">
+              {analyticsNavItems.map((item) => {
+                const isActive = isItemActive(item.href)
+                const Icon = item.icon
+                return item.href ? (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-smooth relative focus-ring',
+                      isActive
+                        ? 'bg-gray-900 text-white'
+                        : 'text-gray-700 hover:bg-white hover:shadow-md',
+                      !showExpanded && 'justify-center px-0'
+                    )}
+                    title={!showExpanded ? item.title : undefined}
+                  >
+                    {isActive && showExpanded && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gray-900 rounded-r-full -ml-3" />
+                    )}
+                    <Icon className={cn(
+                      'h-5 w-5 shrink-0',
+                      isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-700'
+                    )} />
+                    {showExpanded && <span className="flex-1 whitespace-nowrap">{item.title}</span>}
+                  </Link>
+                ) : null
+              })}
+            </nav>
+          </div>
+        )}
 
         {/* User Section */}
         <div className="mb-6">
