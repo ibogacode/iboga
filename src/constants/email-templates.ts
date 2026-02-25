@@ -10,6 +10,7 @@ export const EMAIL_TEMPLATE_TYPES = [
   'service_agreement_confirmation',
   'ibogaine_consent_confirmation',
   'onboarding_forms',
+  'pre_integration_scheduling',
 ] as const
 
 export type EmailTemplateType = (typeof EMAIL_TEMPLATE_TYPES)[number]
@@ -26,6 +27,7 @@ export const EMAIL_TEMPLATE_LABELS: Record<EmailTemplateType, string> = {
   service_agreement_confirmation: 'Service agreement confirmation',
   ibogaine_consent_confirmation: 'Ibogaine consent confirmation',
   onboarding_forms: 'Onboarding forms (from Clinical Director)',
+  pre_integration_scheduling: 'Pre-integration scheduling (from Ray)',
 }
 
 /** Kinds of emails sent via sendEmailDirect (Actions) – for test page. */

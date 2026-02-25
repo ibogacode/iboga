@@ -1660,6 +1660,25 @@ export async function sendOnboardingFormsEmail(
   return result
 }
 
+/** Send pre-integration scheduling email (from Ray) after client completes Clinical Director consultation. */
+export async function sendPreIntegrationSchedulingEmail(
+  recipientEmail: string,
+  recipientFirstName: string,
+  recipientLastName: string,
+  options?: { schedulingLink?: string }
+) {
+  const result = await sendEmailTemplate('pre_integration_scheduling', {
+    to: recipientEmail,
+    firstName: recipientFirstName,
+    lastName: recipientLastName,
+    schedulingLink: options?.schedulingLink,
+  })
+  if (!result.success) {
+    console.error('[sendPreIntegrationSchedulingEmail] Failed to send:', result.error)
+  }
+  return result
+}
+
 /** Send "Request Labs" email to client (patient). */
 export async function sendRequestLabsEmail(
   patientEmail: string,

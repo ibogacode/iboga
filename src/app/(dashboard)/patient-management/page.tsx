@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { getPatientManagementList, dischargePatient } from '@/actions/patient-management.action'
 import {
   Loader2, Users, CheckCircle2, Clock, Calendar, FileCheck,
-  Stethoscope, FileText, Activity, AlertCircle, UserCheck, ClipboardList, LogOut, Eye
+  Stethoscope, FileText, Activity, AlertCircle, UserCheck, ClipboardList, LogOut, Eye,
+  ChevronDown, ChevronUp, MinusCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -39,6 +40,10 @@ interface PatientManagementRecord {
   parkinsons_psychological_report_completed: boolean
   parkinsons_mortality_scales_completed: boolean
   created_at: string
+  /** Set by API when client has form activity before arrival_date (treated as present) */
+  display_status?: 'Present' | 'Arriving Soon' | 'Discharged' | 'Transferred'
+  /** First daily or one-time form date; overrides arrival_date for display when set */
+  effective_arrival_date?: string
 }
 
 export default function PatientManagementPage() {
@@ -46,8 +51,11 @@ export default function PatientManagementPage() {
   const { profile } = useUser()
   const canViewPatientProfile = hasOwnerAccess(profile?.role)
   const [patients, setPatients] = useState<PatientManagementRecord[]>([])
+  const [counts, setCounts] = useState<{ present: number; arriving_soon: number; discharged: number; all: number } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState<'active' | 'discharged' | 'transferred' | 'all'>('active')
+  const [statusFilter, setStatusFilter] = useState<'present' | 'arriving_soon' | 'discharged' | 'all'>('present')
+  const [sortBy, setSortBy] = useState<'client' | 'program' | 'status' | 'arrival_date'>('arrival_date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [dischargeDialogOpen, setDischargeDialogOpen] = useState(false)
   const [selectedPatientForDischarge, setSelectedPatientForDischarge] = useState<PatientManagementRecord | null>(null)
   const [isDischarging, setIsDischarging] = useState(false)
@@ -59,12 +67,14 @@ export default function PatientManagementPage() {
   async function loadPatientManagementList() {
     setIsLoading(true)
     try {
-      const result = await getPatientManagementList({ 
+      const result = await getPatientManagementList({
         limit: 100,
-        status: statusFilter === 'all' ? 'all' : statusFilter,
+        status: statusFilter,
+        include_counts: true,
       })
       if (result?.data?.success && result.data.data) {
         setPatients(result.data.data)
+        if (result.data.counts) setCounts(result.data.counts)
       } else {
         console.error('Failed to load patient management list:', result?.data?.error)
         if (result?.data?.error) {
@@ -73,7 +83,7 @@ export default function PatientManagementPage() {
       }
     } catch (error) {
       console.error('Error loading patient management list:', error)
-        toast.error('Failed to load client management records')
+      toast.error('Failed to load client management records')
     } finally {
       setIsLoading(false)
     }
@@ -82,20 +92,17 @@ export default function PatientManagementPage() {
   function formatDate(dateString: string | null) {
     if (!dateString) return 'N/A'
     try {
-      // Parse the date string (assuming it's in YYYY-MM-DD format from database)
-      // Since arrival_date is a DATE type (not TIMESTAMPTZ), it's just a date without time
-      // We'll parse it and format it in EST timezone context
-      
-      // Parse the date string (YYYY-MM-DD format from PostgreSQL DATE type)
-      const date = new Date(dateString + 'T00:00:00') // Add time to avoid timezone issues
-      
-      // Format as MMDDYYYY (e.g., "01/01/2024")
-      // Using MM/dd/yyyy format for readability
+      const date = new Date(dateString + 'T00:00:00')
       return format(date, 'MM/dd/yyyy')
     } catch (error) {
       console.error('Error formatting date:', error, dateString)
       return dateString
     }
+  }
+
+  /** Arrival date to display and use for sorting: effective (first form date) when set, else official arrival_date. */
+  function getDisplayArrivalDate(patient: PatientManagementRecord): string {
+    return patient.effective_arrival_date ?? patient.arrival_date
   }
 
   function formatProgramName(programType: string): string {
@@ -157,11 +164,50 @@ export default function PatientManagementPage() {
     }
   }
 
-  // Calculate stats
-  const activePatients = patients.filter(p => p.status === 'active').length
-  const dischargedPatients = patients.filter(p => p.status === 'discharged').length
-  const transferredPatients = patients.filter(p => p.status === 'transferred').length
-  const totalPatients = patients.length
+  function getDisplayStatus(patient: PatientManagementRecord): 'Present' | 'Arriving Soon' | 'Discharged' | 'Transferred' {
+    if (patient.display_status) return patient.display_status
+    if (patient.status === 'discharged') return 'Discharged'
+    if (patient.status === 'transferred') return 'Transferred'
+    if (patient.status === 'active') {
+      const today = new Date().toISOString().split('T')[0]
+      return patient.arrival_date <= today ? 'Present' : 'Arriving Soon'
+    }
+    return 'Present'
+  }
+
+  const sortedPatients = [...patients].sort((a, b) => {
+    let cmp = 0
+    switch (sortBy) {
+      case 'client':
+        cmp = `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)
+        break
+      case 'program':
+        cmp = formatProgramName(a.program_type).localeCompare(formatProgramName(b.program_type))
+        break
+      case 'status':
+        cmp = getDisplayStatus(a).localeCompare(getDisplayStatus(b))
+        break
+      case 'arrival_date':
+        cmp = getDisplayArrivalDate(a).localeCompare(getDisplayArrivalDate(b))
+        break
+      default:
+        break
+    }
+    return sortDir === 'asc' ? cmp : -cmp
+  })
+
+  function toggleSort(column: typeof sortBy) {
+    if (sortBy === column) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortBy(column)
+      setSortDir(column === 'client' ? 'asc' : 'desc')
+    }
+  }
+
+  const totalPatients = counts?.all ?? patients.length
+  const dischargedCount = counts?.discharged ?? 0
+  const presentCount = counts?.present ?? 0
+  const arrivingCount = counts?.arriving_soon ?? 0
 
   // Calculate one-time forms completion
   const totalOneTimeFormsCompleted = patients.reduce((sum, p) => sum + getOneTimeFormsCompleted(p), 0)
@@ -190,22 +236,17 @@ export default function PatientManagementPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
-        {/* Active Patients */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Active Clients</p>
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Currently Present</p>
           {isLoading ? (
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           ) : (
             <>
-              <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">{activePatients}</p>
-              <p className="text-emerald-600 text-xs sm:text-sm font-medium">
-                {totalPatients > 0 ? Math.round((activePatients / totalPatients) * 100) : 0}% of total
-              </p>
+              <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">{presentCount}</p>
+              <p className="text-emerald-600 text-xs sm:text-sm font-medium">In institute</p>
             </>
           )}
         </div>
-
-        {/* Total Patients */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Total Clients</p>
           {isLoading ? (
@@ -214,16 +255,12 @@ export default function PatientManagementPage() {
             <>
               <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">{totalPatients}</p>
               <div className="flex items-center gap-2 text-xs sm:text-sm">
-                <span className="text-gray-400">{dischargedPatients} discharged</span>
-                {transferredPatients > 0 && (
-                  <span className="text-gray-400">• {transferredPatients} transferred</span>
-                )}
+                <span className="text-gray-400">{arrivingCount} arriving</span>
+                <span className="text-gray-400">• {dischargedCount} discharged</span>
               </div>
             </>
           )}
         </div>
-
-        {/* One-Time Forms Completed */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">One-Time Forms</p>
           {isLoading ? (
@@ -239,67 +276,86 @@ export default function PatientManagementPage() {
             </>
           )}
         </div>
-
-        {/* Status Overview */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Current View</p>
           {isLoading ? (
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           ) : (
             <>
-              <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">
-                {statusFilter === 'all' ? totalPatients : patients.length}
-              </p>
+              <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">{patients.length}</p>
               <p className="text-blue-600 text-xs sm:text-sm font-medium capitalize">
-                {statusFilter === 'all' ? 'All Statuses' : statusFilter} clients
+                {statusFilter === 'all' ? 'All clients' : statusFilter === 'present' ? 'Currently present' : statusFilter === 'arriving_soon' ? 'Arriving soon' : 'Discharged'}
               </p>
             </>
           )}
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="mt-6 sm:mt-8 flex gap-2 mb-4 flex-wrap">
-        <Button
-          variant={statusFilter === 'active' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setStatusFilter('active')}
-        >
-          Active
-        </Button>
-        <Button
-          variant={statusFilter === 'discharged' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setStatusFilter('discharged')}
-        >
-          Discharged
-        </Button>
-        <Button
-          variant={statusFilter === 'transferred' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setStatusFilter('transferred')}
-        >
-          Transferred
-        </Button>
-        <Button
-          variant={statusFilter === 'all' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setStatusFilter('all')}
-        >
-          All
-        </Button>
+      {/* Filter by status */}
+      <div className="mt-6 sm:mt-8 mb-6">
+        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Click to filter by status</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setStatusFilter('present')}
+            className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+              statusFilter === 'present'
+                ? 'border-emerald-600 bg-emerald-600 text-white'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span>Currently Present</span>
+            <span className="tabular-nums">{counts?.present ?? 0}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('arriving_soon')}
+            className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+              statusFilter === 'arriving_soon'
+                ? 'border-emerald-600 bg-emerald-600 text-white'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Clock className="h-4 w-4 shrink-0" />
+            <span>Arriving Soon</span>
+            <span className="tabular-nums">{counts?.arriving_soon ?? 0}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('discharged')}
+            className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+              statusFilter === 'discharged'
+                ? 'border-emerald-600 bg-emerald-600 text-white'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <MinusCircle className="h-4 w-4 shrink-0" />
+            <span>Discharged</span>
+            <span className="tabular-nums">{counts?.discharged ?? 0}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+              statusFilter === 'all'
+                ? 'border-emerald-600 bg-emerald-600 text-white'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Users className="h-4 w-4 shrink-0" />
+            <span>All Clients</span>
+            <span className="tabular-nums">{counts?.all ?? 0}</span>
+          </button>
+        </div>
       </div>
 
       {/* Patients List */}
       <div className="mt-4">
         <div className="flex items-center gap-2 mb-4">
           <Users className="h-5 w-5 text-emerald-600" />
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
-            {statusFilter === 'all' ? 'All Clients' : `Clients - ${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}`}
-          </h2>
-          <span className="px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">
-            {patients.length}
-          </span>
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Clients</h2>
+          <span className="text-sm text-gray-500">Showing {patients.length} clients</span>
         </div>
 
         {isLoading ? (
@@ -311,9 +367,13 @@ export default function PatientManagementPage() {
             <UserCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500 text-sm sm:text-base">No clients found.</p>
             <p className="text-gray-400 text-xs sm:text-sm mt-2">
-              {statusFilter === 'active' 
-                ? 'Clients who are moved to management from onboarding will appear here.'
-                : `No clients with status "${statusFilter}" found.`}
+              {statusFilter === 'present'
+                ? 'Clients who are in the institute will appear here.'
+                : statusFilter === 'arriving_soon'
+                ? 'Clients scheduled to arrive will appear here.'
+                : statusFilter === 'discharged'
+                ? 'No discharged or transferred clients found.'
+                : 'Clients who are moved to management from onboarding will appear here.'}
             </p>
           </div>
         ) : (
@@ -323,16 +383,44 @@ export default function PatientManagementPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Client
+                      <button
+                        type="button"
+                        onClick={() => toggleSort('client')}
+                        className="inline-flex items-center gap-1 group focus:outline-none"
+                      >
+                        Client
+                        {sortBy === 'client' ? (sortDir === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />) : <span className="inline-block h-4 w-4 opacity-0 group-hover:opacity-50">↕</span>}
+                      </button>
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Program
+                      <button
+                        type="button"
+                        onClick={() => toggleSort('program')}
+                        className="inline-flex items-center gap-1 group focus:outline-none"
+                      >
+                        Program
+                        {sortBy === 'program' ? (sortDir === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />) : <span className="inline-block h-4 w-4 opacity-0 group-hover:opacity-50">↕</span>}
+                      </button>
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
+                      <button
+                        type="button"
+                        onClick={() => toggleSort('status')}
+                        className="inline-flex items-center gap-1 group focus:outline-none"
+                      >
+                        Status
+                        {sortBy === 'status' ? (sortDir === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />) : <span className="inline-block h-4 w-4 opacity-0 group-hover:opacity-50">↕</span>}
+                      </button>
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Arrival Date
+                      <button
+                        type="button"
+                        onClick={() => toggleSort('arrival_date')}
+                        className="inline-flex items-center gap-1 group focus:outline-none"
+                      >
+                        Arrival Date
+                        {sortBy === 'arrival_date' ? (sortDir === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />) : <span className="inline-block h-4 w-4 opacity-0 group-hover:opacity-50">↕</span>}
+                      </button>
                     </th>
                     <th scope="col" className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
@@ -340,7 +428,7 @@ export default function PatientManagementPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {patients.map((patient) => {
+                  {sortedPatients.map((patient) => {
                     const oneTimeFormsCompleted = getOneTimeFormsCompleted(patient)
                     const oneTimeFormsTotal = getOneTimeFormsTotal(patient)
                     const allOneTimeFormsCompleted = oneTimeFormsCompleted === oneTimeFormsTotal
@@ -361,20 +449,33 @@ export default function PatientManagementPage() {
                           </span>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                            patient.status === 'active' 
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : patient.status === 'discharged'
-                              ? 'bg-gray-100 text-gray-700'
-                              : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {patient.status.charAt(0).toUpperCase() + patient.status.slice(1)}
-                          </span>
+                          {(() => {
+                            const display = getDisplayStatus(patient)
+                            return (
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${
+                                display === 'Present'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : display === 'Arriving Soon'
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : display === 'Discharged'
+                                  ? 'bg-gray-100 text-gray-700'
+                                  : 'bg-blue-100 text-blue-700'
+                              }`}>
+                                {display === 'Present' && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
+                                {display}
+                              </span>
+                            )
+                          })()}
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
-                          <div className="text-xs sm:text-sm text-gray-500">
-                            {formatDate(patient.arrival_date)}
+                          <div className="text-xs sm:text-sm text-gray-900">
+                            {formatDate(getDisplayArrivalDate(patient))}
                           </div>
+                          {patient.effective_arrival_date && patient.effective_arrival_date !== patient.arrival_date && (
+                            <div className="text-[10px] sm:text-xs text-gray-500">
+                              Scheduled: {formatDate(patient.arrival_date)}
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-2">

@@ -162,7 +162,7 @@ export default function OnboardingPage() {
 
   // Calculate stats
   const totalOnboarding = patients.length
-  const ONBOARDING_STEPS_TOTAL = 6
+  const ONBOARDING_STEPS_TOTAL = 7
   const completedSteps = patients.filter(p => p.steps_completed === ONBOARDING_STEPS_TOTAL).length
   const inProgress = patients.filter(p => p.steps_completed < ONBOARDING_STEPS_TOTAL).length
   const totalStepsCompleted = patients.reduce((sum, p) => sum + p.steps_completed, 0)
@@ -342,7 +342,7 @@ export default function OnboardingPage() {
                           <span className={`text-sm font-medium ${
                             allStepsCompleted ? 'text-emerald-600' : 'text-amber-600'
                           }`}>
-                            {patient.steps_completed}/6
+                            {patient.steps_completed}/{ONBOARDING_STEPS_TOTAL}
                           </span>
                         </td>
                         <td className="px-3 sm:px-6 py-4 whitespace-nowrap">

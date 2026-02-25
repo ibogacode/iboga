@@ -6,7 +6,7 @@ import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalH
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { sendFormEmail } from '@/actions/send-form-email.action'
 import { sendRequestLabsEmail } from '@/actions/email.action'
-import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding, uploadOnboardingFormDocument, moveToPatientManagement, markOnboardingConsultScheduled } from '@/actions/onboarding-forms.action'
+import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding, uploadOnboardingFormDocument, moveToPatientManagement, markOnboardingConsultScheduled, markOnboardingPreIntegrationScheduled } from '@/actions/onboarding-forms.action'
 import { getOnboardingMedicalDocumentViewUrl, adminSkipOnboardingMedicalDocument } from '@/actions/onboarding-documents.action'
 import { markAsProspect, removeProspectStatus } from '@/actions/prospect-status.action'
 import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload, ClipboardList, Stethoscope, LayoutGrid, ChevronDown, FlaskConical, PauseCircle, UserCheck, Heart, TestTube2, CalendarCheck } from 'lucide-react'
@@ -129,7 +129,7 @@ export default function PatientProfilePage() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
-  const { profile } = useUser()
+  const { profile, isLoading: isUserLoading } = useUser()
   
   const [isLoading, setIsLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
@@ -201,6 +201,7 @@ export default function PatientProfilePage() {
   const [adminSkippingMedical, setAdminSkippingMedical] = useState<'ekg' | 'bloodwork' | null>(null)
   const [confirmSkipMedical, setConfirmSkipMedical] = useState<'ekg' | 'bloodwork' | null>(null)
   const [markingConsultScheduled, setMarkingConsultScheduled] = useState(false)
+  const [markingPreIntegrationScheduled, setMarkingPreIntegrationScheduled] = useState(false)
   const onboardingFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const onboardingFormContentRef = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'billing' | 'travel'>('overview')
@@ -353,105 +354,102 @@ export default function PatientProfilePage() {
     return () => { cancelled = true }
   }, [profileData?.patient?.id, isStaff])
 
-  // Fetch daily forms when management record exists (for Overview & Forms & Docs)
+  // Fetch daily forms AND one-time forms in parallel when management record exists
   useEffect(() => {
     if (!managementRecord?.id || !isStaff) {
       setDailyFormsCount(0)
       setDailyFormsBreakdown({ psychological: 0, medical: 0, sows: 0, oows: 0 })
       setDailyFormsArrays({ psychological: [], medical: [], sows: [], oows: [] })
-      return
-    }
-    getDailyFormsByManagementId({ management_id: managementRecord.id })
-      .then((result) => {
-        if (result?.data?.success && result.data.data) {
-          const d = result.data.data as {
-            psychological?: Array<{ form_date?: string; submitted_at?: string | null }>
-            medical?: Array<{ form_date?: string; submitted_at?: string | null }>
-            sows?: Array<{ form_date?: string; submitted_at?: string | null }>
-            oows?: Array<{ form_date?: string; submitted_at?: string | null }>
-          }
-          const toRow = (arr: Array<{ form_date?: string; submitted_at?: string | null }> | undefined) =>
-            (arr ?? []).map((f) => ({ form_date: f.form_date ?? '', submitted_at: f.submitted_at ?? null }))
-          const psych = d.psychological ?? []
-          const med = d.medical ?? []
-          const sows = d.sows ?? []
-          const oows = d.oows ?? []
-          setDailyFormsCount(psych.length + med.length + sows.length + oows.length)
-          setDailyFormsBreakdown({ psychological: psych.length, medical: med.length, sows: sows.length, oows: oows.length })
-          setDailyFormsArrays({
-            psychological: toRow(psych),
-            medical: toRow(med),
-            sows: toRow(sows),
-            oows: toRow(oows),
-          })
-        } else {
-          setDailyFormsCount(0)
-          setDailyFormsBreakdown({ psychological: 0, medical: 0, sows: 0, oows: 0 })
-          setDailyFormsArrays({ psychological: [], medical: [], sows: [], oows: [] })
-        }
-      })
-      .catch(() => {
-        setDailyFormsCount(0)
-        setDailyFormsBreakdown({ psychological: 0, medical: 0, sows: 0, oows: 0 })
-        setDailyFormsArrays({ psychological: [], medical: [], sows: [], oows: [] })
-      })
-  }, [managementRecord?.id, isStaff])
-
-  // Fetch one-time forms when management record exists (for Forms & Docs table with dates and View)
-  useEffect(() => {
-    if (!managementRecord?.id || !isStaff) {
       setOneTimeFormsData(null)
       return
     }
-    getPatientManagementWithForms({ management_id: managementRecord.id })
-      .then((result) => {
-        if (result?.data?.success && result.data.data?.forms) {
-          setOneTimeFormsData(result.data.data.forms)
-        } else {
-          setOneTimeFormsData(null)
+    
+    const managementId = managementRecord.id
+    
+    // Fetch both in parallel
+    Promise.all([
+      getDailyFormsByManagementId({ management_id: managementId }),
+      getPatientManagementWithForms({ management_id: managementId })
+    ]).then(([dailyResult, oneTimeResult]) => {
+      // Process daily forms
+      if (dailyResult?.data?.success && dailyResult.data.data) {
+        const d = dailyResult.data.data as {
+          psychological?: Array<{ form_date?: string; submitted_at?: string | null }>
+          medical?: Array<{ form_date?: string; submitted_at?: string | null }>
+          sows?: Array<{ form_date?: string; submitted_at?: string | null }>
+          oows?: Array<{ form_date?: string; submitted_at?: string | null }>
         }
-      })
-      .catch(() => setOneTimeFormsData(null))
+        const toRow = (arr: Array<{ form_date?: string; submitted_at?: string | null }> | undefined) =>
+          (arr ?? []).map((f) => ({ form_date: f.form_date ?? '', submitted_at: f.submitted_at ?? null }))
+        const psych = d.psychological ?? []
+        const med = d.medical ?? []
+        const sows = d.sows ?? []
+        const oows = d.oows ?? []
+        setDailyFormsCount(psych.length + med.length + sows.length + oows.length)
+        setDailyFormsBreakdown({ psychological: psych.length, medical: med.length, sows: sows.length, oows: oows.length })
+        setDailyFormsArrays({
+          psychological: toRow(psych),
+          medical: toRow(med),
+          sows: toRow(sows),
+          oows: toRow(oows),
+        })
+      } else {
+        setDailyFormsCount(0)
+        setDailyFormsBreakdown({ psychological: 0, medical: 0, sows: 0, oows: 0 })
+        setDailyFormsArrays({ psychological: [], medical: [], sows: [], oows: [] })
+      }
+      
+      // Process one-time forms
+      if (oneTimeResult?.data?.success && oneTimeResult.data.data?.forms) {
+        setOneTimeFormsData(oneTimeResult.data.data.forms)
+      } else {
+        setOneTimeFormsData(null)
+      }
+    }).catch(() => {
+      setDailyFormsCount(0)
+      setDailyFormsBreakdown({ psychological: 0, medical: 0, sows: 0, oows: 0 })
+      setDailyFormsArrays({ psychological: [], medical: [], sows: [], oows: [] })
+      setOneTimeFormsData(null)
+    })
   }, [managementRecord?.id, isStaff])
 
-  // Fetch tapering schedule when onboarding exists
+  // Fetch tapering schedule AND clinical director consult form in parallel when onboarding exists
   useEffect(() => {
     const onboardingId = profileData?.onboarding?.onboarding?.id
     if (!onboardingId || !isStaff) {
       setTaperingSchedule(null)
-      return
-    }
-    setLoadingTaperingSchedule(true)
-    getTaperingScheduleByOnboarding({ onboarding_id: onboardingId })
-      .then((result) => {
-        if (result?.data?.success && result.data.data) {
-          setTaperingSchedule(result.data.data as typeof taperingSchedule)
-        } else {
-          setTaperingSchedule(null)
-        }
-      })
-      .catch(() => setTaperingSchedule(null))
-      .finally(() => setLoadingTaperingSchedule(false))
-  }, [profileData?.onboarding?.onboarding?.id, isStaff])
-
-  // Fetch Clinical Director consult form when onboarding exists (shown when consult is scheduled)
-  useEffect(() => {
-    const onboardingId = profileData?.onboarding?.onboarding?.id
-    if (!onboardingId || !isStaff) {
       setClinicalDirectorConsultForm(null)
       return
     }
+    
+    setLoadingTaperingSchedule(true)
     setLoadingClinicalDirectorConsultForm(true)
-    getClinicalDirectorConsultFormByOnboarding({ onboarding_id: onboardingId })
-      .then((result) => {
-        if (result?.data?.success && result.data.data) {
-          setClinicalDirectorConsultForm(result.data.data)
-        } else {
-          setClinicalDirectorConsultForm(null)
-        }
-      })
-      .catch(() => setClinicalDirectorConsultForm(null))
-      .finally(() => setLoadingClinicalDirectorConsultForm(false))
+    
+    // Fetch both in parallel
+    Promise.all([
+      getTaperingScheduleByOnboarding({ onboarding_id: onboardingId }),
+      getClinicalDirectorConsultFormByOnboarding({ onboarding_id: onboardingId })
+    ]).then(([taperingResult, consultResult]) => {
+      // Process tapering schedule
+      if (taperingResult?.data?.success && taperingResult.data.data) {
+        setTaperingSchedule(taperingResult.data.data as typeof taperingSchedule)
+      } else {
+        setTaperingSchedule(null)
+      }
+      
+      // Process clinical director consult form
+      if (consultResult?.data?.success && consultResult.data.data) {
+        setClinicalDirectorConsultForm(consultResult.data.data)
+      } else {
+        setClinicalDirectorConsultForm(null)
+      }
+    }).catch(() => {
+      setTaperingSchedule(null)
+      setClinicalDirectorConsultForm(null)
+    }).finally(() => {
+      setLoadingTaperingSchedule(false)
+      setLoadingClinicalDirectorConsultForm(false)
+    })
   }, [profileData?.onboarding?.onboarding?.id, isStaff])
 
   function loadLeadTasks() {
@@ -466,16 +464,35 @@ export default function PatientProfilePage() {
       .finally(() => setLoadingLeadTasks(false))
   }
 
-  useEffect(() => {
-    loadLeadTasks()
-  }, [id, isStaff])
-
+  // Fetch lead tasks AND staff list in parallel when staff user loads page
   useEffect(() => {
     if (!isStaff) return
-    getStaffForAssign({}).then((res) => {
-      if (res?.data?.success && res.data.data) setStaffList(res.data.data)
-    })
-  }, [isStaff])
+    
+    const promises: Promise<any>[] = []
+    
+    // Lead tasks (needs id)
+    if (id) {
+      setLoadingLeadTasks(true)
+      promises.push(
+        getLeadTasks({ leadId: id })
+          .then((res) => {
+            if (res?.data?.success && res.data.data) setLeadTasks(res.data.data)
+            else setLeadTasks([])
+          })
+          .catch(() => setLeadTasks([]))
+          .finally(() => setLoadingLeadTasks(false))
+      )
+    }
+    
+    // Staff list (always fetch for staff)
+    promises.push(
+      getStaffForAssign({}).then((res) => {
+        if (res?.data?.success && res.data.data) setStaffList(res.data.data)
+      })
+    )
+    
+    Promise.all(promises)
+  }, [id, isStaff])
 
   async function loadPatientProfile() {
     setIsLoading(true)
@@ -1012,7 +1029,7 @@ export default function PatientProfilePage() {
     return at ? format(new Date(at + (typeof at === 'string' && !at.includes('T') ? 'T12:00:00' : '')), 'MMM d, yyyy • h:mm a') : null
   }
 
-  if (isLoading) {
+  if (isLoading || isUserLoading) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
@@ -2566,6 +2583,54 @@ export default function PatientProfilePage() {
                       </div>
                     )}
 
+                    {/* Pre-Integration Session with Ray row */}
+                    {profileData?.onboarding?.onboarding?.id && (
+                      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0 last:border-b-0">
+                        <div className="text-sm text-[#2B2820] py-2 flex items-center gap-2">
+                          <CalendarCheck className="h-4 w-4 text-[#6E7A46]" />
+                          Pre-Integration Session with Ray
+                        </div>
+                        <div className="py-2 px-3">
+                          {(profileData.onboarding.onboarding as { pre_integration_scheduled_at?: string | null })?.pre_integration_scheduled_at ? (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Scheduled</span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-gray-100 text-gray-500">Pending</span>
+                          )}
+                        </div>
+                        <div className="text-sm text-[#2B2820] py-2 px-3">
+                          {(profileData.onboarding.onboarding as { pre_integration_scheduled_at?: string | null })?.pre_integration_scheduled_at
+                            ? format(new Date((profileData.onboarding.onboarding as { pre_integration_scheduled_at: string }).pre_integration_scheduled_at), 'MMM d, yyyy, h:mm a')
+                            : '—'}
+                        </div>
+                        <div className="py-2 px-3 flex gap-2 flex-wrap">
+                          {isAdmin && !(profileData.onboarding.onboarding as { pre_integration_scheduled_at?: string | null })?.pre_integration_scheduled_at && (
+                            <Button
+                              size="sm"
+                              className="h-[22px] px-4 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white border-0"
+                              disabled={markingPreIntegrationScheduled}
+                              onClick={async () => {
+                                setMarkingPreIntegrationScheduled(true)
+                                try {
+                                  const result = await markOnboardingPreIntegrationScheduled({ onboarding_id: profileData.onboarding!.onboarding.id })
+                                  if (result?.data?.success) {
+                                    toast.success('Pre-integration session marked as scheduled')
+                                    const profileRes = await getPatientProfile({ patientId: id as string })
+                                    if (profileRes?.data?.success && profileRes.data.data) setProfileData(profileRes.data.data)
+                                  } else {
+                                    toast.error(result?.data?.error ?? 'Failed to mark pre-integration scheduled')
+                                  }
+                                } finally {
+                                  setMarkingPreIntegrationScheduled(false)
+                                }
+                              }}
+                            >
+                              {markingPreIntegrationScheduled ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Mark pre-integration scheduled'}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Tapering Schedule row - visible to all staff, Create/Edit for admin/manager only */}
                     {isStaff && (
                       <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0 last:border-b-0">
@@ -3643,9 +3708,11 @@ export default function PatientProfilePage() {
                           ? 'Not Started'
                           : 'Pending'
                   const consultScheduledAt = (profileData?.onboarding?.onboarding as { consult_scheduled_at?: string | null })?.consult_scheduled_at
-                  const medicalClearanceStatus = !consultScheduledAt
+                  const preIntegrationScheduledAt = (profileData?.onboarding?.onboarding as { pre_integration_scheduled_at?: string | null })?.pre_integration_scheduled_at
+                  const bothCallsScheduled = !!(consultScheduledAt && preIntegrationScheduledAt)
+                  const medicalClearanceStatus = !bothCallsScheduled
                     ? 'Not Started'
-                    : new Date(consultScheduledAt) <= new Date()
+                    : (new Date(consultScheduledAt!) <= new Date() && new Date(preIntegrationScheduledAt!) <= new Date())
                       ? 'Completed'
                       : 'Call scheduled'
                   const medicalClearanceStyle = medicalClearanceStatus === 'Completed' ? 'Done' : medicalClearanceStatus === 'Call scheduled' ? 'Pending' : 'Not Started'

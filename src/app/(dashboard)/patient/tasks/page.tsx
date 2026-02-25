@@ -257,7 +257,7 @@ export default function PatientTasksPage() {
                     Onboarding
                   </span>
                   <span className="text-xs text-blue-600">
-                    {onboardingStatus.formsCompleted ?? 0}/{onboardingStatus.formsTotal ?? 6} steps
+                    {onboardingStatus.formsCompleted ?? 0}/{onboardingStatus.formsTotal ?? 7} steps
                   </span>
                 </div>
               </div>
@@ -454,6 +454,14 @@ export default function PatientTasksPage() {
                               Call scheduled for {format(new Date(task.completedAt), 'MMM d, yyyy, h:mm a')}.
                             </p>
                           )}
+                          {task.type === 'onboarding_consult_pre_integration' && task.status !== 'completed' && task.link && (task.link.startsWith('http://') || task.link.startsWith('https://')) && (
+                            <p className="text-xs text-[#6E7A46] mt-1">Click below to open the calendar and pick a time for your pre-integration session with Ray.</p>
+                          )}
+                          {task.type === 'onboarding_consult_pre_integration' && task.status === 'completed' && task.completedAt && (
+                            <p className="text-xs text-[#6E7A46] mt-1">
+                              Session scheduled for {format(new Date(task.completedAt), 'MMM d, yyyy, h:mm a')}.
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -482,7 +490,7 @@ export default function PatientTasksPage() {
                       {/* Action Column */}
                       <div className="flex items-center md:col-span-1">
                         {task.status === 'completed' ? (
-                          task.type === 'onboarding_consult_clinical_director' && task.completedAt ? (
+                          (task.type === 'onboarding_consult_clinical_director' || task.type === 'onboarding_consult_pre_integration') && task.completedAt ? (
                             <p className="text-sm text-[#2B2820] font-medium">
                               {format(new Date(task.completedAt), 'MMM d, yyyy, h:mm a')}
                             </p>

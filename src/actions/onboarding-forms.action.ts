@@ -362,6 +362,33 @@ export const markOnboardingConsultScheduled = authActionClient
     return { success: true, data: { consult_scheduled_at: now } }
   })
 
+/** Staff only: mark that the client has scheduled a pre-integration session with Ray. Completes the "Pre-Integration Session with Ray" task; with Clinical Director consult completes medical clearance. */
+export const markOnboardingPreIntegrationScheduled = authActionClient
+  .schema(markOnboardingConsultScheduledSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    if (!isAdminStaffRole(ctx.user.role)) {
+      return { success: false, error: 'Unauthorized: admin staff access required' }
+    }
+
+    const supabase = await createClient()
+    const now = new Date().toISOString()
+
+    const { error } = await supabase
+      .from('patient_onboarding')
+      .update({ pre_integration_scheduled_at: now })
+      .eq('id', parsedInput.onboarding_id)
+
+    if (error) {
+      console.error('[markOnboardingPreIntegrationScheduled] Update error:', error)
+      return { success: false, error: handleSupabaseError(error, 'Failed to mark pre-integration scheduled') }
+    }
+
+    revalidatePath('/onboarding')
+    revalidatePath('/patient-pipeline')
+    revalidatePath('/patient/tasks')
+    return { success: true, data: { pre_integration_scheduled_at: now } }
+  })
+
 // =============================================================================
 // GET ONBOARDING BY ID
 // =============================================================================
@@ -460,7 +487,7 @@ export const getOnboardingPatients = authActionClient
       {}
     )
 
-    // Add computed fields: forms (3) + steps = 6 (forms + EKG + bloodwork + consult)
+    // Add computed fields: forms (3) + steps = 7 (forms + EKG + bloodwork + Clinical Director consult + Pre-integration)
     const patientsWithProgress: PatientOnboardingWithProgress[] = rows.map((patient: Record<string, unknown>) => {
       const completedForms = [
         patient.release_form_completed,
@@ -472,16 +499,17 @@ export const getOnboardingPatients = authActionClient
       const ekgDone = docs.ekg || !!(patient as { ekg_skipped?: boolean }).ekg_skipped
       const bloodworkDone = docs.bloodwork || !!(patient as { bloodwork_skipped?: boolean }).bloodwork_skipped
       const consultDone = !!(patient as { consult_scheduled_at?: string | null }).consult_scheduled_at
+      const preIntegrationDone = !!(patient as { pre_integration_scheduled_at?: string | null }).pre_integration_scheduled_at
 
       const steps_completed =
-        completedForms + (ekgDone ? 1 : 0) + (bloodworkDone ? 1 : 0) + (consultDone ? 1 : 0)
+        completedForms + (ekgDone ? 1 : 0) + (bloodworkDone ? 1 : 0) + (consultDone ? 1 : 0) + (preIntegrationDone ? 1 : 0)
 
       return {
         ...patient,
         forms_completed: completedForms,
         forms_total: 3,
         steps_completed,
-        steps_total: 6,
+        steps_total: 7,
       } as PatientOnboardingWithProgress
     })
 

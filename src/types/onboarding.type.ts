@@ -64,6 +64,10 @@ export interface PatientOnboarding {
   treatment_date_assigned_by: string | null
   treatment_date_assigned_at: string | null
 
+  // Medical clearance: consult with Clinical Director (Daisy) + pre-integration (Ray)
+  consult_scheduled_at: string | null
+  pre_integration_scheduled_at: string | null
+
   // Timestamps
   started_at: string
   completed_at: string | null
@@ -77,9 +81,9 @@ export interface PatientOnboarding {
 export interface PatientOnboardingWithProgress extends PatientOnboarding {
   forms_completed: number
   forms_total: number
-  /** Onboarding steps: 3 forms + EKG + bloodwork + Clinical Director consult = 6 */
+  /** Onboarding steps: 3 forms + EKG + bloodwork + Clinical Director consult + Pre-integration (Ray) = 7 */
   steps_completed: number
-  steps_total: 6
+  steps_total: 7
 }
 
 // =============================================================================

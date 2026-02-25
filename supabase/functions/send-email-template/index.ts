@@ -117,9 +117,11 @@ const DEFAULT_FROM_EMAIL = 'contactus@theibogainstitute.org'
 
 // Only these types use a different from address; all others use DEFAULT_FROM_EMAIL (contactus).
 // onboarding_forms = "Complete your 3 forms" email is sent from Clinical Director (Daisy).
+// pre_integration_scheduling = "Schedule pre-integration with Ray" email is sent from Ray (psychotherapist).
 const FROM_EMAIL_BY_TYPE: Partial<Record<string, string>> = {
   service_agreement_confirmation: 'guy@theibogainstitute.org',
   onboarding_forms: 'daisy@theibogainstitute.org',
+  pre_integration_scheduling: 'ray@theibogainstitute.org',
 }
 
 // Send email via Gmail API (fromEmailOverride: which address to send from)
@@ -223,7 +225,7 @@ const commonStyles = `
 // Email template generators
 function generateInquiryConfirmationEmail(firstName: string): { subject: string; body: string } {
   return {
-    subject: 'Thank you for your inquiry - The Iboga Wellness Institute',
+    subject: 'Thank you for your inquiry | The Iboga Wellness Institute',
     body: `
       <!DOCTYPE html>
       <html>
@@ -266,90 +268,82 @@ function generateEmployeeWelcomeEmail(
   const baseUrl = getBaseUrl()
   const loginUrl = `${baseUrl}/login`
   const roleDisplayName = role.charAt(0).toUpperCase() + role.slice(1)
+  const displayName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'there'
+
+  // Same design as confirmation, Daisy and Ray emails: Instrument Serif, Inter, banner, CTA box, footer
+  const body = `<!DOCTYPE html>
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Welcome to the Portal | The Iboga Wellness Institute</title>
+<link href="https://fonts.googleapis.com/css?family=Instrument+Serif:ital,wght@0,400" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css?family=Inter:ital,wght@0,400;0,500;0,600" rel="stylesheet" />
+<style>
+body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;} table{border-collapse:collapse;}
+.banner-heading{font-family:'Instrument Serif',Georgia,serif;}
+@media (max-width:620px){ table[role="presentation"]{max-width:100% !important;} .email-banner-title{font-size:36px !important;line-height:1.2 !important;} }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#ece9df" bgcolor="#ece9df">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ece9df" bgcolor="#ece9df">
+<tr><td align="center" style="padding:20px 0">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px">
+<tr><td style="padding:0 0 15px">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+<tr><td style="background-image:url('https://postcards-cdn.designmodo.com/images-cdn/Iboga_wellness_institute_email_banner.png');background-size:cover;background-position:center right;background-repeat:no-repeat;padding:40px 48px;border-radius:10px;background-color:#036243" bgcolor="#036243">
+<table role="presentation" width="100%"><tr><td align="left" valign="middle">
+<img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="140" height="39" alt="" style="display:block;border:0" />
+</td></tr>
+<tr><td style="padding-top:20px">
+<div class="banner-heading email-banner-title" style="font-family:'Instrument Serif',Georgia,serif;font-size:50px;line-height:130%;color:#fff;letter-spacing:-0.03em">Welcome to the Portal</div>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:0">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fff;border-radius:10px 10px 0 0" bgcolor="#ffffff">
+<tr><td style="padding:48px">
+<p style="margin:0 0 15px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Hello, ${displayName}</p>
+<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#141414;font-weight:500">Your account has been created for The Iboga Wellness Institute portal. You can now access the system with your role as <strong>${roleDisplayName}</strong>.</p>
+<table role="presentation" width="100%"><tr><td style="padding:24px 0"><table role="presentation" width="100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #eeedff">&nbsp;</td></tr></table></td></tr></table>
+<p style="margin:0 0 10px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Your login details</p>
+<table role="presentation" width="100%"><tr><td style="padding:10px 0 20px">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0"><tr><td valign="top" style="padding:30px 20px;background-color:#d4dabb;border-radius:11px;border-left:6px solid #6e7a46" bgcolor="#d4dabb">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="left" valign="top" style="padding:0 0 12px"><p style="margin:0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif"><strong>Email:</strong> ${email}</p><p style="margin:8px 0 0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif"><strong>Password:</strong> ${password}</p></td></tr>
+<tr><td align="center" valign="top" style="padding:12px 0 0;text-align:center"><a href="${loginUrl}" target="_blank" style="display:inline-block;box-sizing:border-box;border-radius:8px;background-color:#6e7a46;color:#fff !important;padding:10px 24px;text-decoration:none;font-size:16px;line-height:200%;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif" bgcolor="#6e7a46">Login to Portal</a></td></tr>
+<tr><td align="left" valign="top" style="padding:12px 0 0"><p style="margin:0;font-size:14px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">For your security, please change your password after your first login.</p></td></tr>
+</table></td></tr></table>
+</td></tr></table>
+<p style="margin:0 0 20px;font-size:16px;line-height:150%;color:#535065">If you have any questions or need assistance, please contact your administrator.</p>
+<table role="presentation" width="100%"><tr><td style="padding:20px 0 0"><p style="margin:0 0 8px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Contact</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">Reach out to your administrator or the team for support.</p>
+<ul style="margin:0;padding:0 0 0 20px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">
+<li style="margin-bottom:0">Phone: +1 (800) 604-7294</li>
+<li style="margin-bottom:0">Email: <a href="mailto:contactus@theibogainstitute.org" style="color:inherit;text-decoration:none">contactus@theibogainstitute.org</a></li>
+</ul>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:48px;background-color:#6e7a46;border-radius:0" bgcolor="#6e7a46">
+<p style="margin:0 0 24px;font-size:21px;line-height:150%;color:#fff;font-weight:600">We're glad to have you on the team.</p>
+<p style="margin:0;font-size:16px;line-height:150%;color:#ece9df">Welcome aboard,<br><strong>The Iboga Wellness Institute Team</strong></p>
+</td></tr>
+<tr><td style="padding:48px;background-color:#272315;border-radius:0 0 10px 10px" bgcolor="#272315">
+<table role="presentation" width="100%"><tr><td align="center" style="padding:0 0 8px"><img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="152" height="42" alt="" style="display:block;border:0;margin:0 auto" /></td></tr><tr><td align="center" style="padding:0 0 16px"><p style="margin:0;font-size:14px;line-height:150%;color:rgba(255,255,255,0.9);font-family:'Inter',Arial,sans-serif">The Iboga Wellness Institute</p></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:16px 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:16px 0 17px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/about/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">About Us</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/our-programs/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Programs</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/insights/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Insights</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/podcast/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Podcast</a></td></tr></table></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.facebook.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/49d3df40d21a60424c3bf0f27d4ce8f9.png" width="24" height="24" alt="Facebook" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.linkedin.com/company/iboga-wellness-institute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/f180a29d5510c0f44c08bdde9bc397f5.png" width="24" height="24" alt="LinkedIn" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.instagram.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/97d1e3e2fd722d0140b51806fa857340.png" width="24" height="24" alt="Instagram" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.youtube.com/@IbogaWellnessCenters" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/9807838a6a4c0dd0d700aff6f20f6d98.png" width="24" height="24" alt="YouTube" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.tiktok.com/@ibogawellnessinstitute" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/045f5352f42e1f3aad7a52d07f950976.png" width="24" height="24" alt="TikTok" style="display:block;border:0;line-height:100%" /></a></td></tr></table></td></tr></table>
+</td></tr>
+</table>
+</td></tr></table>
+</td></tr></table>
+</body>
+</html>`
 
   return {
     subject: 'Welcome to The Iboga Wellness Institute - Your Portal Access',
-    body: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          ${commonStyles}
-          .credentials-box {
-            background: #f9f9f9;
-            border: 2px solid #5D7A5F;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 30px 0;
-          }
-          .credentials-box p {
-            margin: 10px 0;
-            font-size: 15px;
-          }
-          .credentials-box strong {
-            color: #5D7A5F;
-            display: inline-block;
-            min-width: 100px;
-          }
-          .cta-button {
-            display: inline-block;
-            background: #5D7A5F;
-            color: white !important;
-            padding: 16px 32px;
-            text-decoration: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            margin: 20px 0;
-          }
-          .cta-container {
-            text-align: center;
-            margin: 30px 0;
-          }
-          .security-note {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
-            margin: 20px 0;
-            font-size: 14px;
-            color: #856404;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>The Iboga Wellness Institute</h1>
-          </div>
-          <div class="content">
-            <h2>Welcome to the Team, ${firstName}!</h2>
-            <p>Your account has been created for The Iboga Wellness Institute portal. You can now access the system with your role as <strong>${roleDisplayName}</strong>.</p>
-            
-            <div class="credentials-box">
-              <p><strong>Email:</strong> ${email}</p>
-              <p><strong>Password:</strong> ${password}</p>
-            </div>
-
-            <div class="security-note">
-              <strong>🔒 Security Note:</strong> For your security, please change your password after your first login.
-            </div>
-
-            <div class="cta-container">
-              <a href="${loginUrl}" class="cta-button">Login to Portal</a>
-            </div>
-
-            <p>If you have any questions or need assistance, please contact your administrator.</p>
-            
-            <p>Welcome aboard!<br>The Iboga Wellness Institute Team</p>
-          </div>
-          <div class="footer">
-            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
-            <p>https://theibogainstitute.org</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    body,
   }
 }
 
@@ -362,114 +356,81 @@ function generatePatientLoginReminderEmail(
   const baseUrl = getBaseUrl()
   const loginUrl = `${baseUrl}/login`
   const forgotPasswordUrl = `${baseUrl}/forgot-password`
+  const displayName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'there'
+
+  const body = `<!DOCTYPE html>
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reminder: Login to Your Portal | The Iboga Wellness Institute</title>
+<link href="https://fonts.googleapis.com/css?family=Instrument+Serif:ital,wght@0,400" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css?family=Inter:ital,wght@0,400;0,500;0,600" rel="stylesheet" />
+<style>
+body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;} table{border-collapse:collapse;}
+.banner-heading{font-family:'Instrument Serif',Georgia,serif;}
+@media (max-width:620px){ table[role="presentation"]{max-width:100% !important;} .email-banner-title{font-size:36px !important;line-height:1.2 !important;} }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#ece9df" bgcolor="#ece9df">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ece9df" bgcolor="#ece9df">
+<tr><td align="center" style="padding:20px 0">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px">
+<tr><td style="padding:0 0 15px">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+<tr><td style="background-image:url('https://postcards-cdn.designmodo.com/images-cdn/Iboga_wellness_institute_email_banner.png');background-size:cover;background-position:center right;background-repeat:no-repeat;padding:40px 48px;border-radius:10px;background-color:#036243" bgcolor="#036243">
+<table role="presentation" width="100%"><tr><td align="left" valign="middle">
+<img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="140" height="39" alt="" style="display:block;border:0" />
+</td></tr>
+<tr><td style="padding-top:20px">
+<div class="banner-heading email-banner-title" style="font-family:'Instrument Serif',Georgia,serif;font-size:50px;line-height:130%;color:#fff;letter-spacing:-0.03em">Reminder: Login to Your Portal</div>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:0">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fff;border-radius:10px 10px 0 0" bgcolor="#ffffff">
+<tr><td style="padding:48px">
+<p style="margin:0 0 15px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Hello, ${displayName}</p>
+<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#141414;font-weight:500">We noticed you haven't logged into your Client portal yet or haven't changed your temporary password. Please complete this important step to access your account and complete your tasks.</p>
+<table role="presentation" width="100%"><tr><td style="padding:24px 0"><table role="presentation" width="100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #eeedff">&nbsp;</td></tr></table></td></tr></table>
+<p style="margin:0 0 10px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">What to do now</p>
+<table role="presentation" width="100%"><tr><td style="padding:10px 0 20px">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0"><tr><td valign="top" style="padding:30px 20px;background-color:#d4dabb;border-radius:11px;border-left:6px solid #6e7a46" bgcolor="#d4dabb">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="left" valign="top" style="padding:0 0 12px"><p style="margin:0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif"><strong>Email:</strong> ${patientEmail}</p><p style="margin:8px 0 0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif"><strong>Temporary Password:</strong> ${password}</p></td></tr>
+<tr><td align="center" valign="top" style="padding:12px 0;text-align:center"><a href="${loginUrl}" target="_blank" style="display:inline-block;box-sizing:border-box;border-radius:8px;background-color:#6e7a46;color:#fff !important;padding:10px 24px;text-decoration:none;font-size:16px;line-height:200%;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif" bgcolor="#6e7a46">Login to Portal</a></td></tr>
+<tr><td align="left" valign="top" style="padding:12px 0 0"><p style="margin:0;font-size:14px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">For your security, change your password after first login (Profile → Security or you'll be prompted).</p></td></tr>
+<tr><td align="center" valign="top" style="padding:8px 0 0"><p style="margin:0;font-size:14px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif"><a href="${forgotPasswordUrl}" style="color:#6e7a46;text-decoration:underline">Forgot your password? Reset it here</a></p></td></tr>
+</table></td></tr></table>
+</td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:20px 0 0"><p style="margin:0 0 8px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Contact</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">Questions? Reply to this email or reach us directly.</p>
+<ul style="margin:0;padding:0 0 0 20px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">
+<li style="margin-bottom:0">Phone: +1 (800) 604-7294</li>
+<li style="margin-bottom:0">Email: <a href="mailto:contactus@theibogainstitute.org" style="color:inherit;text-decoration:none">contactus@theibogainstitute.org</a></li>
+</ul>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:48px;background-color:#6e7a46;border-radius:0" bgcolor="#6e7a46">
+<p style="margin:0 0 24px;font-size:21px;line-height:150%;color:#fff;font-weight:600">We look forward to helping you on your wellness journey.</p>
+<p style="margin:0;font-size:16px;line-height:150%;color:#ece9df">Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
+</td></tr>
+<tr><td style="padding:48px;background-color:#272315;border-radius:0 0 10px 10px" bgcolor="#272315">
+<table role="presentation" width="100%"><tr><td align="center" style="padding:0 0 8px"><img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="152" height="42" alt="" style="display:block;border:0;margin:0 auto" /></td></tr><tr><td align="center" style="padding:0 0 16px"><p style="margin:0;font-size:14px;line-height:150%;color:rgba(255,255,255,0.9);font-family:'Inter',Arial,sans-serif">The Iboga Wellness Institute</p></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:16px 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:16px 0 17px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/about/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">About Us</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/our-programs/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Programs</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/insights/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Insights</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/podcast/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Podcast</a></td></tr></table></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.facebook.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/49d3df40d21a60424c3bf0f27d4ce8f9.png" width="24" height="24" alt="Facebook" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.linkedin.com/company/iboga-wellness-institute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/f180a29d5510c0f44c08bdde9bc397f5.png" width="24" height="24" alt="LinkedIn" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.instagram.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/97d1e3e2fd722d0140b51806fa857340.png" width="24" height="24" alt="Instagram" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.youtube.com/@IbogaWellnessCenters" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/9807838a6a4c0dd0d700aff6f20f6d98.png" width="24" height="24" alt="YouTube" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.tiktok.com/@ibogawellnessinstitute" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/045f5352f42e1f3aad7a52d07f950976.png" width="24" height="24" alt="TikTok" style="display:block;border:0;line-height:100%" /></a></td></tr></table></td></tr></table>
+</td></tr>
+</table>
+</td></tr></table>
+</td></tr></table>
+</body>
+</html>`
 
   return {
     subject: 'Reminder: Please Login and Change Your Password | The Iboga Wellness Institute',
-    body: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          ${commonStyles}
-          .reminder-box {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 20px;
-            margin: 20px 0;
-          }
-          .credentials-box {
-            background: #f9f9f9;
-            border: 2px solid #5D7A5F;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 30px 0;
-          }
-          .credentials-box p {
-            margin: 10px 0;
-            font-size: 16px;
-          }
-          .credentials-box strong {
-            color: #5D7A5F;
-          }
-          .cta-button {
-            display: inline-block;
-            background: #5D7A5F;
-            color: white !important;
-            padding: 16px 32px;
-            text-decoration: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            margin: 20px 0;
-          }
-          .cta-container {
-            text-align: center;
-            margin: 30px 0;
-          }
-          .security-note {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
-            margin: 20px 0;
-            font-size: 14px;
-            color: #856404;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>The Iboga Wellness Institute</h1>
-          </div>
-          <div class="content">
-            <h2>Reminder: Please Login and Change Your Password, ${firstName}!</h2>
-            
-            <div class="reminder-box">
-              <p><strong>⏰ Action Required</strong></p>
-              <p>We noticed you haven't logged into your Client portal yet or haven't changed your temporary password. Please complete this important step to access your account and complete your tasks.</p>
-            </div>
-            
-            <div class="credentials-box">
-              <p><strong>Email:</strong> ${patientEmail}</p>
-              <p><strong>Temporary Password:</strong> ${password}</p>
-            </div>
-            
-            <div class="security-note">
-              <strong>🔒 Security Note:</strong> For your security, you will be required to change your password after your first login. You can do this in <strong>Profile → Security</strong> settings, or you'll be prompted to change it immediately after logging in.
-            </div>
-            
-            <p>To get started, please:</p>
-            <ol style="color: #555; line-height: 2;">
-              <li><strong>Login to your portal</strong> using your email and the temporary password above</li>
-              <li><strong>Change your password</strong> (you'll be prompted automatically after login)</li>
-              <li><strong>Complete your tasks</strong> in the Client dashboard</li>
-            </ol>
-            
-            <div class="cta-container">
-              <a href="${loginUrl}" class="cta-button">Login to Portal</a>
-            </div>
-            
-            <p style="text-align: center; margin-top: 20px;">
-              <a href="${forgotPasswordUrl}" style="color: #5D7A5F; text-decoration: underline;">Forgot your password? Reset it here</a>
-            </p>
-            
-            <p>If you have any questions or need assistance, please contact us:</p>
-            <p>
-              <strong>Phone:</strong> +1 (800) 604-7294<br>
-              <strong>Email:</strong> contactus@theibogainstitute.org
-            </p>
-            
-            <p>We look forward to helping you on your wellness journey!</p>
-            <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
-          </div>
-          <div class="footer">
-            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
-            <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    body,
   }
 }
 
@@ -580,74 +541,77 @@ function generateFormActivationEmail(
 ): { subject: string; body: string } {
   const baseUrl = getBaseUrl()
   const formLink = `${baseUrl}/patient/tasks`
+  const displayName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'there'
+
+  const body = `<!DOCTYPE html>
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Your ${formName} Form is Now Available | The Iboga Wellness Institute</title>
+<link href="https://fonts.googleapis.com/css?family=Instrument+Serif:ital,wght@0,400" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css?family=Inter:ital,wght@0,400;0,500;0,600" rel="stylesheet" />
+<style>
+body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;} table{border-collapse:collapse;}
+.banner-heading{font-family:'Instrument Serif',Georgia,serif;}
+@media (max-width:620px){ table[role="presentation"]{max-width:100% !important;} .email-banner-title{font-size:36px !important;line-height:1.2 !important;} }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#ece9df" bgcolor="#ece9df">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ece9df" bgcolor="#ece9df">
+<tr><td align="center" style="padding:20px 0">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px">
+<tr><td style="padding:0 0 15px">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+<tr><td style="background-image:url('https://postcards-cdn.designmodo.com/images-cdn/Iboga_wellness_institute_email_banner.png');background-size:cover;background-position:center right;background-repeat:no-repeat;padding:40px 48px;border-radius:10px;background-color:#036243" bgcolor="#036243">
+<table role="presentation" width="100%"><tr><td align="left" valign="middle">
+<img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="140" height="39" alt="" style="display:block;border:0" />
+</td></tr>
+<tr><td style="padding-top:20px">
+<div class="banner-heading email-banner-title" style="font-family:'Instrument Serif',Georgia,serif;font-size:50px;line-height:130%;color:#fff;letter-spacing:-0.03em">Your ${formName} Form is Ready</div>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:0">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fff;border-radius:10px 10px 0 0" bgcolor="#ffffff">
+<tr><td style="padding:48px">
+<p style="margin:0 0 15px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Hello, ${displayName}</p>
+<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#141414;font-weight:500">Your ${formName} form has been activated and is now available for you to complete in your patient portal.</p>
+<p style="margin:0 0 20px;font-size:16px;line-height:150%;color:#535065">Please log in and complete the ${formName} form as soon as possible. This is an important step in your treatment preparation.</p>
+<table role="presentation" width="100%"><tr><td style="padding:10px 0 20px">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0"><tr><td valign="top" style="padding:30px 20px;background-color:#d4dabb;border-radius:11px;border-left:6px solid #6e7a46" bgcolor="#d4dabb">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="center" valign="top" style="padding:12px 0;text-align:center"><a href="${formLink}" target="_blank" style="display:inline-block;box-sizing:border-box;border-radius:8px;background-color:#6e7a46;color:#fff !important;padding:10px 24px;text-decoration:none;font-size:16px;line-height:200%;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif" bgcolor="#6e7a46">Go to Patient Portal</a></td></tr>
+</table></td></tr></table>
+</td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:20px 0 0"><p style="margin:0 0 8px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Contact</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">Questions? Reply to this email or reach us directly.</p>
+<ul style="margin:0;padding:0 0 0 20px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">
+<li style="margin-bottom:0">Phone: +1 (800) 604-7294</li>
+<li style="margin-bottom:0">Email: <a href="mailto:contactus@theibogainstitute.org" style="color:inherit;text-decoration:none">contactus@theibogainstitute.org</a></li>
+</ul>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:48px;background-color:#6e7a46;border-radius:0" bgcolor="#6e7a46">
+<p style="margin:0 0 24px;font-size:21px;line-height:150%;color:#fff;font-weight:600">We look forward to continuing your wellness journey.</p>
+<p style="margin:0;font-size:16px;line-height:150%;color:#ece9df">Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
+</td></tr>
+<tr><td style="padding:48px;background-color:#272315;border-radius:0 0 10px 10px" bgcolor="#272315">
+<table role="presentation" width="100%"><tr><td align="center" style="padding:0 0 8px"><img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="152" height="42" alt="" style="display:block;border:0;margin:0 auto" /></td></tr><tr><td align="center" style="padding:0 0 16px"><p style="margin:0;font-size:14px;line-height:150%;color:rgba(255,255,255,0.9);font-family:'Inter',Arial,sans-serif">The Iboga Wellness Institute</p></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:16px 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:16px 0 17px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/about/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">About Us</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/our-programs/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Programs</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/insights/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Insights</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/podcast/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Podcast</a></td></tr></table></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.facebook.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/49d3df40d21a60424c3bf0f27d4ce8f9.png" width="24" height="24" alt="Facebook" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.linkedin.com/company/iboga-wellness-institute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/f180a29d5510c0f44c08bdde9bc397f5.png" width="24" height="24" alt="LinkedIn" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.instagram.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/97d1e3e2fd722d0140b51806fa857340.png" width="24" height="24" alt="Instagram" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.youtube.com/@IbogaWellnessCenters" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/9807838a6a4c0dd0d700aff6f20f6d98.png" width="24" height="24" alt="YouTube" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.tiktok.com/@ibogawellnessinstitute" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/045f5352f42e1f3aad7a52d07f950976.png" width="24" height="24" alt="TikTok" style="display:block;border:0;line-height:100%" /></a></td></tr></table></td></tr></table>
+</td></tr>
+</table>
+</td></tr></table>
+</td></tr></table>
+</body>
+</html>`
 
   return {
     subject: `Your ${formName} Form is Now Available | The Iboga Wellness Institute`,
-    body: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          ${commonStyles}
-          .info-box {
-            background: #f0f7f0;
-            border-left: 4px solid #5D7A5F;
-            padding: 20px;
-            margin: 20px 0;
-          }
-          .cta-button {
-            display: inline-block;
-            background: #5D7A5F;
-            color: white !important;
-            padding: 16px 32px;
-            text-decoration: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            margin: 20px 0;
-          }
-          .cta-container {
-            text-align: center;
-            margin: 30px 0;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>The Iboga Wellness Institute</h1>
-          </div>
-          <div class="content">
-            <h2>Your ${formName} Form is Now Available, ${firstName}!</h2>
-            
-            <div class="info-box">
-              <p><strong>✅ Form Activated</strong></p>
-              <p>Your ${formName} form has been activated and is now available for you to complete in your patient portal.</p>
-            </div>
-            
-            <p>Please log in to your patient portal and complete the ${formName} form as soon as possible. This is an important step in your treatment preparation.</p>
-            
-            <div class="cta-container">
-              <a href="${formLink}" class="cta-button">Go to Patient Portal</a>
-            </div>
-            
-            <p>If you have any questions or need assistance, please contact us:</p>
-            <p>
-              <strong>Phone:</strong> +1 (800) 604-7294<br>
-              <strong>Email:</strong> contactus@theibogainstitute.org
-            </p>
-            
-            <p>We look forward to continuing your wellness journey!</p>
-            <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
-          </div>
-          <div class="footer">
-            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
-            <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    body,
   }
 }
 
@@ -660,79 +624,77 @@ function generateFormActivationReminderEmail(
 ): { subject: string; body: string } {
   const baseUrl = getBaseUrl()
   const formLink = `${baseUrl}/patient/tasks`
+  const displayName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'there'
+
+  const body = `<!DOCTYPE html>
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reminder: Complete Your ${formName} Form | The Iboga Wellness Institute</title>
+<link href="https://fonts.googleapis.com/css?family=Instrument+Serif:ital,wght@0,400" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css?family=Inter:ital,wght@0,400;0,500;0,600" rel="stylesheet" />
+<style>
+body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;} table{border-collapse:collapse;}
+.banner-heading{font-family:'Instrument Serif',Georgia,serif;}
+@media (max-width:620px){ table[role="presentation"]{max-width:100% !important;} .email-banner-title{font-size:36px !important;line-height:1.2 !important;} }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#ece9df" bgcolor="#ece9df">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ece9df" bgcolor="#ece9df">
+<tr><td align="center" style="padding:20px 0">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px">
+<tr><td style="padding:0 0 15px">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+<tr><td style="background-image:url('https://postcards-cdn.designmodo.com/images-cdn/Iboga_wellness_institute_email_banner.png');background-size:cover;background-position:center right;background-repeat:no-repeat;padding:40px 48px;border-radius:10px;background-color:#036243" bgcolor="#036243">
+<table role="presentation" width="100%"><tr><td align="left" valign="middle">
+<img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="140" height="39" alt="" style="display:block;border:0" />
+</td></tr>
+<tr><td style="padding-top:20px">
+<div class="banner-heading email-banner-title" style="font-family:'Instrument Serif',Georgia,serif;font-size:50px;line-height:130%;color:#fff;letter-spacing:-0.03em">Reminder: Complete Your ${formName} Form</div>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:0">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fff;border-radius:10px 10px 0 0" bgcolor="#ffffff">
+<tr><td style="padding:48px">
+<p style="margin:0 0 15px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Hello, ${displayName}</p>
+<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#141414;font-weight:500">Your ${formName} form has been activated for 48 hours, but we haven't received your submission yet. Please complete it as soon as possible.</p>
+<p style="margin:0 0 20px;font-size:16px;line-height:150%;color:#535065">To complete: go to your Tasks page, click "Start" on the ${formName} task, then complete and submit the form.</p>
+<table role="presentation" width="100%"><tr><td style="padding:10px 0 20px">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0"><tr><td valign="top" style="padding:30px 20px;background-color:#d4dabb;border-radius:11px;border-left:6px solid #6e7a46" bgcolor="#d4dabb">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="center" valign="top" style="padding:12px 0;text-align:center"><a href="${formLink}" target="_blank" style="display:inline-block;box-sizing:border-box;border-radius:8px;background-color:#6e7a46;color:#fff !important;padding:10px 24px;text-decoration:none;font-size:16px;line-height:200%;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif" bgcolor="#6e7a46">Go to Patient Portal</a></td></tr>
+</table></td></tr></table>
+</td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:20px 0 0"><p style="margin:0 0 8px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Contact</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">Questions? Reply to this email or reach us directly.</p>
+<ul style="margin:0;padding:0 0 0 20px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">
+<li style="margin-bottom:0">Phone: +1 (800) 604-7294</li>
+<li style="margin-bottom:0">Email: <a href="mailto:contactus@theibogainstitute.org" style="color:inherit;text-decoration:none">contactus@theibogainstitute.org</a></li>
+</ul>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:48px;background-color:#6e7a46;border-radius:0" bgcolor="#6e7a46">
+<p style="margin:0 0 24px;font-size:21px;line-height:150%;color:#fff;font-weight:600">We look forward to continuing your wellness journey.</p>
+<p style="margin:0;font-size:16px;line-height:150%;color:#ece9df">Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
+</td></tr>
+<tr><td style="padding:48px;background-color:#272315;border-radius:0 0 10px 10px" bgcolor="#272315">
+<table role="presentation" width="100%"><tr><td align="center" style="padding:0 0 8px"><img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="152" height="42" alt="" style="display:block;border:0;margin:0 auto" /></td></tr><tr><td align="center" style="padding:0 0 16px"><p style="margin:0;font-size:14px;line-height:150%;color:rgba(255,255,255,0.9);font-family:'Inter',Arial,sans-serif">The Iboga Wellness Institute</p></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:16px 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:16px 0 17px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/about/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">About Us</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/our-programs/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Programs</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/insights/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Insights</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/podcast/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Podcast</a></td></tr></table></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.facebook.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/49d3df40d21a60424c3bf0f27d4ce8f9.png" width="24" height="24" alt="Facebook" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.linkedin.com/company/iboga-wellness-institute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/f180a29d5510c0f44c08bdde9bc397f5.png" width="24" height="24" alt="LinkedIn" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.instagram.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/97d1e3e2fd722d0140b51806fa857340.png" width="24" height="24" alt="Instagram" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.youtube.com/@IbogaWellnessCenters" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/9807838a6a4c0dd0d700aff6f20f6d98.png" width="24" height="24" alt="YouTube" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.tiktok.com/@ibogawellnessinstitute" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/045f5352f42e1f3aad7a52d07f950976.png" width="24" height="24" alt="TikTok" style="display:block;border:0;line-height:100%" /></a></td></tr></table></td></tr></table>
+</td></tr>
+</table>
+</td></tr></table>
+</td></tr></table>
+</body>
+</html>`
 
   return {
     subject: `Reminder: Complete Your ${formName} Form | The Iboga Wellness Institute`,
-    body: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          ${commonStyles}
-          .reminder-box {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 20px;
-            margin: 20px 0;
-          }
-          .cta-button {
-            display: inline-block;
-            background: #5D7A5F;
-            color: white !important;
-            padding: 16px 32px;
-            text-decoration: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            margin: 20px 0;
-          }
-          .cta-container {
-            text-align: center;
-            margin: 30px 0;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>The Iboga Wellness Institute</h1>
-          </div>
-          <div class="content">
-            <h2>Reminder: Complete Your ${formName} Form, ${firstName}!</h2>
-            
-            <div class="reminder-box">
-              <p><strong>⏰ Action Required</strong></p>
-              <p>Your ${formName} form has been activated for 48 hours, but we haven't received your submission yet. Please complete it as soon as possible.</p>
-            </div>
-            
-            <p>To complete your ${formName} form:</p>
-            <ol style="color: #555; line-height: 2;">
-              <li><strong>Go to your Tasks page</strong></li>
-              <li><strong>Click "Start" on the ${formName} task</strong></li>
-              <li><strong>Complete and submit the form</strong></li>
-            </ol>
-            
-            <div class="cta-container">
-              <a href="${formLink}" class="cta-button">Go to Patient Portal</a>
-            </div>
-            
-            <p>If you have any questions or need assistance, please contact us:</p>
-            <p>
-              <strong>Phone:</strong> +1 (800) 604-7294<br>
-              <strong>Email:</strong> contactus@theibogainstitute.org
-            </p>
-            
-            <p>We look forward to continuing your wellness journey!</p>
-            <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
-          </div>
-          <div class="footer">
-            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
-            <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    body,
   }
 }
 
@@ -747,64 +709,76 @@ function generateMedicalHistoryConfirmationEmail(
   const displayName = `${firstName} ${lastName}`.trim()
   const patientName = isFiller ? `${patientFirstName} ${patientLastName}`.trim() : displayName
 
+  const introBlock = isFiller
+    ? `<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#535065">You have successfully completed the medical history form for <strong>${patientName}</strong>.</p>`
+    : `<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#535065">Thank you for taking the time to complete your medical history form.</p>`
+
+  const body = `<!DOCTYPE html>
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Thank You for Completing Your Medical History Form | The Iboga Wellness Institute</title>
+<link href="https://fonts.googleapis.com/css?family=Instrument+Serif:ital,wght@0,400" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css?family=Inter:ital,wght@0,400;0,500;0,600" rel="stylesheet" />
+<style>
+body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;} table{border-collapse:collapse;}
+.banner-heading{font-family:'Instrument Serif',Georgia,serif;}
+@media (max-width:620px){ table[role="presentation"]{max-width:100% !important;} .email-banner-title{font-size:36px !important;line-height:1.2 !important;} }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#ece9df" bgcolor="#ece9df">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ece9df" bgcolor="#ece9df">
+<tr><td align="center" style="padding:20px 0">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px">
+<tr><td style="padding:0 0 15px">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+<tr><td style="background-image:url('https://postcards-cdn.designmodo.com/images-cdn/Iboga_wellness_institute_email_banner.png');background-size:cover;background-position:center right;background-repeat:no-repeat;padding:40px 48px;border-radius:10px;background-color:#036243" bgcolor="#036243">
+<table role="presentation" width="100%"><tr><td align="left" valign="middle">
+<img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="140" height="39" alt="" style="display:block;border:0" />
+</td></tr>
+<tr><td style="padding-top:20px">
+<div class="banner-heading email-banner-title" style="font-family:'Instrument Serif',Georgia,serif;font-size:50px;line-height:130%;color:#fff;letter-spacing:-0.03em">Thank You for Completing Your Medical History Form</div>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:0">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fff;border-radius:10px 10px 0 0" bgcolor="#ffffff">
+<tr><td style="padding:48px">
+<p style="margin:0 0 15px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Hello, ${displayName}</p>
+${introBlock}
+<p style="margin:0 0 20px;font-size:16px;line-height:150%;color:#535065">Our medical team will review your health history information and will let you know if we need any further health-related details.</p>
+<table role="presentation" width="100%"><tr><td style="padding:20px 0 0"><p style="margin:0 0 8px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Contact</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">Questions or need to update your medical information? Reach us directly.</p>
+<ul style="margin:0;padding:0 0 0 20px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">
+<li style="margin-bottom:0">Phone: +1 (800) 604-7294</li>
+<li style="margin-bottom:0">Email: <a href="mailto:contactus@theibogainstitute.org" style="color:inherit;text-decoration:none">contactus@theibogainstitute.org</a></li>
+</ul>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:48px;background-color:#6e7a46;border-radius:0" bgcolor="#6e7a46">
+<p style="margin:0 0 24px;font-size:21px;line-height:150%;color:#fff;font-weight:600">We appreciate your cooperation in helping us provide you with the best possible care.</p>
+<p style="margin:0;font-size:16px;line-height:150%;color:#ece9df">Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
+</td></tr>
+<tr><td style="padding:48px;background-color:#272315;border-radius:0 0 10px 10px" bgcolor="#272315">
+<table role="presentation" width="100%"><tr><td align="center" style="padding:0 0 8px"><img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="152" height="42" alt="" style="display:block;border:0;margin:0 auto" /></td></tr><tr><td align="center" style="padding:0 0 16px"><p style="margin:0;font-size:14px;line-height:150%;color:rgba(255,255,255,0.9);font-family:'Inter',Arial,sans-serif">The Iboga Wellness Institute</p></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:16px 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:16px 0 17px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/about/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">About Us</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/our-programs/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Programs</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/insights/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Insights</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/podcast/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Podcast</a></td></tr></table></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.facebook.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/49d3df40d21a60424c3bf0f27d4ce8f9.png" width="24" height="24" alt="Facebook" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.linkedin.com/company/iboga-wellness-institute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/f180a29d5510c0f44c08bdde9bc397f5.png" width="24" height="24" alt="LinkedIn" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.instagram.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/97d1e3e2fd722d0140b51806fa857340.png" width="24" height="24" alt="Instagram" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.youtube.com/@IbogaWellnessCenters" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/9807838a6a4c0dd0d700aff6f20f6d98.png" width="24" height="24" alt="YouTube" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.tiktok.com/@ibogawellnessinstitute" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/045f5352f42e1f3aad7a52d07f950976.png" width="24" height="24" alt="TikTok" style="display:block;border:0;line-height:100%" /></a></td></tr></table></td></tr></table>
+</td></tr>
+</table>
+</td></tr></table>
+</td></tr></table>
+</body>
+</html>`
+
   return {
     subject: isFiller
       ? `Medical History Form Completed for ${patientName} | The Iboga Wellness Institute`
       : `Thank You for Completing Your Medical History Form | The Iboga Wellness Institute`,
-    body: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          ${commonStyles}
-          .info-box {
-            background: #f9f9f9;
-            border-left: 4px solid #5D7A5F;
-            padding: 20px;
-            margin: 20px 0;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>The Iboga Wellness Institute</h1>
-          </div>
-          <div class="content">
-            <h2>Thank You for Completing Your Medical History Form</h2>
-            ${isFiller
-        ? `
-            <p>Hello ${displayName},</p>
-            <div class="info-box">
-              <p><strong>Form Completed on Behalf of Patient</strong></p>
-              <p>You have successfully completed the medical history form for <strong>${patientName}</strong>.</p>
-            </div>
-            `
-        : `
-            <p>Hello ${displayName},</p>
-            <p>Thank you for taking the time to complete your medical history form.</p>
-            `}
-            
-            <p>Our medical team will review your health history information and will let you know if we need any further health-related details.</p>
-            
-            <p>If you have any questions or need to update your medical information, please don't hesitate to contact us:</p>
-            <p>
-              <strong>Phone:</strong> +1 (800) 604-7294<br>
-              <strong>Email:</strong> contactus@theibogainstitute.org
-            </p>
-            
-            <p>We appreciate your cooperation in helping us provide you with the best possible care.</p>
-            
-            <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
-          </div>
-          <div class="footer">
-            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
-            <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    body,
   }
 }
 
@@ -819,64 +793,76 @@ function generateServiceAgreementConfirmationEmail(
   const displayName = `${firstName} ${lastName}`.trim()
   const patientName = isFiller ? `${patientFirstName} ${patientLastName}`.trim() : displayName
 
+  const introBlock = isFiller
+    ? `<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#535065">You have successfully completed the service agreement form for <strong>${patientName}</strong>.</p>`
+    : `<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#535065">Thank you for taking the time to complete your service agreement form.</p>`
+
+  const body = `<!DOCTYPE html>
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Thank You for Completing Your Service Agreement | The Iboga Wellness Institute</title>
+<link href="https://fonts.googleapis.com/css?family=Instrument+Serif:ital,wght@0,400" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css?family=Inter:ital,wght@0,400;0,500;0,600" rel="stylesheet" />
+<style>
+body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;} table{border-collapse:collapse;}
+.banner-heading{font-family:'Instrument Serif',Georgia,serif;}
+@media (max-width:620px){ table[role="presentation"]{max-width:100% !important;} .email-banner-title{font-size:36px !important;line-height:1.2 !important;} }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#ece9df" bgcolor="#ece9df">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ece9df" bgcolor="#ece9df">
+<tr><td align="center" style="padding:20px 0">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px">
+<tr><td style="padding:0 0 15px">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+<tr><td style="background-image:url('https://postcards-cdn.designmodo.com/images-cdn/Iboga_wellness_institute_email_banner.png');background-size:cover;background-position:center right;background-repeat:no-repeat;padding:40px 48px;border-radius:10px;background-color:#036243" bgcolor="#036243">
+<table role="presentation" width="100%"><tr><td align="left" valign="middle">
+<img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="140" height="39" alt="" style="display:block;border:0" />
+</td></tr>
+<tr><td style="padding-top:20px">
+<div class="banner-heading email-banner-title" style="font-family:'Instrument Serif',Georgia,serif;font-size:50px;line-height:130%;color:#fff;letter-spacing:-0.03em">Thank You for Completing Your Service Agreement</div>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:0">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fff;border-radius:10px 10px 0 0" bgcolor="#ffffff">
+<tr><td style="padding:48px">
+<p style="margin:0 0 15px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Hello, ${displayName}</p>
+${introBlock}
+<p style="margin:0 0 20px;font-size:16px;line-height:150%;color:#535065">Our team will review your service agreement and will let you know if we need any further details.</p>
+<table role="presentation" width="100%"><tr><td style="padding:20px 0 0"><p style="margin:0 0 8px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Contact</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">Questions or need to update your service agreement? Reach us directly.</p>
+<ul style="margin:0;padding:0 0 0 20px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">
+<li style="margin-bottom:0">Phone: +1 (800) 604-7294</li>
+<li style="margin-bottom:0">Email: <a href="mailto:contactus@theibogainstitute.org" style="color:inherit;text-decoration:none">contactus@theibogainstitute.org</a></li>
+</ul>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:48px;background-color:#6e7a46;border-radius:0" bgcolor="#6e7a46">
+<p style="margin:0 0 24px;font-size:21px;line-height:150%;color:#fff;font-weight:600">We appreciate your cooperation and look forward to providing you with exceptional care.</p>
+<p style="margin:0;font-size:16px;line-height:150%;color:#ece9df">Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
+</td></tr>
+<tr><td style="padding:48px;background-color:#272315;border-radius:0 0 10px 10px" bgcolor="#272315">
+<table role="presentation" width="100%"><tr><td align="center" style="padding:0 0 8px"><img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="152" height="42" alt="" style="display:block;border:0;margin:0 auto" /></td></tr><tr><td align="center" style="padding:0 0 16px"><p style="margin:0;font-size:14px;line-height:150%;color:rgba(255,255,255,0.9);font-family:'Inter',Arial,sans-serif">The Iboga Wellness Institute</p></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:16px 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:16px 0 17px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/about/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">About Us</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/our-programs/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Programs</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/insights/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Insights</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/podcast/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Podcast</a></td></tr></table></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.facebook.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/49d3df40d21a60424c3bf0f27d4ce8f9.png" width="24" height="24" alt="Facebook" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.linkedin.com/company/iboga-wellness-institute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/f180a29d5510c0f44c08bdde9bc397f5.png" width="24" height="24" alt="LinkedIn" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.instagram.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/97d1e3e2fd722d0140b51806fa857340.png" width="24" height="24" alt="Instagram" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.youtube.com/@IbogaWellnessCenters" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/9807838a6a4c0dd0d700aff6f20f6d98.png" width="24" height="24" alt="YouTube" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.tiktok.com/@ibogawellnessinstitute" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/045f5352f42e1f3aad7a52d07f950976.png" width="24" height="24" alt="TikTok" style="display:block;border:0;line-height:100%" /></a></td></tr></table></td></tr></table>
+</td></tr>
+</table>
+</td></tr></table>
+</td></tr></table>
+</body>
+</html>`
+
   return {
     subject: isFiller
       ? `Service Agreement Completed for ${patientName} | The Iboga Wellness Institute`
       : `Thank You for Completing Your Service Agreement | The Iboga Wellness Institute`,
-    body: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          ${commonStyles}
-          .info-box {
-            background: #f9f9f9;
-            border-left: 4px solid #5D7A5F;
-            padding: 20px;
-            margin: 20px 0;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>The Iboga Wellness Institute</h1>
-          </div>
-          <div class="content">
-            <h2>Thank You for Completing Your Service Agreement</h2>
-            ${isFiller
-        ? `
-            <p>Hello ${displayName},</p>
-            <div class="info-box">
-              <p><strong>Form Completed on Behalf of Patient</strong></p>
-              <p>You have successfully completed the service agreement form for <strong>${patientName}</strong>.</p>
-            </div>
-            `
-        : `
-            <p>Hello ${displayName},</p>
-            <p>Thank you for taking the time to complete your service agreement form.</p>
-            `}
-            
-            <p>Our team will review your service agreement and will let you know if we need any further details.</p>
-            
-            <p>If you have any questions or need to update your service agreement information, please don't hesitate to contact us:</p>
-            <p>
-              <strong>Phone:</strong> +1 (800) 604-7294<br>
-              <strong>Email:</strong> contactus@theibogainstitute.org
-            </p>
-            
-            <p>We appreciate your cooperation and look forward to providing you with exceptional care.</p>
-            
-            <p>Best regards,<br><strong>The Iboga Wellness Institute Team</strong></p>
-          </div>
-          <div class="footer">
-            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
-            <p><a href="https://theibogainstitute.org">theibogainstitute.org</a></p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    body,
   }
 }
 
@@ -964,7 +950,7 @@ function generateOnboardingFormsEmail(
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Preparatory Instructions for Treatment</title>
+<title>Preparatory Instructions for Treatment | The Iboga Wellness Institute</title>
 <link href="https://fonts.googleapis.com/css?family=Instrument+Serif:ital,wght@0,400" rel="stylesheet" />
 <link href="https://fonts.googleapis.com/css?family=Inter:ital,wght@0,400;0,500;0,600" rel="stylesheet" />
 <style>
@@ -1027,7 +1013,7 @@ body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;
 <p style="margin:0;font-size:16px;line-height:150%;color:#ece9df">Warm regards,<br><strong>Daisy</strong><br>Iboga Wellness Institute Clinical Director<br>Cozumel, Mexico</p>
 </td></tr>
 <tr><td style="padding:48px;background-color:#272315;border-radius:0 0 10px 10px" bgcolor="#272315">
-<table role="presentation" width="100%"><tr><td align="center" style="padding:0 0 20px"><img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="152" height="42" alt="" style="display:block;border:0;margin:0 auto" /></td></tr></table>
+<table role="presentation" width="100%"><tr><td align="center" style="padding:0 0 8px"><img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="152" height="42" alt="" style="display:block;border:0;margin:0 auto" /></td></tr><tr><td align="center" style="padding:0 0 16px"><p style="margin:0;font-size:14px;line-height:150%;color:rgba(255,255,255,0.9);font-family:'Inter',Arial,sans-serif">The Iboga Wellness Institute</p></td></tr></table>
 <table role="presentation" width="100%"><tr><td style="padding:16px 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
 <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:16px 0 17px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/about/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">About Us</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/our-programs/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Programs</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/insights/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Insights</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/podcast/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Podcast</a></td></tr></table></td></tr></table>
 <table role="presentation" width="100%"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
@@ -1041,6 +1027,93 @@ body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;
 
   return {
     subject: 'Preparatory Instructions for Treatment: Next Steps with Clinical Director | The Iboga Wellness Institute',
+    body,
+  }
+}
+
+const PRE_INTEGRATION_CALENDAR_LINK = 'https://calendar.app.google/26uS2irqfbwxd49Q9'
+const RAY_EMAIL = 'ray@theibogainstitute.org'
+
+function generatePreIntegrationSchedulingEmail(
+  firstName: string,
+  lastName: string,
+  schedulingLink?: string
+): { subject: string; body: string } {
+  const displayName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'there'
+  const calendarLink = schedulingLink ?? PRE_INTEGRATION_CALENDAR_LINK
+
+  // Same design as Daisy's onboarding_forms email (Instrument Serif, Inter, banner, CTA, footer)
+  const body = `<!DOCTYPE html>
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Next Step: Pre-Integration Session | The Iboga Wellness Institute</title>
+<link href="https://fonts.googleapis.com/css?family=Instrument+Serif:ital,wght@0,400" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css?family=Inter:ital,wght@0,400;0,500;0,600" rel="stylesheet" />
+<style>
+body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;} table{border-collapse:collapse;}
+.banner-heading{font-family:'Instrument Serif',Georgia,serif;}
+@media (max-width:620px){ table[role="presentation"]{max-width:100% !important;} .email-banner-title{font-size:36px !important;line-height:1.2 !important;} }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#ece9df" bgcolor="#ece9df">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ece9df" bgcolor="#ece9df">
+<tr><td align="center" style="padding:20px 0">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px">
+<tr><td style="padding:0 0 15px">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+<tr><td style="background-image:url('https://postcards-cdn.designmodo.com/images-cdn/Iboga_wellness_institute_email_banner.png');background-size:cover;background-position:center right;background-repeat:no-repeat;padding:40px 48px;border-radius:10px;background-color:#036243" bgcolor="#036243">
+<table role="presentation" width="100%"><tr><td align="left" valign="middle">
+<img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="140" height="39" alt="" style="display:block;border:0" />
+</td></tr>
+<tr><td style="padding-top:20px">
+<div class="banner-heading email-banner-title" style="font-family:'Instrument Serif',Georgia,serif;font-size:50px;line-height:130%;color:#fff;letter-spacing:-0.03em">Next Step: Pre-Integration Session</div>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:0">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fff;border-radius:10px 10px 0 0" bgcolor="#ffffff">
+<tr><td style="padding:48px">
+<p style="margin:0 0 15px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Hello, ${displayName}</p>
+<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#141414;font-weight:500">Thank you for completing your consultation with Daisy and for moving forward in your preparation process with Iboga Wellness Institute.</p>
+<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#535065">The next step in your journey is to schedule a pre-integration session with me. My name is Ray, and I am the psychotherapist here at Iboga Wellness Institute. This session is an important part of preparing you mentally and emotionally for your upcoming experience.</p>
+<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#535065">During this call, we will discuss your intentions for treatment, review your personal history and goals, and begin laying the foundation for a successful and meaningful experience. This session is designed to help you feel grounded, prepared, and supported as you move toward your stay with us.</p>
+<p style="margin:0 0 20px;font-size:16px;line-height:150%;color:#535065">Please use the calendar link below to select a date and time that works best for you:</p>
+<table role="presentation" width="100%"><tr><td style="padding:10px 0 20px">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0"><tr><td valign="top" style="padding:30px 20px;background-color:#d4dabb;border-radius:11px;border-left:6px solid #6e7a46" bgcolor="#d4dabb">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="center" valign="top" style="padding:12px 0;text-align:center"><a href="${calendarLink}" target="_blank" style="display:inline-block;box-sizing:border-box;border-radius:8px;background-color:#6e7a46;color:#fff !important;padding:10px 24px;text-decoration:none;font-size:16px;line-height:200%;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif" bgcolor="#6e7a46">Click here to schedule your pre-integration session</a></td></tr>
+<tr><td align="left" valign="top" style="padding:12px 0 0"><p style="margin:0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Once your session is scheduled, you will receive a confirmation email with the meeting details.</p></td></tr>
+</table></td></tr></table>
+</td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:20px 0 0"><p style="margin:0 0 8px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Contact</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">Questions? Reply to this email or reach me directly.</p>
+<ul style="margin:0;padding:0 0 0 20px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">
+<li style="margin-bottom:0">Phone: +1 (800) 604-7294</li>
+<li style="margin-bottom:0">Email: <a href="mailto:${RAY_EMAIL}" style="color:inherit;text-decoration:none">${RAY_EMAIL}</a></li>
+</ul>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:48px;background-color:#6e7a46;border-radius:0" bgcolor="#6e7a46">
+<p style="margin:0 0 24px;font-size:21px;line-height:150%;color:#fff;font-weight:600">I look forward to speaking with you soon and supporting you as you prepare for this next step in your healing process.</p>
+<p style="margin:0;font-size:16px;line-height:150%;color:#ece9df">Warm regards,<br><strong>Ray</strong><br>Psychotherapist<br>Iboga Wellness Institute<br>Cozumel, Mexico</p>
+</td></tr>
+<tr><td style="padding:48px;background-color:#272315;border-radius:0 0 10px 10px" bgcolor="#272315">
+<table role="presentation" width="100%"><tr><td align="center" style="padding:0 0 8px"><img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="152" height="42" alt="" style="display:block;border:0;margin:0 auto" /></td></tr><tr><td align="center" style="padding:0 0 16px"><p style="margin:0;font-size:14px;line-height:150%;color:rgba(255,255,255,0.9);font-family:'Inter',Arial,sans-serif">The Iboga Wellness Institute</p></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:16px 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:16px 0 17px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/about/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">About Us</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/our-programs/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Programs</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/insights/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Insights</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/podcast/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Podcast</a></td></tr></table></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.facebook.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/49d3df40d21a60424c3bf0f27d4ce8f9.png" width="24" height="24" alt="Facebook" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.linkedin.com/company/iboga-wellness-institute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/f180a29d5510c0f44c08bdde9bc397f5.png" width="24" height="24" alt="LinkedIn" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.instagram.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/97d1e3e2fd722d0140b51806fa857340.png" width="24" height="24" alt="Instagram" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.youtube.com/@IbogaWellnessCenters" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/9807838a6a4c0dd0d700aff6f20f6d98.png" width="24" height="24" alt="YouTube" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.tiktok.com/@ibogawellnessinstitute" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/045f5352f42e1f3aad7a52d07f950976.png" width="24" height="24" alt="TikTok" style="display:block;border:0;line-height:100%" /></a></td></tr></table></td></tr></table>
+</td></tr>
+</table>
+</td></tr></table>
+</td></tr></table>
+</body>
+</html>`
+
+  return {
+    subject: 'Next Step: Schedule Your Pre-Integration Session | The Iboga Wellness Institute',
     body,
   }
 }
@@ -1196,6 +1269,14 @@ serve(async (req) => {
         )
         break
 
+      case 'pre_integration_scheduling':
+        emailContent = generatePreIntegrationSchedulingEmail(
+          request.firstName || 'there',
+          request.lastName || '',
+          request.schedulingLink
+        )
+        break
+
       default:
         return new Response(
           JSON.stringify({ success: false, error: `Invalid email type: ${request.type}` }),
@@ -1203,7 +1284,7 @@ serve(async (req) => {
         )
     }
 
-    // Resolve "from" address: contactus default; service_agreement → guy; onboarding_forms → daisy (Clinical Director)
+    // Resolve "from" address: contactus default; service_agreement → guy; onboarding_forms → daisy; pre_integration_scheduling → ray
     const fromEmail = FROM_EMAIL_BY_TYPE[request.type] ?? DEFAULT_FROM_EMAIL
 
     // Get access token: service account (impersonate fromEmail) or refresh token. For onboarding_forms to send from Daisy, use service account with domain-wide delegation.

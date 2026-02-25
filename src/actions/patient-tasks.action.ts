@@ -8,7 +8,7 @@ const getPatientTasksSchema = z.object({})
 
 export interface PatientTask {
   id: string
-  type: 'intake' | 'medical_history' | 'service_agreement' | 'ibogaine_consent' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | 'onboarding_ekg_upload' | 'onboarding_bloodwork_upload' | 'onboarding_consult_clinical_director'
+  type: 'intake' | 'medical_history' | 'service_agreement' | 'ibogaine_consent' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | 'onboarding_ekg_upload' | 'onboarding_bloodwork_upload' | 'onboarding_consult_clinical_director' | 'onboarding_consult_pre_integration'
   title: string
   description: string
   status: 'not_started' | 'in_progress' | 'completed' | 'locked' | 'skipped'
@@ -64,7 +64,7 @@ export const getPatientTasks = authActionClient
       // Check onboarding status (full query - no need to query again later)
       supabase
         .from('patient_onboarding')
-        .select('id, status, release_form_completed, outing_consent_completed, internal_regulations_completed, ekg_skipped, ekg_skipped_at, bloodwork_skipped, bloodwork_skipped_at, consult_scheduled_at')
+        .select('id, status, release_form_completed, outing_consent_completed, internal_regulations_completed, ekg_skipped, ekg_skipped_at, bloodwork_skipped, bloodwork_skipped_at, consult_scheduled_at, pre_integration_scheduled_at')
         .eq('patient_id', patientId)
         .maybeSingle(),
       // Try to find intake form by patient_id match in profiles
@@ -556,7 +556,7 @@ export const getPatientTasks = authActionClient
         status: onboardingFull.status as 'in_progress' | 'completed' | 'moved_to_management',
         onboardingId: onboardingFull.id,
         formsCompleted: 0, // set after all 6 onboarding tasks are added
-        formsTotal: 6, // 3 forms + 2 uploads (EKG, bloodwork) + 1 Clinical Director consult
+        formsTotal: 7, // 3 forms + 2 uploads (EKG, bloodwork) + Clinical Director consult + Pre-integration (Ray)
         ekgSkipped: !!onboardingFull.ekg_skipped,
         bloodworkSkipped: !!onboardingFull.bloodwork_skipped,
       }
@@ -660,7 +660,7 @@ export const getPatientTasks = authActionClient
         link: '/patient/documents',
       })
 
-      // Schedule a meeting with Clinical Director (consult) – required onboarding task
+      // Schedule a meeting with Clinical Director (Daisy) – required onboarding task
       const consultScheduledAt = onboardingFull.consult_scheduled_at
       const CLINICAL_DIRECTOR_CALENDAR_LINK = 'https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ0cMnBbm_aBy3dpuD0i5OCegv_FYMNskCyHkVgD8qHc4Enl99atTmXmyrpHcqVTML19PzmgEAl-?gv=true'
       tasks.push({
@@ -677,8 +677,25 @@ export const getPatientTasks = authActionClient
         link: CLINICAL_DIRECTOR_CALENDAR_LINK,
       })
 
-      // Count completed onboarding steps (3 forms + EKG + bloodwork + Clinical Director consult = 6)
-      const onboardingTaskTypes = ['onboarding_release', 'onboarding_outing', 'onboarding_regulations', 'onboarding_ekg_upload', 'onboarding_bloodwork_upload', 'onboarding_consult_clinical_director'] as const
+      // Pre-integration session with Ray (psychotherapist) – required onboarding task; counts toward medical clearance
+      const preIntegrationScheduledAt = (onboardingFull as { pre_integration_scheduled_at?: string | null }).pre_integration_scheduled_at
+      const PRE_INTEGRATION_CALENDAR_LINK = 'https://calendar.app.google/26uS2irqfbwxd49Q9'
+      tasks.push({
+        id: `onboarding-consult-pre-integration-${onboardingFull.id}`,
+        type: 'onboarding_consult_pre_integration',
+        title: 'Pre-Integration Session with Ray',
+        description: 'Schedule a pre-integration call with Ray (psychotherapist) to prepare mentally and emotionally for your stay.',
+        status: preIntegrationScheduledAt ? 'completed' : 'not_started',
+        estimatedTime: '~5 min',
+        isRequired: true,
+        isOptional: false,
+        completedAt: preIntegrationScheduledAt ?? undefined,
+        formId: onboardingFull.id,
+        link: PRE_INTEGRATION_CALENDAR_LINK,
+      })
+
+      // Count completed onboarding steps (3 forms + EKG + bloodwork + Clinical Director consult + Pre-integration = 7)
+      const onboardingTaskTypes = ['onboarding_release', 'onboarding_outing', 'onboarding_regulations', 'onboarding_ekg_upload', 'onboarding_bloodwork_upload', 'onboarding_consult_clinical_director', 'onboarding_consult_pre_integration'] as const
       onboardingStatus.formsCompleted = tasks.filter(
         (t) => onboardingTaskTypes.includes(t.type as (typeof onboardingTaskTypes)[number]) && (t.status === 'completed' || t.status === 'skipped')
       ).length
