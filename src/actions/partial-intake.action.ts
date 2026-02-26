@@ -120,19 +120,16 @@ export const createPartialIntakeForm = authActionClient
       return { success: false, error: error.message }
     }
 
-    // Link notes to patient profile (lead_notes): one row per lead, same notes shown on profile
+    // Add note to patient profile (lead_note_entries) when creating partial form with notes
     const notesValue = parsedInput.notes?.trim()
     if (notesValue) {
       await supabase
-        .from('lead_notes')
-        .upsert(
-          {
-            lead_id: data.id,
-            notes: notesValue,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'lead_id' }
-        )
+        .from('lead_note_entries')
+        .insert({
+          lead_id: data.id,
+          notes: notesValue,
+          created_by: ctx.user.id,
+        })
     }
     
     // Generate form link

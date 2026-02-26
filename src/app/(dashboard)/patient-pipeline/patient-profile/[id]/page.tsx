@@ -9,7 +9,7 @@ import { sendRequestLabsEmail } from '@/actions/email.action'
 import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding, uploadOnboardingFormDocument, moveToPatientManagement, markOnboardingConsultScheduled, markOnboardingPreIntegrationScheduled } from '@/actions/onboarding-forms.action'
 import { getOnboardingMedicalDocumentViewUrl, adminSkipOnboardingMedicalDocument } from '@/actions/onboarding-documents.action'
 import { markAsProspect, removeProspectStatus } from '@/actions/prospect-status.action'
-import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload, ClipboardList, Stethoscope, LayoutGrid, ChevronDown, FlaskConical, PauseCircle, UserCheck, Heart, TestTube2, CalendarCheck } from 'lucide-react'
+import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload, ClipboardList, Stethoscope, LayoutGrid, ChevronDown, FlaskConical, PauseCircle, UserCheck, Heart, TestTube2, CalendarCheck, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -60,7 +60,7 @@ import {
   getStaffForAssign,
   type LeadTaskRow,
 } from '@/actions/lead-tasks.action'
-import { getLeadNote, updateLeadNote } from '@/actions/lead-notes.action'
+import { getLeadNotes, addLeadNote, updateLeadNote, deleteLeadNote, type LeadNoteEntry } from '@/actions/lead-notes.action'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const CLINICAL_DIRECTOR_CONSULT_QUESTION_LABELS: { key: string; label: string }[] = [
@@ -205,8 +205,14 @@ export default function PatientProfilePage() {
   const onboardingFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const onboardingFormContentRef = useRef<HTMLDivElement>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'billing' | 'travel'>('overview')
-  const [quickNote, setQuickNote] = useState('')
+  const [leadNotes, setLeadNotes] = useState<LeadNoteEntry[]>([])
+  const [newNote, setNewNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [editingNoteText, setEditingNoteText] = useState('')
+  const [savingEditNote, setSavingEditNote] = useState(false)
+  const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null)
+  const [deletingNote, setDeletingNote] = useState(false)
   const [billingPayments, setBillingPayments] = useState<Array<{
     id: string
     amount_received: number
@@ -519,12 +525,23 @@ export default function PatientProfilePage() {
             : []
         )
 
-        // Load quick note for this lead
-        getLeadNote({ leadId: id })
-          .then((res) => {
-            if (res?.data?.success && res.data.data) {
-              setQuickNote(res.data.data.notes ?? '')
-            }
+        // Load notes for this lead: same person can be reached via profile id, partial form id, or intake form id, so load from all and merge
+        const leadIds = [data.patient?.id, data.partialForm?.id, data.intakeForm?.id, id].filter(Boolean) as string[]
+        const uniqueLeadIds = [...new Set(leadIds)]
+        Promise.all(uniqueLeadIds.map((leadId) => getLeadNotes({ leadId })))
+          .then((results) => {
+            const byId = new Map<string, LeadNoteEntry>()
+            results.forEach((res) => {
+              if (res?.data?.success && res.data.data) {
+                res.data.data.forEach((entry) => {
+                  if (!byId.has(entry.id)) byId.set(entry.id, entry)
+                })
+              }
+            })
+            const merged = Array.from(byId.values()).sort(
+              (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            )
+            setLeadNotes(merged)
           })
           .catch(() => {})
 
@@ -1298,6 +1315,41 @@ export default function PatientProfilePage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          <AlertDialog open={!!deleteNoteId} onOpenChange={(open) => { if (!open) setDeleteNoteId(null) }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete note?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This note will be permanently removed. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deletingNote}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-red-600 hover:bg-red-700"
+                  disabled={deletingNote}
+                  onClick={async () => {
+                    if (!deleteNoteId) return
+                    setDeletingNote(true)
+                    try {
+                      const result = await deleteLeadNote({ noteId: deleteNoteId })
+                      if (result?.data?.success) {
+                        setLeadNotes((prev) => prev.filter((n) => n.id !== deleteNoteId))
+                        setDeleteNoteId(null)
+                        toast.success('Note deleted')
+                      } else {
+                        toast.error(result?.data?.error ?? 'Failed to delete note')
+                      }
+                    } finally {
+                      setDeletingNote(false)
+                    }
+                  }}
+                >
+                  {deletingNote ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -1594,36 +1646,131 @@ export default function PatientProfilePage() {
                 </div>
               </div>
             </div>
-            {/* Quick Note */}
+            {/* Notes */}
             <div className="flex flex-col gap-2.5">
-              <p className="text-xs text-[#777777]">Quick Note</p>
+              <p className="text-xs text-[#777777]">Notes</p>
+              {leadNotes.length > 0 && (
+                <div className="rounded-[10px] border border-[#D6D2C8] bg-[#F5F4F0] max-h-[220px] overflow-y-auto">
+                  <ul className="p-2.5 space-y-2">
+                    {leadNotes.map((entry) => (
+                      <li key={entry.id} className="text-xs text-[#2B2820] border-b border-[#D6D2C8]/50 last:border-0 pb-2 last:pb-0">
+                        {editingNoteId === entry.id ? (
+                          <>
+                            <textarea
+                              value={editingNoteText}
+                              onChange={(e) => setEditingNoteText(e.target.value)}
+                              className="w-full min-h-[60px] rounded-[8px] border border-[#D6D2C8] bg-white px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#6E7A46]/20 resize-none"
+                              rows={3}
+                              autoFocus
+                            />
+                            <div className="flex gap-1.5 mt-1.5">
+                              <Button
+                                size="sm"
+                                className="h-7 rounded-full text-xs bg-[#6E7A46] hover:bg-[#5c6840] text-white"
+                                disabled={savingEditNote || !editingNoteText.trim()}
+                                onClick={async () => {
+                                  const text = editingNoteText.trim()
+                                  if (!text) return
+                                  setSavingEditNote(true)
+                                  const result = await updateLeadNote({ noteId: entry.id, notes: text })
+                                  setSavingEditNote(false)
+                                  if (result?.data?.success && result.data.data) {
+                                    setLeadNotes((prev) => prev.map((n) => (n.id === entry.id ? result.data!.data as LeadNoteEntry : n)))
+                                    setEditingNoteId(null)
+                                    setEditingNoteText('')
+                                    toast.success('Note updated')
+                                  } else {
+                                    toast.error(result?.data?.error ?? 'Failed to update note')
+                                  }
+                                }}
+                              >
+                                {savingEditNote ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 rounded-full text-xs"
+                                disabled={savingEditNote}
+                                onClick={() => {
+                                  setEditingNoteId(null)
+                                  setEditingNoteText('')
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="whitespace-pre-wrap break-words">{entry.notes}</p>
+                            <div className="mt-1 flex items-center justify-between gap-2">
+                              <p className="text-[10px] text-[#777777] shrink-0">
+                                {format(new Date(entry.created_at), 'MMM d, yyyy · h:mm a')}
+                                {entry.created_by_name ? ` · ${entry.created_by_name}` : ''}
+                              </p>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-[#777777] hover:text-[#2B2820]"
+                                  onClick={() => {
+                                    setEditingNoteId(entry.id)
+                                    setEditingNoteText(entry.notes)
+                                  }}
+                                  title="Edit note"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-[#777777] hover:text-red-600"
+                                  onClick={() => setDeleteNoteId(entry.id)}
+                                  title="Delete note"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <textarea
                 placeholder="Add a note about this lead..."
-                value={quickNote}
-                onChange={(e) => setQuickNote(e.target.value)}
-                className="min-h-[106px] w-full rounded-[10px] border border-[#D6D2C8] bg-[#F5F4F0] px-3.5 py-3.5 text-xs text-[#2B2820] placeholder:text-[#777777] focus:outline-none focus:ring-2 focus:ring-[#6E7A46]/20 focus:border-[#6E7A46] resize-none"
-                rows={4}
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                className="min-h-[80px] w-full rounded-[10px] border border-[#D6D2C8] bg-[#F5F4F0] px-3.5 py-3.5 text-xs text-[#2B2820] placeholder:text-[#777777] focus:outline-none focus:ring-2 focus:ring-[#6E7A46]/20 focus:border-[#6E7A46] resize-none"
+                rows={3}
               />
               <div className="flex gap-3">
                 <Button
                   size="sm"
                   className="flex-1 rounded-3xl bg-[#6E7A46] hover:bg-[#5c6840] text-white text-sm shadow-sm"
-                  disabled={savingNote}
+                  disabled={savingNote || !newNote.trim()}
                   onClick={async () => {
+                    const note = newNote.trim()
+                    if (!note) return
+                    const canonicalLeadId = profileData?.patient?.id ?? profileData?.partialForm?.id ?? profileData?.intakeForm?.id ?? id
                     setSavingNote(true)
-                    const result = await updateLeadNote({ leadId: id, notes: quickNote })
+                    const result = await addLeadNote({ leadId: canonicalLeadId, notes: note })
                     setSavingNote(false)
-                    if (result?.data?.success) {
-                      toast.success('Note saved')
+                    if (result?.data?.success && result.data.data) {
+                      setLeadNotes((prev) => [result.data!.data as LeadNoteEntry, ...prev])
+                      setNewNote('')
+                      toast.success('Note added')
                     } else {
-                      toast.error(result?.data?.error ?? 'Failed to save note')
+                      toast.error(result?.data?.error ?? 'Failed to add note')
                     }
                   }}
                 >
                   {savingNote ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    'Save Note'
+                    'Add Note'
                   )}
                 </Button>
                 <Button
