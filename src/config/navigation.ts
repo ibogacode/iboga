@@ -127,10 +127,17 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
     analyticsNav: [{ title: 'Research', href: '/research', icon: Beaker }],
   },
   manager: {
+    // Same order as admin; skip Home and Facility Management (manager doesn't have them)
     mainNav: [
       { title: 'Dashboard', href: '/manager', icon: LayoutDashboard },
-      { title: 'Client Pipeline', href: '/patient-pipeline', icon: Users },
-      { title: 'Client Management', href: '/patient-management', icon: UserCheck },
+      {
+        title: 'Client Pipeline',
+        href: '/patient-pipeline',
+        icon: Users,
+        children: [
+          { title: 'Consult Scheduling', href: '/patient-pipeline/consult-scheduling', icon: Calendar },
+        ],
+      },
       {
         title: 'Onboarding',
         href: '/onboarding',
@@ -139,6 +146,7 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
           { title: 'Facility Occupancy', href: '/onboarding/facility-occupancy', icon: Calendar },
         ],
       },
+      { title: 'Client Management', href: '/patient-management', icon: UserCheck },
       {
         title: 'Marketing',
         icon: Megaphone,
@@ -158,6 +166,14 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   },
   doctor: {
     mainNav: [
+      {
+        title: 'Client Pipeline',
+        href: '/patient-pipeline',
+        icon: Users,
+        children: [
+          { title: 'Consult Scheduling', href: '/patient-pipeline/consult-scheduling', icon: Calendar },
+        ],
+      },
       {
         title: 'Onboarding',
         href: '/onboarding',
@@ -185,6 +201,14 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   psych: {
     mainNav: [
       {
+        title: 'Client Pipeline',
+        href: '/patient-pipeline',
+        icon: Users,
+        children: [
+          { title: 'Consult Scheduling', href: '/patient-pipeline/consult-scheduling', icon: Calendar },
+        ],
+      },
+      {
         title: 'Onboarding',
         href: '/onboarding',
         icon: UserPlus,
@@ -211,6 +235,14 @@ export const navigationByRole: Record<UserRole, NavigationConfig> = {
   nurse: {
     mainNav: [
       { title: 'Dashboard', href: '/nurse', icon: LayoutDashboard },
+      {
+        title: 'Client Pipeline',
+        href: '/patient-pipeline',
+        icon: Users,
+        children: [
+          { title: 'Consult Scheduling', href: '/patient-pipeline/consult-scheduling', icon: Calendar },
+        ],
+      },
       { title: 'Patients', href: '/nurse/patients', icon: Users },
       { title: 'Visit Forms', href: '/nurse/visits', icon: ClipboardList },
       { title: 'Daily Logs', href: '/nurse/daily-logs', icon: FileText },

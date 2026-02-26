@@ -136,10 +136,10 @@ export default function PatientProfilePage() {
   const [isSaving, setIsSaving] = useState(false)
   const [triggeringForm, setTriggeringForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | null>(null)
   const [profileData, setProfileData] = useState<PatientProfileData | null>(null)
-  const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | null>(null)
+  const [viewingForm, setViewingForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | 'document' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | null>(null)
   const [viewFormData, setViewFormData] = useState<any>(null)
   const [viewFormIframe, setViewFormIframe] = useState<{ url: string; title: string } | null>(null)
-  const [loadingViewForm, setLoadingViewForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | null>(null)
+  const [loadingViewForm, setLoadingViewForm] = useState<'intake' | 'medical' | 'service' | 'ibogaine' | 'document' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_social_media' | 'onboarding_regulations' | 'onboarding_dissent' | null>(null)
   const [activatingForm, setActivatingForm] = useState<'service' | 'ibogaine' | null>(null)
   const [creatingServiceAgreement, setCreatingServiceAgreement] = useState(false)
   const [showActivationModal, setShowActivationModal] = useState(false)
@@ -213,6 +213,7 @@ export default function PatientProfilePage() {
   const [savingEditNote, setSavingEditNote] = useState(false)
   const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null)
   const [deletingNote, setDeletingNote] = useState(false)
+  const [openingSidebarDoc, setOpeningSidebarDoc] = useState<string | null>(null)
   const [billingPayments, setBillingPayments] = useState<Array<{
     id: string
     amount_received: number
@@ -1038,6 +1039,143 @@ export default function PatientProfilePage() {
     return at ? format(new Date(at), 'MMM d') : null
   }
 
+  /** Sidebar document list: only uploaded documents (not submitted forms without an upload). */
+  type SidebarDocKind = 'intake' | 'medical' | 'service' | 'ibogaine' | 'ekg' | 'bloodwork' | 'onboarding_release' | 'onboarding_outing' | 'onboarding_regulations'
+  type SidebarDocItem = { id: string; label: string; date: string | null; kind: SidebarDocKind; documentUrl?: string; documentName?: string }
+  const sidebarDocumentList: SidebarDocItem[] = (() => {
+    if (!profileData) return []
+    const list: SidebarDocItem[] = []
+    const labels: Record<string, string> = { intake: 'Application', medical: 'Medical Health History', service: 'Service Agreement', ibogaine: 'Ibogaine Consent' }
+    profileData.existingPatientDocuments?.forEach((doc) => {
+      const label = labels[doc.form_type] ?? doc.document_name ?? doc.form_type
+      const uploadedAt = (doc as { uploaded_at?: string }).uploaded_at
+      const date = uploadedAt ? format(new Date(uploadedAt), 'MMM d') : null
+      list.push({ id: doc.id, label, date, kind: doc.form_type })
+    })
+    const mh = profileData.medicalHistoryForm as {
+      physical_examination_file_url?: string | null
+      physical_examination_file_name?: string | null
+      updated_at?: string
+      cardiac_evaluation_file_url?: string | null
+      cardiac_evaluation_file_name?: string | null
+      liver_function_tests_file_url?: string | null
+      liver_function_tests_file_name?: string | null
+    } | null | undefined
+    if (mh?.physical_examination_file_url) {
+      const at = mh.updated_at ? format(new Date(mh.updated_at), 'MMM d') : null
+      list.push({
+        id: 'medical_physical_exam',
+        label: 'Physical Examination',
+        date: at,
+        kind: 'medical',
+        documentUrl: mh.physical_examination_file_url,
+        documentName: mh.physical_examination_file_name ?? 'Physical Examination Report',
+      })
+    }
+    if (mh?.cardiac_evaluation_file_url) {
+      const at = mh.updated_at ? format(new Date(mh.updated_at), 'MMM d') : null
+      list.push({
+        id: 'medical_cardiac',
+        label: 'Cardiac Evaluation',
+        date: at,
+        kind: 'medical',
+        documentUrl: mh.cardiac_evaluation_file_url,
+        documentName: mh.cardiac_evaluation_file_name ?? 'Cardiac Evaluation Report',
+      })
+    }
+    if (mh?.liver_function_tests_file_url) {
+      const at = mh.updated_at ? format(new Date(mh.updated_at), 'MMM d') : null
+      list.push({
+        id: 'medical_liver_tests',
+        label: 'Liver Function Tests',
+        date: at,
+        kind: 'medical',
+        documentUrl: mh.liver_function_tests_file_url,
+        documentName: mh.liver_function_tests_file_name ?? 'Liver Function Test Report',
+      })
+    }
+    const ekg = profileData.onboarding?.medicalDocuments?.ekg
+    if (ekg) {
+      list.push({ id: 'ekg', label: 'EKG', date: ekg.uploaded_at ? format(new Date(ekg.uploaded_at), 'MMM d') : null, kind: 'ekg' })
+    }
+    const bloodwork = profileData.onboarding?.medicalDocuments?.bloodwork
+    if (bloodwork) {
+      list.push({ id: 'bloodwork', label: 'Bloodwork', date: bloodwork.uploaded_at ? format(new Date(bloodwork.uploaded_at), 'MMM d') : null, kind: 'bloodwork' })
+    }
+    const forms = profileData.onboarding?.forms
+    const hasUpload = (f: { document_url?: string | null; document_path?: string | null } | null) => !!(f?.document_url ?? f?.document_path)
+    if (forms?.releaseForm && hasUpload(forms.releaseForm)) {
+      const at = (forms.releaseForm as { updated_at?: string; uploaded_at?: string }).updated_at ?? (forms.releaseForm as { uploaded_at?: string }).uploaded_at
+      list.push({ id: 'onboarding_release', label: 'Release Form', date: at ? format(new Date(at), 'MMM d') : null, kind: 'onboarding_release' })
+    }
+    if (forms?.outingForm && hasUpload(forms.outingForm)) {
+      const at = (forms.outingForm as { updated_at?: string; uploaded_at?: string }).updated_at ?? (forms.outingForm as { uploaded_at?: string }).uploaded_at
+      list.push({ id: 'onboarding_outing', label: 'Outing/Transfer Consent', date: at ? format(new Date(at), 'MMM d') : null, kind: 'onboarding_outing' })
+    }
+    if (forms?.regulationsForm && hasUpload(forms.regulationsForm)) {
+      const at = (forms.regulationsForm as { updated_at?: string; uploaded_at?: string }).updated_at ?? (forms.regulationsForm as { uploaded_at?: string }).uploaded_at
+      list.push({ id: 'onboarding_regulations', label: 'Internal Regulations', date: at ? format(new Date(at), 'MMM d') : null, kind: 'onboarding_regulations' })
+    }
+    return list
+  })()
+
+  async function openSidebarDocument(item: SidebarDocItem) {
+    if (!profileData) return
+    setOpeningSidebarDoc(item.id)
+    try {
+      if (item.documentUrl) {
+        setViewFormData({ type: 'uploaded_document', document_url: item.documentUrl, document_name: item.documentName || item.label, form_type: 'medical' })
+        setViewingForm('document')
+        return
+      }
+      if (item.kind === 'ekg' || item.kind === 'bloodwork') {
+        const onboardingId = profileData.onboarding?.onboarding?.id
+        if (!onboardingId) return
+        const res = await getOnboardingMedicalDocumentViewUrl({
+          onboarding_id: onboardingId,
+          document_type: item.kind,
+        })
+        if (res?.data?.success && res.data.data?.url) {
+          setViewFormData({ type: 'uploaded_document', document_url: res.data.data.url, document_name: item.label, form_type: item.kind })
+          setViewingForm('document')
+        } else {
+          toast.error(res?.data?.error || 'Failed to load document')
+        }
+        return
+      }
+      if (item.kind === 'onboarding_release' || item.kind === 'onboarding_outing' || item.kind === 'onboarding_regulations') {
+        const onboardingId = profileData.onboarding?.onboarding?.id
+        if (!onboardingId) return
+        const formType = item.kind === 'onboarding_release' ? 'release' : item.kind === 'onboarding_outing' ? 'outing' : 'regulations'
+        const viewState = item.kind === 'onboarding_release' ? 'onboarding_release' : item.kind === 'onboarding_outing' ? 'onboarding_outing' : 'onboarding_regulations'
+        const result = await getFormByOnboarding({ onboarding_id: onboardingId, form_type: formType })
+        if (result?.data?.success && result.data.data) {
+          const data = (result.data.data as any).form || result.data.data
+          if (data.document_url) {
+            setViewFormData({ type: 'uploaded_document', document_url: data.document_url, document_name: `${item.label} Document`, form_type: formType, uploaded_at: data.uploaded_at, uploaded_by: data.uploaded_by })
+          } else {
+            setViewFormData(data)
+          }
+          setViewingForm(viewState)
+        } else {
+          toast.error(result?.data?.error || 'Failed to load form')
+        }
+        return
+      }
+      const formKey = item.kind as 'intake' | 'medical' | 'service' | 'ibogaine'
+      const uploadedDoc = profileData.existingPatientDocuments?.find(d => d.id === item.id || d.form_type === formKey)
+      if (uploadedDoc) {
+        const docName = uploadedDoc.document_name || `${item.label} Document`
+        setViewFormData({ type: 'uploaded_document', document_url: uploadedDoc.document_url, document_name: docName, form_type: formKey })
+        setViewingForm(formKey)
+        return
+      }
+      toast.error('Document not found')
+    } finally {
+      setOpeningSidebarDoc(null)
+    }
+  }
+
   function getOneTimeFormSubmittedDate(formKey: 'intakeReport' | 'medicalIntakeReport' | 'parkinsonsPsychologicalReport' | 'parkinsonsMortalityScales'): string | null {
     const forms = oneTimeFormsData
     if (!forms) return null
@@ -1140,7 +1278,23 @@ export default function PatientProfilePage() {
     profileData.formStatuses.serviceAgreement,
     profileData.formStatuses.ibogaineConsent,
   ].filter((s) => s === 'completed').length
-  const readinessScore = Math.round((formsCompletedCount / 4) * 100)
+  const formsDone = formsCompletedCount === 4
+  const totalAmount = Number(profileData?.serviceAgreement?.total_program_fee ?? 0)
+  const totalReceived = billingPayments.reduce((sum, p) => sum + Number(p.amount_received), 0)
+  const isFullyPaid = billingPayments.some((p) => p.is_full_payment) || (totalAmount > 0 && totalReceived >= totalAmount - 0.01)
+  const paymentDone =
+    !!profileData?.serviceAgreement?.is_activated && isFullyPaid
+  const consultScheduledAt = (profileData?.onboarding?.onboarding as { consult_scheduled_at?: string | null })?.consult_scheduled_at
+  const preIntegrationScheduledAt = (profileData?.onboarding?.onboarding as { pre_integration_scheduled_at?: string | null })?.pre_integration_scheduled_at
+  const bothCallsScheduled = !!(consultScheduledAt && preIntegrationScheduledAt)
+  const medicalClearanceDone =
+    bothCallsScheduled &&
+    new Date(consultScheduledAt!) <= new Date() &&
+    new Date(preIntegrationScheduledAt!) <= new Date()
+  const labsDone = false
+  const travelDone = false
+  const readinessFactorsDoneCount = [formsDone, paymentDone, medicalClearanceDone, labsDone, travelDone].filter(Boolean).length
+  const readinessScore = Math.round((readinessFactorsDoneCount / 5) * 100)
   const lastUpdatedAt =
     patient?.updated_at || profileData?.intakeForm?.updated_at || profileData?.partialForm?.updated_at
   const lastUpdatedLabel = lastUpdatedAt
@@ -1782,6 +1936,39 @@ export default function PatientProfilePage() {
                   Add task
                 </Button>
               </div>
+            </div>
+
+            {/* Documents list */}
+            <div className="flex flex-col gap-2.5">
+              <p className="text-xs text-[#777777]">Documents</p>
+              {sidebarDocumentList.length > 0 ? (
+                <div className="rounded-[10px] border border-[#D6D2C8] bg-[#F5F4F0] max-h-[220px] overflow-y-auto">
+                  <ul className="p-2.5 space-y-1.5">
+                    {sidebarDocumentList.map((doc) => (
+                      <li key={doc.id} className="flex items-center justify-between gap-2 text-xs text-[#2B2820] border-b border-[#D6D2C8]/50 last:border-0 pb-1.5 last:pb-0">
+                        <div className="min-w-0 flex-1 flex items-center gap-2">
+                          <FileText className="h-3.5 w-3.5 shrink-0 text-[#6E7A46]" />
+                          <span className="truncate">{doc.label}</span>
+                          {doc.date && <span className="text-[#777777] shrink-0">{doc.date}</span>}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs text-[#6E7A46] hover:bg-[#6E7A46]/10 shrink-0"
+                          disabled={openingSidebarDoc === doc.id}
+                          onClick={() => openSidebarDocument(doc)}
+                        >
+                          {openingSidebarDoc === doc.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'View'}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="rounded-[10px] border border-[#D6D2C8] bg-[#F5F4F0] p-3.5 text-xs text-[#777777]">
+                  No documents yet
+                </div>
+              )}
             </div>
           </div>
         </aside>
@@ -4216,6 +4403,56 @@ export default function PatientProfilePage() {
                   </div>
                 ) : (
                   <IbogaineConsentFormView form={viewFormData} />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generic document viewer (e.g. EKG, bloodwork from sidebar) – popup with iframe + download */}
+      {viewingForm === 'document' && viewFormData?.type === 'uploaded_document' && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            <div className="relative w-full max-w-6xl bg-white rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+                <h2 className="text-xl font-semibold text-gray-900">{viewFormData.document_name || 'Document'}</h2>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const link = document.createElement('a')
+                      link.href = viewFormData.document_url
+                      link.download = viewFormData.document_name || 'document'
+                      link.click()
+                    }}
+                    className="gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setViewingForm(null)
+                      setViewFormData(null)
+                    }}
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Close
+                  </Button>
+                </div>
+              </div>
+              <div className="p-6">
+                {viewFormData.document_url && (
+                  <iframe
+                    src={viewFormData.document_url}
+                    className="w-full h-[600px] border border-gray-200 rounded-lg"
+                    title={viewFormData.document_name || 'Document'}
+                  />
                 )}
               </div>
             </div>

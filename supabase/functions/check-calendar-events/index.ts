@@ -231,39 +231,60 @@ serve(async (req) => {
 
     console.log('[check-calendar-events] Request:', { getAllEvents, syncOnboardingConsults, email: email ? '***' : undefined })
 
-    // ----- syncOnboardingConsults: match calendar attendees to patient_onboarding and set consult_scheduled_at -----
-    // Check 2 calendars: contactus and Clinical Director (both can have booked consults)
+    // ----- syncOnboardingConsults: match calendar attendees to patient_onboarding (consult_scheduled_at from Daisy/Contactus, pre_integration_scheduled_at from Ray) -----
     if (syncOnboardingConsults === true || String(syncOnboardingConsults) === 'true') {
       const contactusEmail = Deno.env.get('CONTACTUS_CALENDAR_EMAIL') || 'contactus@theibogainstitute.org'
       const daisyEmail = Deno.env.get('CONSULT_CALENDAR_EMAIL') || 'daisy@theibogainstitute.org'
-      const calendarEmailsToCheck = [contactusEmail, daisyEmail]
+      const rayEmail = Deno.env.get('PRE_INTEGRATION_CALENDAR_EMAIL') || 'ray@theibogainstitute.org'
+      const consultCalendarEmails = [contactusEmail, daisyEmail]
+      const rayCalendarEmail = rayEmail
 
-      const allAttendeeEmails = new Set<string>()
-      const emailToEventStartIso = new Map<string, string>()
+      const consultAttendeeEmails = new Set<string>()
+      const consultEmailToEventStartIso = new Map<string, string>()
+      const rayAttendeeEmails = new Set<string>()
+      const rayEmailToEventStartIso = new Map<string, string>()
       let totalEvents = 0
 
-      function mergeAttendeesWithStarts(emails: string[], emailToStart: Map<string, string>) {
-        emails.forEach((e) => allAttendeeEmails.add(e))
+      function mergeConsultAttendees(emails: string[], emailToStart: Map<string, string>) {
+        emails.forEach((e) => consultAttendeeEmails.add(e))
         emailToStart.forEach((startIso, email) => {
-          const existing = emailToEventStartIso.get(email)
-          if (!existing || startIso < existing) emailToEventStartIso.set(email, startIso)
+          const existing = consultEmailToEventStartIso.get(email)
+          if (!existing || startIso < existing) consultEmailToEventStartIso.set(email, startIso)
+        })
+      }
+      function mergeRayAttendees(emails: string[], emailToStart: Map<string, string>) {
+        emails.forEach((e) => rayAttendeeEmails.add(e))
+        emailToStart.forEach((startIso, email) => {
+          const existing = rayEmailToEventStartIso.get(email)
+          if (!existing || startIso < existing) rayEmailToEventStartIso.set(email, startIso)
         })
       }
 
       const nowIso = new Date().toISOString()
       if (isServiceAccountConfigured()) {
-        for (const calendarOwnerEmail of calendarEmailsToCheck) {
+        for (const calendarOwnerEmail of consultCalendarEmails) {
           try {
             const accessToken = await getAccessTokenForCalendarUser(calendarOwnerEmail)
             const events = await getAllCalendarEvents(accessToken, nowIso, undefined, 'primary')
             const futureEvents = filterFutureNonCancelledEvents(events)
             totalEvents += futureEvents.length
             const { emails, emailToStartIso } = getAttendeeEmailsWithEventStarts(futureEvents, calendarOwnerEmail)
-            mergeAttendeesWithStarts(emails, emailToStartIso)
-            console.log('[check-calendar-events] Calendar', calendarOwnerEmail, 'futureEvents=', futureEvents.length, 'attendees=', emails.length)
+            mergeConsultAttendees(emails, emailToStartIso)
+            console.log('[check-calendar-events] Consult calendar', calendarOwnerEmail, 'futureEvents=', futureEvents.length, 'attendees=', emails.length)
           } catch (err) {
             console.error('[check-calendar-events] Failed to fetch calendar for', calendarOwnerEmail, err)
           }
+        }
+        try {
+          const accessToken = await getAccessTokenForCalendarUser(rayCalendarEmail)
+          const events = await getAllCalendarEvents(accessToken, nowIso, undefined, 'primary')
+          const futureEvents = filterFutureNonCancelledEvents(events)
+          totalEvents += futureEvents.length
+          const { emails, emailToStartIso } = getAttendeeEmailsWithEventStarts(futureEvents, rayCalendarEmail)
+          mergeRayAttendees(emails, emailToStartIso)
+          console.log('[check-calendar-events] Ray calendar', rayCalendarEmail, 'futureEvents=', futureEvents.length, 'attendees=', emails.length)
+        } catch (err) {
+          console.error('[check-calendar-events] Failed to fetch Ray calendar for', rayCalendarEmail, err)
         }
       } else {
         const accessToken = await getAccessToken()
@@ -271,18 +292,13 @@ serve(async (req) => {
         const futureEvents = filterFutureNonCancelledEvents(events)
         totalEvents = futureEvents.length
         const { emails, emailToStartIso } = getAttendeeEmailsWithEventStarts(futureEvents, contactusEmail)
-        mergeAttendeesWithStarts(emails, emailToStartIso)
+        mergeConsultAttendees(emails, emailToStartIso)
         console.log('[check-calendar-events] Single calendar (refresh token) futureEvents=', futureEvents.length)
       }
 
-      const attendeeEmails = Array.from(allAttendeeEmails)
-      const attendeeNormalizedSet = new Set(attendeeEmails.map((e) => e.trim().toLowerCase()).filter(Boolean))
-      const maskedEmails = attendeeEmails.map((e) => {
-        const [local, domain] = e.split('@')
-        const mask = local.length <= 2 ? '**' : local.slice(0, 2) + '***'
-        return `${mask}@${domain || ''}`
-      })
-      console.log('[check-calendar-events] Sync consults: totalEvents=', totalEvents, 'attendeeEmails=', attendeeEmails.length, 'masked=', maskedEmails.join(', '))
+      const consultAttendeeNormalizedSet = new Set(Array.from(consultAttendeeEmails).map((e) => e.trim().toLowerCase()).filter(Boolean))
+      const rayAttendeeNormalizedSet = new Set(Array.from(rayAttendeeEmails).map((e) => e.trim().toLowerCase()).filter(Boolean))
+      console.log('[check-calendar-events] Sync: totalEvents=', totalEvents, 'consultAttendees=', consultAttendeeEmails.size, 'rayAttendees=', rayAttendeeEmails.size)
 
       const supabaseUrl = Deno.env.get('SUPABASE_URL')
       const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -293,83 +309,104 @@ serve(async (req) => {
         )
       }
       const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
       const fallbackNow = new Date().toISOString()
-      let updatedCount = 0
-      let clearedCount = 0
+      let updatedConsultCount = 0
+      let clearedConsultCount = 0
+      let updatedRayCount = 0
+      let clearedRayCount = 0
       const matchReasons: string[] = []
 
-      // Fetch all onboarding rows that are eligible for consult_scheduled_at (null and in_progress/completed)
-      const { data: eligibleRows, error: fetchError } = await supabase
+      // --- Consult (Daisy/Contactus) -> consult_scheduled_at ---
+      const { data: eligibleConsultRows, error: fetchConsultError } = await supabase
         .from('patient_onboarding')
-        .select('id, email, status, consult_scheduled_at')
+        .select('id, email, consult_scheduled_at')
         .is('consult_scheduled_at', null)
         .in('status', ['in_progress', 'completed'])
 
-      if (fetchError) {
-        console.error('[check-calendar-events] Failed to fetch eligible onboarding rows:', fetchError)
-        return new Response(
-          JSON.stringify({ success: false, error: fetchError.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      const updates: { id: string; consult_scheduled_at: string }[] = []
-      for (const row of eligibleRows || []) {
-        const normalized = (row.email ?? '').trim().toLowerCase()
-        if (normalized && attendeeNormalizedSet.has(normalized)) {
-          const eventStartIso = emailToEventStartIso.get(normalized) ?? fallbackNow
-          updates.push({ id: row.id, consult_scheduled_at: eventStartIso })
+      if (!fetchConsultError && eligibleConsultRows?.length) {
+        for (const row of eligibleConsultRows) {
+          const normalized = (row.email ?? '').trim().toLowerCase()
+          if (normalized && consultAttendeeNormalizedSet.has(normalized)) {
+            const eventStartIso = consultEmailToEventStartIso.get(normalized) ?? fallbackNow
+            const { error: updateError } = await supabase
+              .from('patient_onboarding')
+              .update({ consult_scheduled_at: eventStartIso })
+              .eq('id', row.id)
+            if (!updateError) updatedConsultCount += 1
+          }
         }
       }
-
-      for (const { id, consult_scheduled_at } of updates) {
-        const { error: updateError } = await supabase
-          .from('patient_onboarding')
-          .update({ consult_scheduled_at })
-          .eq('id', id)
-
-        if (updateError) {
-          console.error('[check-calendar-events] Update error for id', id, updateError)
-          matchReasons.push(`update failed for id ${id}: ${updateError.message}`)
-        } else {
-          updatedCount += 1
-        }
-      }
-      if (updatedCount > 0) {
-        console.log('[check-calendar-events] Marked consult_scheduled_at for', updatedCount, 'rows (using event start times)')
-      }
-
-      // Clear consult_scheduled_at for rows that have it set but no longer have a future consult (cancelled/removed)
-      const { data: rowsWithScheduled, error: fetchScheduledError } = await supabase
+      const { data: rowsWithConsultScheduled } = await supabase
         .from('patient_onboarding')
         .select('id, email')
         .not('consult_scheduled_at', 'is', null)
         .in('status', ['in_progress', 'completed'])
-
-      if (!fetchScheduledError && rowsWithScheduled?.length) {
-        for (const row of rowsWithScheduled) {
+      if (rowsWithConsultScheduled?.length) {
+        for (const row of rowsWithConsultScheduled) {
           const normalized = (row.email ?? '').trim().toLowerCase()
-          if (normalized && !attendeeNormalizedSet.has(normalized)) {
+          if (normalized && !consultAttendeeNormalizedSet.has(normalized)) {
             const { error: clearError } = await supabase
               .from('patient_onboarding')
               .update({ consult_scheduled_at: null })
               .eq('id', row.id)
-            if (clearError) {
-              console.error('[check-calendar-events] Clear consult_scheduled_at error for id', row.id, clearError)
-            } else {
-              clearedCount += 1
-            }
+            if (!clearError) clearedConsultCount += 1
           }
-        }
-        if (clearedCount > 0) {
-          console.log('[check-calendar-events] Cleared consult_scheduled_at for', clearedCount, 'rows (no future consult)')
         }
       }
 
-      if (attendeeEmails.length > 0 && updatedCount === 0 && updates.length === 0) {
+      // --- Ray (pre-integration) -> pre_integration_scheduled_at ---
+      // Include moved_to_management so clients who booked Ray after moving still get the date set
+      const { data: eligibleRayRows, error: fetchRayError } = await supabase
+        .from('patient_onboarding')
+        .select('id, email, pre_integration_scheduled_at')
+        .is('pre_integration_scheduled_at', null)
+        .in('status', ['in_progress', 'completed', 'moved_to_management'])
+
+      if (!fetchRayError && eligibleRayRows?.length) {
+        for (const row of eligibleRayRows) {
+          const normalized = (row.email ?? '').trim().toLowerCase()
+          if (normalized && rayAttendeeNormalizedSet.has(normalized)) {
+            const eventStartIso = rayEmailToEventStartIso.get(normalized) ?? fallbackNow
+            const { error: updateError } = await supabase
+              .from('patient_onboarding')
+              .update({ pre_integration_scheduled_at: eventStartIso })
+              .eq('id', row.id)
+            if (!updateError) updatedRayCount += 1
+          }
+        }
+      }
+      const { data: rowsWithRayScheduled } = await supabase
+        .from('patient_onboarding')
+        .select('id, email')
+        .not('pre_integration_scheduled_at', 'is', null)
+        .in('status', ['in_progress', 'completed', 'moved_to_management'])
+      if (rowsWithRayScheduled?.length) {
+        for (const row of rowsWithRayScheduled) {
+          const normalized = (row.email ?? '').trim().toLowerCase()
+          if (normalized && !rayAttendeeNormalizedSet.has(normalized)) {
+            const { error: clearError } = await supabase
+              .from('patient_onboarding')
+              .update({ pre_integration_scheduled_at: null })
+              .eq('id', row.id)
+            if (!clearError) clearedRayCount += 1
+          }
+        }
+      }
+
+      if (updatedConsultCount > 0 || updatedRayCount > 0) {
+        console.log('[check-calendar-events] consult_scheduled_at:', updatedConsultCount, 'updated,', clearedConsultCount, 'cleared; pre_integration_scheduled_at:', updatedRayCount, 'updated,', clearedRayCount, 'cleared')
+      }
+
+      const rayAttendeesCount = rayAttendeeEmails.size
+      const eligibleRayRowCount = eligibleRayRows?.length ?? 0
+      if (rayAttendeesCount > 0 && updatedRayCount === 0 && eligibleRayRowCount > 0) {
         matchReasons.push(
-          `No onboarding row matched any of ${attendeeEmails.length} calendar attendee(s). Check that patient_onboarding.email matches the email used to book (trim/lower).`
+          'Ray calendar had ' + rayAttendeesCount + ' attendee(s) but no onboarding row matched. Ensure patient_onboarding.email (for status in_progress/completed) exactly matches the email used to book the pre-integration session with Ray (case and spaces do not matter).'
+        )
+      }
+      if (rayAttendeesCount > 0 && updatedRayCount === 0 && eligibleRayRowCount === 0) {
+        matchReasons.push(
+          'Ray calendar had ' + rayAttendeesCount + ' attendee(s) but no onboarding row (in_progress, completed, or moved_to_management) with pre_integration_scheduled_at empty. Add the client to onboarding or check status.'
         )
       }
 
@@ -378,11 +415,16 @@ serve(async (req) => {
           success: true,
           data: {
             syncOnboardingConsults: true,
-            calendarsChecked: calendarEmailsToCheck.length,
+            calendarsChecked: consultCalendarEmails.length + 1,
             eventsCount: totalEvents,
-            attendeeEmailsCount: attendeeEmails.length,
-            updatedOnboardingCount: updatedCount,
-            clearedOnboardingCount: clearedCount,
+            consultUpdatedCount: updatedConsultCount,
+            consultClearedCount: clearedConsultCount,
+            rayAttendeesCount,
+            rayUpdatedCount: updatedRayCount,
+            rayClearedCount: clearedRayCount,
+            eligibleRayRowCount,
+            updatedOnboardingCount: updatedConsultCount + updatedRayCount,
+            clearedOnboardingCount: clearedConsultCount + clearedRayCount,
             matchReasons: matchReasons.length ? matchReasons : undefined,
           },
         }),
@@ -390,18 +432,18 @@ serve(async (req) => {
       )
     }
 
-    // ----- getAllEvents: optionally use contactus or Clinical Director calendar (for consult-scheduling page dropdown) -----
+    // ----- getAllEvents: optionally use contactus, Clinical Director (Daisy), or Ray calendar (for consult-scheduling page dropdown) -----
     const useConsultCalendar = (requestBody as { useConsultCalendar?: boolean }).useConsultCalendar === true
-    const calendarUser = (requestBody as { calendarUser?: string }).calendarUser as 'contactus' | 'daisy' | undefined
+    const calendarUser = (requestBody as { calendarUser?: string }).calendarUser as 'contactus' | 'daisy' | 'ray' | undefined
     if (getAllEvents === true || String(getAllEvents) === 'true') {
       let accessToken: string
       if (useConsultCalendar && isServiceAccountConfigured()) {
-        const which = calendarUser === 'contactus' ? 'contactus' : 'daisy'
         const contactusEmail = Deno.env.get('CONTACTUS_CALENDAR_EMAIL') || 'contactus@theibogainstitute.org'
         const daisyEmail = Deno.env.get('CONSULT_CALENDAR_EMAIL') || 'daisy@theibogainstitute.org'
-        const calendarOwnerEmail = which === 'contactus' ? contactusEmail : daisyEmail
+        const rayEmail = Deno.env.get('PRE_INTEGRATION_CALENDAR_EMAIL') || 'ray@theibogainstitute.org'
+        const calendarOwnerEmail = calendarUser === 'contactus' ? contactusEmail : calendarUser === 'ray' ? rayEmail : daisyEmail
         accessToken = await getAccessTokenForCalendarUser(calendarOwnerEmail)
-        console.log('[check-calendar-events] Getting all events from calendar:', which, calendarOwnerEmail)
+        console.log('[check-calendar-events] Getting all events from calendar:', calendarUser ?? 'daisy', calendarOwnerEmail)
       } else {
         accessToken = await getAccessToken()
         console.log('[check-calendar-events] Getting all calendar events (primary)')
