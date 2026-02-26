@@ -22,7 +22,7 @@ import {
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { useUser } from '@/hooks/use-user.hook'
-import { hasOwnerAccess } from '@/lib/utils'
+import { hasStaffAccess } from '@/lib/utils'
 
 interface PatientManagementRecord {
   id: string
@@ -49,7 +49,7 @@ interface PatientManagementRecord {
 export default function PatientManagementPage() {
   const router = useRouter()
   const { profile } = useUser()
-  const canViewPatientProfile = hasOwnerAccess(profile?.role)
+  const canViewPatientProfile = hasStaffAccess(profile?.role)
   const [patients, setPatients] = useState<PatientManagementRecord[]>([])
   const [counts, setCounts] = useState<{ present: number; arriving_soon: number; discharged: number; all: number } | null>(null)
   const [isLoading, setIsLoading] = useState(true)

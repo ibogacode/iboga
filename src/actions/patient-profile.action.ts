@@ -163,6 +163,32 @@ export const getPatientProfile = authActionClient
       }
     }
 
+    // If we have patient data but still no intake form, fetch by email (so notes with lead_id = intake_form_id are always loaded on profile)
+    if (patientData?.email && !intakeForm) {
+      const { data: intakeFormsByEmail } = await adminClient
+        .from('patient_intake_forms')
+        .select('*')
+        .ilike('email', patientData.email)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (intakeFormsByEmail && intakeFormsByEmail.length > 0) {
+        intakeForm = intakeFormsByEmail[0]
+      }
+    }
+
+    // If we have patient data but no partial form yet, try to get partial form by email (so notes saved under partial form id are loaded when viewing by patient id)
+    if (patientData?.email && !partialForm) {
+      const { data: partialsByEmail } = await adminClient
+        .from('partial_intake_forms')
+        .select('*')
+        .ilike('email', patientData.email)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (partialsByEmail && partialsByEmail.length > 0) {
+        partialForm = partialsByEmail[0]
+      }
+    }
+
     // If we still don't have patient data but have intake form, create a basic patient object
     if (!patientData && intakeForm) {
       console.log('[getPatientProfile] Creating patient object from intake form')
