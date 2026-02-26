@@ -84,9 +84,7 @@ export const addLeadNote = authActionClient
       return { success: false, error: error.message }
     }
 
-    const createdByName = ctx.user.first_name && ctx.user.last_name
-      ? `${ctx.user.first_name} ${ctx.user.last_name}`.trim()
-      : ctx.user.email ?? null
+    const createdByName = ctx.user.email ?? null
 
     return {
       success: true,
