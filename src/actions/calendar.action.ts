@@ -54,10 +54,10 @@ export const checkCalendarBooking = actionClient
     }
   })
 
-// Get all calendar events for consult scheduling (optionally by calendar: contactus or clinical director)
+// Get all calendar events for consult scheduling (optionally by calendar: contactus, clinical director, or Ray)
 export const getAllCalendarEvents = actionClient
   .schema(z.object({
-    calendarUser: z.enum(['contactus', 'daisy']).optional(),
+    calendarUser: z.enum(['contactus', 'daisy', 'ray']).optional(),
   }))
   .action(async ({ parsedInput }) => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -138,8 +138,12 @@ export const syncOnboardingConsultsFromCalendar = authActionClient
         success: true,
         data: result.data as {
           eventsCount: number
-          attendeeEmailsCount: number
+          consultUpdatedCount?: number
+          rayUpdatedCount?: number
+          rayAttendeesCount?: number
+          eligibleRayRowCount?: number
           updatedOnboardingCount: number
+          matchReasons?: string[]
         },
       }
     } catch (error) {

@@ -30,7 +30,7 @@ interface CalendarEvent {
 }
 
 
-type CalendarUser = 'contactus' | 'daisy'
+type CalendarUser = 'contactus' | 'daisy' | 'ray'
 
 export default function ConsultSchedulingPage() {
   const [isLoading, setIsLoading] = useState(true)
@@ -302,6 +302,7 @@ export default function ConsultSchedulingPage() {
                 <SelectContent>
                   <SelectItem value="contactus">Contactus</SelectItem>
                   <SelectItem value="daisy">Clinical Director</SelectItem>
+                  <SelectItem value="ray">Pre-Integration (Ray)</SelectItem>
                 </SelectContent>
               </Select>
               {isAdmin && (
@@ -315,10 +316,21 @@ export default function ConsultSchedulingPage() {
                     try {
                       const result = await syncOnboardingConsultsFromCalendar({})
                       if (result?.data?.success && result.data.data) {
-                        const d = result.data.data as { updatedOnboardingCount?: number; eventsCount?: number; attendeeEmailsCount?: number }
-                        toast.success(
-                          `Sync done. Updated ${d.updatedOnboardingCount ?? 0} onboarding row(s). Events: ${d.eventsCount ?? 0}, Attendees: ${d.attendeeEmailsCount ?? 0}.`
-                        )
+                        const d = result.data.data as {
+                          updatedOnboardingCount?: number
+                          eventsCount?: number
+                          consultUpdatedCount?: number
+                          rayUpdatedCount?: number
+                          rayAttendeesCount?: number
+                          matchReasons?: string[]
+                        }
+                        const msg = d.consultUpdatedCount != null || d.rayUpdatedCount != null
+                          ? `Sync done. Consult: ${d.consultUpdatedCount ?? 0} updated. Pre-integration (Ray): ${d.rayUpdatedCount ?? 0} updated. Events: ${d.eventsCount ?? 0}.`
+                          : `Sync done. Updated ${d.updatedOnboardingCount ?? 0} onboarding row(s). Events: ${d.eventsCount ?? 0}.`
+                        toast.success(msg)
+                        if (d.matchReasons?.length) {
+                          d.matchReasons.forEach((reason) => toast.info(reason, { duration: 8000 }))
+                        }
                       } else {
                         toast.error(result?.data?.error ?? 'Sync failed')
                       }

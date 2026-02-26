@@ -369,6 +369,28 @@ export const getPatientProfile = authActionClient
       }
     }
 
+    // Also check by intake form id: partial forms that completed this intake may have uploaded documents
+    if (intakeForm?.id) {
+      const { data: partialsForIntake } = await adminClient
+        .from('partial_intake_forms')
+        .select('id')
+        .eq('completed_form_id', intakeForm.id)
+
+      if (partialsForIntake && partialsForIntake.length > 0) {
+        const partialIds = partialsForIntake.map(p => p.id)
+        const { data: docsByIntake } = await adminClient
+          .from('existing_patient_documents')
+          .select('*')
+          .in('partial_intake_form_id', partialIds)
+
+        if (docsByIntake && docsByIntake.length > 0) {
+          const existingIds = new Set(existingPatientDocuments.map((d: { id: string }) => d.id))
+          const toAdd = docsByIntake.filter((d: { id: string }) => !existingIds.has(d.id))
+          existingPatientDocuments = [...existingPatientDocuments, ...toAdd]
+        }
+      }
+    }
+
     // Get onboarding data if patient has patient_id or email
     let onboardingData: any = null
     if (patientId) {
