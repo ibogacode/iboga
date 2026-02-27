@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { authActionClient } from '@/lib/safe-action'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
@@ -1074,4 +1075,147 @@ export const activateIbogaineConsent = authActionClient
     }
 
     return { success: true, data }
+  })
+
+// =============================================================================
+// Delete client (owner/admin only): remove from onboarding, management, profile,
+// consent, medical history, partial/intake forms, and auth. Verifies no records remain.
+// =============================================================================
+const deleteClientSchema = z.object({
+  patientId: z.string().uuid(),
+})
+
+export const deleteClient = authActionClient
+  .schema(deleteClientSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const supabase = await createClient()
+    const admin = createAdminClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Unauthorized' }
+
+    const { data: callerProfile } = await admin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    if (!callerProfile || !hasOwnerAccess(callerProfile.role)) {
+      return { success: false, error: 'Only owner or admin can delete a client' }
+    }
+
+    const patientId = parsedInput.patientId
+
+    const { data: patientProfile, error: profileErr } = await admin
+      .from('profiles')
+      .select('id, role, email')
+      .eq('id', patientId)
+      .single()
+    if (profileErr || !patientProfile) {
+      return { success: false, error: 'Client profile not found' }
+    }
+    if (patientProfile.role !== 'patient') {
+      return { success: false, error: 'Can only delete client (patient) profiles' }
+    }
+    const clientEmail = (patientProfile.email ?? '').trim().toLowerCase()
+
+    const intakeFormIds: string[] = []
+    const partialFormIds: string[] = []
+
+    const { data: onboardings } = await admin
+      .from('patient_onboarding')
+      .select('id, intake_form_id, partial_intake_form_id')
+      .eq('patient_id', patientId)
+    if (onboardings) {
+      onboardings.forEach((o) => {
+        if (o.intake_form_id) intakeFormIds.push(o.intake_form_id)
+        if (o.partial_intake_form_id) partialFormIds.push(o.partial_intake_form_id)
+      })
+    }
+
+    const deleteSteps: Array<{ table: string; fn: () => Promise<{ error: unknown } | null> }> = [
+      { table: 'user_notifications', fn: async () => { const r = await admin.from('user_notifications').delete().eq('user_id', patientId); return r.error ? { error: r.error } : null } },
+      { table: 'lead_note_entries', fn: async () => { const r = await admin.from('lead_note_entries').delete().eq('lead_id', patientId); return r.error ? { error: r.error } : null } },
+      { table: 'lead_tasks', fn: async () => { const r = await admin.from('lead_tasks').delete().eq('lead_id', patientId); return r.error ? { error: r.error } : null } },
+      { table: 'patient_billing_payments', fn: async () => { const r = await admin.from('patient_billing_payments').delete().eq('patient_id', patientId); return r.error ? { error: r.error } : null } },
+      { table: 'tapering_schedules', fn: async () => { const r = await admin.from('tapering_schedules').delete().eq('patient_id', patientId); return r.error ? { error: r.error } : null } },
+      { table: 'patient_management_medical_intake_reports', fn: async () => { const r = await admin.from('patient_management_medical_intake_reports').delete().eq('patient_id', patientId); return r.error ? { error: r.error } : null } },
+      { table: 'patient_management', fn: async () => { const r = await admin.from('patient_management').delete().eq('patient_id', patientId); return r.error ? { error: r.error } : null } },
+      { table: 'patient_onboarding', fn: async () => { const r = await admin.from('patient_onboarding').delete().eq('patient_id', patientId); return r.error ? { error: r.error } : null } },
+    ]
+
+    for (const step of deleteSteps) {
+      const result = await step.fn()
+      if (result?.error) {
+        return { success: false, error: `Failed to delete from ${step.table}: ${String((result.error as Error).message)}` }
+      }
+    }
+
+    if (intakeFormIds.length > 0) {
+      const { error: mhErr } = await admin.from('medical_history_forms').delete().in('intake_form_id', intakeFormIds)
+      if (mhErr) return { success: false, error: `Failed to delete medical_history_forms: ${mhErr.message}` }
+    }
+
+    const { error: icErr } = await admin.from('ibogaine_consent_forms').delete().eq('patient_id', patientId)
+    if (icErr) return { success: false, error: `Failed to delete ibogaine_consent_forms: ${icErr.message}` }
+
+    const { error: saErr } = await admin.from('service_agreements').delete().eq('patient_id', patientId)
+    if (saErr) return { success: false, error: `Failed to delete service_agreements: ${saErr.message}` }
+
+    // Delete existing_patient_documents and partial_intake_forms BEFORE patient_intake_forms
+    // (partial_intake_forms.completed_form_id references patient_intake_forms)
+    if (partialFormIds.length > 0) {
+      const { error: docErr } = await admin.from('existing_patient_documents').delete().in('partial_intake_form_id', partialFormIds)
+      if (docErr) return { success: false, error: `Failed to delete existing_patient_documents: ${docErr.message}` }
+    }
+    const { error: docByUserErr } = await admin.from('existing_patient_documents').delete().eq('uploaded_by', patientId)
+    if (docByUserErr) return { success: false, error: `Failed to delete existing_patient_documents (by uploader): ${docByUserErr.message}` }
+
+    if (partialFormIds.length > 0) {
+      const { error: partialErr } = await admin.from('partial_intake_forms').delete().in('id', partialFormIds)
+      if (partialErr) return { success: false, error: `Failed to delete partial_intake_forms: ${partialErr.message}` }
+    }
+    const { error: partialByCreatorErr } = await admin.from('partial_intake_forms').delete().eq('created_by', patientId)
+    if (partialByCreatorErr) return { success: false, error: `Failed to delete partial_intake_forms (by creator): ${partialByCreatorErr.message}` }
+    if (clientEmail) {
+      const { data: partialByEmail } = await admin.from('partial_intake_forms').select('id').ilike('recipient_email', clientEmail)
+      if (partialByEmail?.length) {
+        const ids = partialByEmail.map((r) => r.id)
+        const { error: partialEmailErr } = await admin.from('partial_intake_forms').delete().in('id', ids)
+        if (partialEmailErr) return { success: false, error: `Failed to delete partial_intake_forms (by email): ${partialEmailErr.message}` }
+      }
+    }
+
+    if (intakeFormIds.length > 0) {
+      const { error: intakeErr } = await admin.from('patient_intake_forms').delete().in('id', intakeFormIds)
+      if (intakeErr) return { success: false, error: `Failed to delete patient_intake_forms: ${intakeErr.message}` }
+    }
+
+    try {
+      const { data: avatarFiles } = await admin.storage.from('avatars').list(patientId)
+      if (avatarFiles?.length) {
+        const paths = avatarFiles.map((f) => `${patientId}/${f.name}`)
+        await admin.storage.from('avatars').remove(paths)
+      }
+    } catch {
+      // ignore storage errors (bucket may not exist or no files)
+    }
+
+    const { error: profileDelErr } = await admin.from('profiles').delete().eq('id', patientId)
+    if (profileDelErr) return { success: false, error: `Failed to delete profile: ${profileDelErr.message}` }
+
+    const { error: authErr } = await admin.auth.admin.deleteUser(patientId)
+    if (authErr) return { success: false, error: `Failed to delete auth user: ${authErr.message}` }
+
+    const { data: profileCheck } = await admin.from('profiles').select('id').eq('id', patientId).maybeSingle()
+    if (profileCheck) {
+      return { success: false, error: 'Verification failed: profile still exists after delete' }
+    }
+    const { data: authUser } = await admin.auth.admin.getUserById(patientId)
+    if (authUser?.user) {
+      return { success: false, error: 'Verification failed: auth user still exists after delete' }
+    }
+
+    revalidatePath('/patient-pipeline')
+    revalidatePath('/onboarding')
+    return { success: true, message: 'Client and all related records deleted. No remaining records found.' }
   })

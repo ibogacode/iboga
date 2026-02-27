@@ -1,64 +1,76 @@
-import { MarketingStatCard } from '@/components/marketing/marketing-stat-card'
-import { ConversionOutcomesTable } from '@/components/research/conversion-outcomes-table'
-import { TreatmentOutcomeCard } from '@/components/research/treatment-outcome-card'
-import { ReportGeneratorCard } from '@/components/research/report-generator-card'
+'use client'
 
-export const metadata = {
-  title: 'Research',
-}
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useResearchFilters } from '@/hooks/research/useResearchFilters'
+import { ResearchHeader } from '@/components/research/ResearchHeader'
+import { OverviewTab } from '@/components/research/overview/OverviewTab'
+import { WithdrawalTab } from '@/components/research/withdrawal/WithdrawalTab'
+import { ParkinsonsTab } from '@/components/research/parkinsons/ParkinsonsTab'
+import { DosingTab } from '@/components/research/dosing/DosingTab'
+import { OperationalTab } from '@/components/research/operational/OperationalTab'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
 
 export default function ResearchPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { state, setParams, tabs } = useResearchFilters()
+
+  function handleTabChange(value: string) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', value)
+    router.push(`/research?${params.toString()}`, { scroll: false })
+  }
+
+  function handleExport() {
+    // TODO: Export current tab data as CSV
+  }
+
   return (
-    <div className="space-y-4 sm:space-y-6 md:space-y-[25px] pt-4 sm:pt-6 md:pt-[30px] px-4 sm:px-6 md:px-[25px]">
-      {/* Header Section */}
-      <div className="space-y-1 sm:space-y-2">
-        <h1 className="text-2xl sm:text-3xl md:text-[40px] font-normal leading-[1.3em] text-black" style={{ fontFamily: 'var(--font-instrument-serif), serif' }}>
-          Research Overview
+    <div className="p-4 sm:p-6">
+      <div className="mb-6 sm:mb-8">
+        <h1
+          style={{
+            fontFamily: 'var(--font-instrument-serif), serif',
+            fontSize: '44px',
+            fontWeight: 400,
+            color: 'black',
+            wordWrap: 'break-word',
+          }}
+          className="text-2xl sm:text-3xl md:text-[44px]"
+        >
+          Research
         </h1>
-        <p className="text-sm sm:text-base font-normal leading-[1.48em] tracking-[-0.04em] text-black">
-          Treatment outcomes, conversion, and profitability by diagnosis.
+        <p className="mt-2 text-sm text-gray-600 sm:text-base md:text-lg">
+          Simple summaries of how many clients we serve and how programs are doing
         </p>
       </div>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 md:gap-[25px]">
-        <MarketingStatCard
-          title="Patients with Data"
-          value="234"
-          change=""
-          changeLabel="Across diagnoses"
-        />
-        <MarketingStatCard
-          title="Data Points Collected"
-          value="18.9K"
-          change=""
-          changeLabel="Daily Forms & Vitals"
-        />
-        <MarketingStatCard
-          title="Active Studies"
-          value="4"
-          change=""
-          changeLabel="Parkinson's • PTSD • Addiction"
-          changeLabelColor="#10B981"
-        />
-        <MarketingStatCard
-          title="Published Reports"
-          value="6"
-          change=""
-          changeLabel="Ready for sharing / SEO"
-        />
-      </div>
+      <ResearchHeader onExport={handleExport} />
 
-      {/* Conversion & Outcomes Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 md:gap-[25px]">
-        <ConversionOutcomesTable />
-        <TreatmentOutcomeCard />
-      </div>
+      <Tabs value={state.tab} onValueChange={handleTabChange} className="mt-6 w-full">
+        <TabsList className="mb-6 w-full justify-start overflow-x-auto border-b border-gray-200 bg-transparent p-0">
+          {tabs.map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className={cn(
+                'rounded-none border-b-2 border-transparent bg-transparent px-4 py-3 text-gray-600 data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent data-[state=active]:text-gray-900 data-[state=active]:shadow-none'
+              )}
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-      {/* Report Generator Section */}
-      <div>
-        <ReportGeneratorCard />
-      </div>
+        <div className="min-h-[400px]">
+          {state.tab === 'overview' && <OverviewTab />}
+          {state.tab === 'withdrawal' && <WithdrawalTab />}
+          {state.tab === 'parkinsons' && <ParkinsonsTab />}
+          {state.tab === 'dosing' && <DosingTab />}
+          {state.tab === 'operational' && <OperationalTab />}
+        </div>
+      </Tabs>
     </div>
   )
 }
