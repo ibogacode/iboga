@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById, activateServiceAgreement, activateIbogaineConsent, createServiceAgreementForPatient } from '@/actions/patient-profile.action'
+import { getPatientProfile, updatePatientDetails, getIntakeFormById, getMedicalHistoryFormById, getServiceAgreementById, getIbogaineConsentFormById, activateServiceAgreement, activateIbogaineConsent, createServiceAgreementForPatient, deleteClient } from '@/actions/patient-profile.action'
 import { createPartialIntakeForm } from '@/actions/partial-intake.action'
 import { sendFormEmail } from '@/actions/send-form-email.action'
 import { sendRequestLabsEmail } from '@/actions/email.action'
@@ -289,6 +289,8 @@ export default function PatientProfilePage() {
   const [loadingTaperingSchedule, setLoadingTaperingSchedule] = useState(false)
   const [clinicalDirectorConsultForm, setClinicalDirectorConsultForm] = useState<ClinicalDirectorConsultFormData | null>(null)
   const [loadingClinicalDirectorConsultForm, setLoadingClinicalDirectorConsultForm] = useState(false)
+  const [showDeleteClientConfirm, setShowDeleteClientConfirm] = useState(false)
+  const [isDeletingClient, setIsDeletingClient] = useState(false)
 
   const isAdminOrOwner = profile?.role === 'admin' || profile?.role === 'owner'
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'manager'
@@ -1427,6 +1429,55 @@ export default function PatientProfilePage() {
                       }}
                     >
                       Remove prospect status
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                disabled={isDeletingClient}
+                onClick={() => setShowDeleteClientConfirm(true)}
+              >
+                {isDeletingClient ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Delete client
+              </Button>
+              <AlertDialog open={showDeleteClientConfirm} onOpenChange={setShowDeleteClientConfirm}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this client permanently?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete the client and all related data: profile, onboarding, management, consent forms, medical history, intake and partial forms, and authentication. This cannot be undone. No records for this client will remain.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeletingClient}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-red-600 hover:bg-red-700"
+                      disabled={isDeletingClient}
+                      onClick={async (e) => {
+                        e.preventDefault()
+                        if (!patient?.id) return
+                        setIsDeletingClient(true)
+                        try {
+                          const result = await deleteClient({ patientId: patient.id })
+                          if (result?.data?.success) {
+                            toast.success(result.data.message ?? 'Client deleted.')
+                            setShowDeleteClientConfirm(false)
+                            router.push('/patient-pipeline')
+                          } else {
+                            toast.error(result?.data?.error ?? result?.serverError ?? 'Failed to delete client')
+                          }
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : 'Failed to delete client')
+                        } finally {
+                          setIsDeletingClient(false)
+                        }
+                      }}
+                    >
+                      {isDeletingClient ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      Delete permanently
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

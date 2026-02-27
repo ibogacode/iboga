@@ -4,23 +4,23 @@
  */
 export const INTAKE_FORM_TEST_DATA = {
   // Personal
-  email: 'kolliparavamsikrishna80@gmail.com',
-  first_name: 'Vamsi Krishna',
-  last_name: 'Kollipara',
-  phone_number: '(728) 806-8102',
-  phone_digits: '7288068102',
+  email: 'xx',
+  first_name: 'xx',
+  last_name: 'xxa',
+  phone_number: 'xx',
+  phone_digits: 'x',
   gender: 'male' as const,
 
   // Address
-  address_line_1: '1101 spruce st',
-  address_line_2: 'apt 101',
-  city: 'terre haute',
-  zip_code: '47807',
-  country: 'United States',
+  address_line_1: 'xx',
+  address_line_2: 'xx',
+  city: 'txx',
+  zip_code: 'xx',
+  country: 'xx',
 
   // Emergency contact
   emergency_contact_first_name: 'Vvaan',
   emergency_contact_last_name: 'Richards',
-  emergency_contact_phone: '(630) 334-2253',
-  emergency_contact_phone_digits: '6303342253',
+  emergency_contact_phone: 'xx',
+  emergency_contact_phone_digits: 'xx',
 } as const
