@@ -56,6 +56,8 @@ export default function DailyFormsPage() {
     loadData()
   }, [managementId])
 
+  const { startTour, isRunning } = useTour({ storageKey: 'hasSeenDailyFormsTour' })
+
   async function loadData() {
     setIsLoading(true)
     try {
@@ -126,8 +128,6 @@ export default function DailyFormsPage() {
   const oowsStatus = getFormStatus(oowsForms, selectedDate)
   
   const isAddictionProgram = management?.program_type === 'addiction'
-
-  const { startTour, isRunning } = useTour({ storageKey: 'hasSeenDailyFormsTour' })
 
   return (
     <div className="w-full">
