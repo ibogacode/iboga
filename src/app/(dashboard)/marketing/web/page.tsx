@@ -1,6 +1,10 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').trim()
+}
 import { fetchMetricoolMetrics } from '@/actions/metricool.action'
 import { WEB_METRICOOL_ENDPOINTS } from '@/config/metricool-urls'
 import { Button } from '@/components/ui/button'
@@ -587,7 +591,7 @@ export default function WebPage() {
                               </a>
                             )}
                             {post.excerpt && (
-                              <p className="text-sm text-gray-700 mt-2 line-clamp-2" dangerouslySetInnerHTML={{ __html: post.excerpt }} />
+                              <p className="text-sm text-gray-700 mt-2 line-clamp-2">{stripHtml(post.excerpt)}</p>
                             )}
                           </div>
                         </div>

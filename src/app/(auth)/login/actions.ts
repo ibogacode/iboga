@@ -49,8 +49,8 @@ export async function loginAction(formData: FormData) {
   const role = profile.role as UserRole
   const redirectTo = formData.get('redirectTo') as string | null
   
-  // Use redirectTo if provided, otherwise use role route
-  if (redirectTo) {
+  // Use redirectTo if provided, but only allow relative paths to prevent open redirect attacks
+  if (redirectTo && redirectTo.startsWith('/') && !redirectTo.startsWith('//')) {
     redirect(redirectTo)
   }
 

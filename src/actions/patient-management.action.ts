@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { authActionClient } from '@/lib/safe-action'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { ALLOWED_FORM_TABLES } from '@/types/patient-management.type'
 import {
   intakeReportSchema,
   medicalIntakeReportSchema,
@@ -60,7 +61,7 @@ export const getCurrentStaffMemberName = authActionClient
 // Get form edit history
 export const getFormEditHistory = authActionClient
   .schema(z.object({
-    formTable: z.string(),
+    formTable: z.enum(ALLOWED_FORM_TABLES),
     formId: z.string().uuid(),
   }))
   .action(async ({ parsedInput: { formTable, formId }, ctx }) => {
@@ -180,95 +181,22 @@ export const getPatientManagementByPatientId = authActionClient
   })
 
 /** Returns set of management_ids that have at least one daily or one-time form (so they are treated as "present" even if arrival_date is in the future). */
+// Replaced 8 per-table queries with a single DB-side UNION RPC (see migration
+// 20260302000001_add_management_list_performance_rpcs.sql)
 async function getManagementIdsWithForms(supabase: Awaited<ReturnType<typeof createClient>>): Promise<Set<string>> {
-  const tables = [
-    'patient_management_intake_reports',
-    'patient_management_medical_intake_reports',
-    'patient_management_parkinsons_psychological_reports',
-    'patient_management_parkinsons_mortality_scales',
-    'patient_management_daily_psychological_updates',
-    'patient_management_daily_medical_updates',
-    'patient_management_daily_sows',
-    'patient_management_daily_oows',
-  ] as const
-  const results = await Promise.all(
-    tables.map((table) => supabase.from(table).select('management_id').limit(5000))
-  )
-  const ids = new Set<string>()
-  for (const r of results) {
-    if (r.data) for (const row of r.data as { management_id: string }[]) if (row.management_id) ids.add(row.management_id)
-  }
-  return ids
+  const { data, error } = await supabase.rpc('get_management_ids_with_forms')
+  if (error || !data) return new Set()
+  return new Set((data as { management_id: string }[]).map((r) => r.management_id))
 }
 
-/** Returns the earliest form date (YYYY-MM-DD) per management_id from first submitted daily or one-time form. */
-function toDateStr(val: string | null | undefined): string | null {
-  if (!val) return null
-  const d = val.split('T')[0]
-  return d.length === 10 ? d : null
-}
-
+// Replaced 8 per-table queries with a single DB-side UNION + MIN RPC (see
+// migration 20260302000001_add_management_list_performance_rpcs.sql)
 async function getEarliestFormDateByManagementId(supabase: Awaited<ReturnType<typeof createClient>>): Promise<Map<string, string>> {
-  type QueryResult = { data: { management_id: string; date: string }[] | null }
-  const queries: Promise<QueryResult>[] = [
-    Promise.resolve(supabase.from('patient_management_intake_reports').select('management_id, completed_at, filled_at').limit(5000)).then((r) => ({
-      data: (r.data as { management_id: string; completed_at?: string; filled_at?: string }[] | null)?.map((row) => ({
-        management_id: row.management_id,
-        date: toDateStr(row.completed_at ?? row.filled_at) ?? '',
-      })).filter((x) => x.date) ?? null,
-    })),
-    Promise.resolve(supabase.from('patient_management_medical_intake_reports').select('management_id, completed_at, submitted_at').limit(5000)).then((r) => ({
-      data: (r.data as { management_id: string; completed_at?: string; submitted_at?: string }[] | null)?.map((row) => ({
-        management_id: row.management_id,
-        date: toDateStr(row.completed_at ?? row.submitted_at) ?? '',
-      })).filter((x) => x.date) ?? null,
-    })),
-    Promise.resolve(supabase.from('patient_management_parkinsons_psychological_reports').select('management_id, completed_at, filled_at').limit(5000)).then((r) => ({
-      data: (r.data as { management_id: string; completed_at?: string; filled_at?: string }[] | null)?.map((row) => ({
-        management_id: row.management_id,
-        date: toDateStr(row.completed_at ?? row.filled_at) ?? '',
-      })).filter((x) => x.date) ?? null,
-    })),
-    Promise.resolve(supabase.from('patient_management_parkinsons_mortality_scales').select('management_id, completed_at, filled_at').limit(5000)).then((r) => ({
-      data: (r.data as { management_id: string; completed_at?: string; filled_at?: string }[] | null)?.map((row) => ({
-        management_id: row.management_id,
-        date: toDateStr(row.completed_at ?? row.filled_at) ?? '',
-      })).filter((x) => x.date) ?? null,
-    })),
-    Promise.resolve(supabase.from('patient_management_daily_psychological_updates').select('management_id, form_date').limit(5000)).then((r) => ({
-      data: (r.data as { management_id: string; form_date: string }[] | null)?.map((row) => ({
-        management_id: row.management_id,
-        date: toDateStr(row.form_date) ?? row.form_date ?? '',
-      })).filter((x) => x.date) ?? null,
-    })),
-    Promise.resolve(supabase.from('patient_management_daily_medical_updates').select('management_id, form_date').limit(5000)).then((r) => ({
-      data: (r.data as { management_id: string; form_date: string }[] | null)?.map((row) => ({
-        management_id: row.management_id,
-        date: toDateStr(row.form_date) ?? row.form_date ?? '',
-      })).filter((x) => x.date) ?? null,
-    })),
-    Promise.resolve(supabase.from('patient_management_daily_sows').select('management_id, form_date').limit(5000)).then((r) => ({
-      data: (r.data as { management_id: string; form_date: string }[] | null)?.map((row) => ({
-        management_id: row.management_id,
-        date: toDateStr(row.form_date) ?? row.form_date ?? '',
-      })).filter((x) => x.date) ?? null,
-    })),
-    Promise.resolve(supabase.from('patient_management_daily_oows').select('management_id, form_date').limit(5000)).then((r) => ({
-      data: (r.data as { management_id: string; form_date: string }[] | null)?.map((row) => ({
-        management_id: row.management_id,
-        date: toDateStr(row.form_date) ?? row.form_date ?? '',
-      })).filter((x) => x.date) ?? null,
-    })),
-  ]
-  const results = await Promise.all(queries)
+  const { data, error } = await supabase.rpc('get_earliest_form_dates')
+  if (error || !data) return new Map()
   const byId = new Map<string, string>()
-  for (const { data: rows } of results) {
-    if (!rows) continue
-    for (const { management_id, date } of rows) {
-      if (!management_id || !date) continue
-      const existing = byId.get(management_id)
-      if (!existing || date < existing) byId.set(management_id, date)
-    }
+  for (const row of data as { management_id: string; earliest_date: string }[]) {
+    if (row.management_id && row.earliest_date) byId.set(row.management_id, row.earliest_date)
   }
   return byId
 }

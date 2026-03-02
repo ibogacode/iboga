@@ -50,6 +50,8 @@ export default function OneTimeFormsPage() {
     loadData()
   }, [managementId])
 
+  const { startTour, isRunning } = useTour({ storageKey: 'hasSeenOneTimeFormsTour' })
+
   async function loadData() {
     setIsLoading(true)
     try {
@@ -124,8 +126,6 @@ export default function OneTimeFormsPage() {
   const medicalIntakeStatus = getFormStatus('medical_intake')
   const parkinsonsPsychologicalStatus = getFormStatus('parkinsons_psychological')
   const parkinsonsMortalityStatus = getFormStatus('parkinsons_mortality')
-
-  const { startTour, isRunning } = useTour({ storageKey: 'hasSeenOneTimeFormsTour' })
 
   return (
     <div className="p-4 sm:p-6">

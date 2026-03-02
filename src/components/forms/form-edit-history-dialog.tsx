@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { getFormEditHistory } from '@/actions/patient-management.action'
+import type { AllowedFormTable } from '@/types/patient-management.type'
 import { formatDistanceToNow } from 'date-fns'
 import { Loader2 } from 'lucide-react'
 import { getFieldLabel, formatFieldValue } from '@/lib/form-field-labels'
@@ -43,7 +44,7 @@ function formatDateTimeEST(dateString: string): { date: string; time: string } {
 interface FormEditHistoryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  formTable: string
+  formTable: AllowedFormTable
   formId: string
   formTitle: string
 }

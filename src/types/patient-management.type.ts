@@ -2,6 +2,20 @@
 // Patient Management System Types
 // =============================================================================
 
+// Allowed form tables for edit history (used to prevent SQL injection)
+export const ALLOWED_FORM_TABLES = [
+  'patient_management_daily_psychological_updates',
+  'patient_management_daily_medical_updates',
+  'patient_management_daily_sows',
+  'patient_management_daily_oows',
+  'patient_management_intake_reports',
+  'patient_management_medical_intake_reports',
+  'patient_management_parkinsons_psychological_reports',
+  'patient_management_parkinsons_mortality_scales',
+] as const
+
+export type AllowedFormTable = typeof ALLOWED_FORM_TABLES[number]
+
 // Patient Management status
 export type PatientManagementStatus = 'active' | 'discharged' | 'transferred'
 export type PatientManagementPriority = 'low' | 'normal' | 'high' | 'urgent'
