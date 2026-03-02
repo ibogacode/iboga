@@ -14,6 +14,32 @@ function endOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999)
 }
 
+/** Management IDs that have at least one daily or one-time form (treated as "present" on client management page even if arrival_date is in the future). */
+async function getManagementIdsWithForms(
+  supabase: Awaited<ReturnType<typeof createAdminClient>>
+): Promise<Set<string>> {
+  const tables = [
+    'patient_management_intake_reports',
+    'patient_management_medical_intake_reports',
+    'patient_management_parkinsons_psychological_reports',
+    'patient_management_parkinsons_mortality_scales',
+    'patient_management_daily_psychological_updates',
+    'patient_management_daily_medical_updates',
+    'patient_management_daily_sows',
+    'patient_management_daily_oows',
+  ] as const
+  const results = await Promise.all(
+    tables.map((table) => supabase.from(table).select('management_id').limit(5000))
+  )
+  const ids = new Set<string>()
+  for (const r of results) {
+    if (r.data)
+      for (const row of r.data as { management_id: string }[])
+        if (row.management_id) ids.add(row.management_id)
+  }
+  return ids
+}
+
 export const getDashboardStats = authActionClient
   .schema(z.object({}))
   .action(async ({ ctx }) => {
@@ -40,11 +66,12 @@ export const getDashboardStats = authActionClient
       allAgreementsResult,
       currentMonthAgreementsResult,
       lastMonthAgreementsResult,
-      activePatientsResult,
+      activeArrivedResult,
       previousActivePatientsResult,
       datesResult,
       monthDatesResult,
       programTypesResult,
+      formManagementIds,
     ] = await Promise.all([
       adminClient
         .from('service_agreements')
@@ -76,6 +103,7 @@ export const getDashboardStats = authActionClient
       adminClient
         .from('patient_management')
         .select('program_type'),
+      getManagementIdsWithForms(adminClient),
     ])
 
     const totalRevenue =
@@ -96,6 +124,17 @@ export const getDashboardStats = authActionClient
         0
       ) ?? 0
 
+    const newAgreementsThisMonth = currentMonthAgreementsResult.data?.length ?? 0
+    const newAgreementsLastMonth = lastMonthAgreementsResult.data?.length ?? 0
+    let newAgreementsChangePercent: number | null = null
+    if (newAgreementsLastMonth > 0) {
+      newAgreementsChangePercent = Math.round(
+        ((newAgreementsThisMonth - newAgreementsLastMonth) / newAgreementsLastMonth) * 100
+      )
+    } else if (newAgreementsThisMonth > 0) {
+      newAgreementsChangePercent = 100
+    }
+
     const lastMonthRevenue =
       lastMonthAgreementsResult.data?.reduce(
         (sum, sa) => sum + (Number(sa.total_program_fee) || 0),
@@ -111,7 +150,18 @@ export const getDashboardStats = authActionClient
       monthlyRevenueChangePercent = 100
     }
 
-    const activePatients = activePatientsResult.count ?? 0
+    // Match client management "Currently Present": arrived by date + active with future arrival but already have forms
+    let presentEarlyWithFormsCount = 0
+    if (formManagementIds.size > 0) {
+      const presentEarlyRes = await adminClient
+        .from('patient_management')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .gt('arrival_date', todayStr)
+        .in('id', [...formManagementIds])
+      presentEarlyWithFormsCount = presentEarlyRes.count ?? 0
+    }
+    const activePatients = (activeArrivedResult.count ?? 0) + presentEarlyWithFormsCount
     const previousActivePatients = previousActivePatientsResult.count ?? 0
 
     let activeClientsChangePercent: number | null = null
@@ -125,21 +175,16 @@ export const getDashboardStats = authActionClient
 
     let facilityUtilization = 0
     if (datesResult?.data?.success && datesResult.data.data) {
-      const occupancyByDate = datesResult.data.data.occupancyByDate as Record<
-        string,
-        number
-      >
       const schedule = (datesResult.data.data.schedule ?? []) as Array<{
         treatment_date: string
         capacity_max?: number
       }>
-      const occupancy = occupancyByDate[todayStr] ?? 0
       const scheduleEntry = schedule.find((s) => s.treatment_date === todayStr)
       // Facility utilization based on 5 beds; treat legacy 4 as 5
       const rawMax = scheduleEntry?.capacity_max ?? BEDS_LIMIT
       const capacityMax = rawMax === 4 ? BEDS_LIMIT : rawMax
       facilityUtilization =
-        capacityMax > 0 ? Math.round((occupancy / capacityMax) * 100) : 0
+        capacityMax > 0 ? Math.round((activePatients / capacityMax) * 100) : 0
     }
 
     const programTypeLabels: Record<string, string> = {
@@ -190,11 +235,132 @@ export const getDashboardStats = authActionClient
         monthlyRevenue,
         lastMonthRevenue,
         monthlyRevenueChangePercent,
+        newAgreementsThisMonth,
+        newAgreementsChangePercent,
         activePatients,
         activeClientsChangePercent,
         facilityUtilization,
         programsByType,
         facilityUtilizationMonth,
+      },
+    }
+  })
+
+/** Live counts for manager dashboard module cards (Patient Management, Onboarding, Research). */
+export const getManagerModuleCounts = authActionClient
+  .schema(z.object({}))
+  .action(async ({ ctx }) => {
+    if (!hasStaffAccess(ctx.user.role)) {
+      return { success: false, error: 'Staff access required' }
+    }
+
+    const adminClient = createAdminClient()
+    const now = new Date()
+    const todayStr = now.toISOString().split('T')[0]
+    const monthStart = startOfMonth(now)
+    const monthEnd = endOfMonth(now)
+    const monthStartStr = monthStart.toISOString().split('T')[0]
+    const monthEndStr = monthEnd.toISOString().split('T')[0]
+    const thirtyDaysAgo = new Date(now)
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0]
+
+    const [
+      activeArrivedRes,
+      formManagementIds,
+      dailyMedicalTodayRes,
+      dailyPsychTodayRes,
+      departuresThisMonthRes,
+      onboardingTotalRes,
+      onboardingReadyRes,
+      researchTotalRes,
+      researchActiveRes,
+      researchCompletedRes,
+    ] = await Promise.all([
+      adminClient
+        .from('patient_management')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .lte('arrival_date', todayStr),
+      getManagementIdsWithForms(adminClient),
+      adminClient
+        .from('patient_management_daily_medical_updates')
+        .select('id', { count: 'exact', head: true })
+        .eq('form_date', todayStr),
+      adminClient
+        .from('patient_management_daily_psychological_updates')
+        .select('id', { count: 'exact', head: true })
+        .eq('form_date', todayStr),
+      adminClient
+        .from('patient_management')
+        .select('*', { count: 'exact', head: true })
+        .in('status', ['discharged', 'transferred'])
+        .gte('discharged_at', monthStart.toISOString())
+        .lte('discharged_at', monthEnd.toISOString()),
+      adminClient
+        .from('patient_onboarding')
+        .select('id', { count: 'exact', head: true }),
+      adminClient
+        .from('patient_onboarding')
+        .select('id', { count: 'exact', head: true })
+        .eq('medical_clearance', true),
+      adminClient
+        .from('patient_management')
+        .select('id', { count: 'exact', head: true })
+        .gte('arrival_date', thirtyDaysAgoStr)
+        .lte('arrival_date', monthEndStr),
+      adminClient
+        .from('patient_management')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .gte('arrival_date', thirtyDaysAgoStr)
+        .lte('arrival_date', monthEndStr),
+      adminClient
+        .from('patient_management')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['discharged', 'transferred'])
+        .gte('arrival_date', thirtyDaysAgoStr)
+        .lte('arrival_date', monthEndStr),
+    ])
+
+    let presentEarlyWithFormsCount = 0
+    if (formManagementIds.size > 0) {
+      const presentEarlyRes = await adminClient
+        .from('patient_management')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .gt('arrival_date', todayStr)
+        .in('id', [...formManagementIds])
+      presentEarlyWithFormsCount = presentEarlyRes.count ?? 0
+    }
+    const activePatients = (activeArrivedRes.count ?? 0) + presentEarlyWithFormsCount
+    const dailyFormsToday = (dailyMedicalTodayRes.count ?? 0) + (dailyPsychTodayRes.count ?? 0)
+    const departuresThisMonth = departuresThisMonthRes.count ?? 0
+    const onboardingTotal = onboardingTotalRes.count ?? 0
+    const onboardingReady = onboardingReadyRes.count ?? 0
+    const onboardingFormsPending = Math.max(0, onboardingTotal - onboardingReady)
+    const researchClients30d = researchTotalRes.count ?? 0
+    const researchActive = researchActiveRes.count ?? 0
+    const researchCompleted = researchCompletedRes.count ?? 0
+
+    return {
+      success: true,
+      data: {
+        patientManagement: {
+          activePatients,
+          dailyFormsToday,
+          departuresThisMonth,
+        },
+        onboarding: {
+          total: onboardingTotal,
+          formsPending: onboardingFormsPending,
+          readyForArrival: onboardingReady,
+        },
+        research: {
+          clientsLast30Days: researchClients30d,
+          active: researchActive,
+          completed: researchCompleted,
+        },
       },
     }
   })

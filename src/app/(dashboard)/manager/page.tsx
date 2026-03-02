@@ -4,7 +4,7 @@ import { StatCard } from '@/components/dashboard/stat-card'
 import { ProgramsCard } from '@/components/dashboard/programs-card'
 import { GraphCard } from '@/components/dashboard/graph-card'
 import { ModuleCard } from '@/components/dashboard/module-card'
-import { getDashboardStats } from '@/actions/dashboard-stats.action'
+import { getDashboardStats, getManagerModuleCounts } from '@/actions/dashboard-stats.action'
 
 export const metadata = {
   title: 'Dashboard',
@@ -44,8 +44,12 @@ export default async function ManagerDashboardPage() {
       : profile?.first_name || 'User')
   const greeting = getGreeting()
 
-  const statsResult = await getDashboardStats({})
+  const [statsResult, moduleCountsResult] = await Promise.all([
+    getDashboardStats({}),
+    getManagerModuleCounts({}),
+  ])
   const stats = statsResult?.data?.success ? statsResult.data.data : null
+  const moduleCounts = moduleCountsResult?.data?.success ? moduleCountsResult.data.data : null
   const monthlyRevenueValue = stats?.monthlyRevenue ?? 0
   const monthlyRevenueChangePercent = stats?.monthlyRevenueChangePercent ?? null
   const totalRevenueValue = stats?.totalRevenue ?? 0
@@ -59,6 +63,13 @@ export default async function ManagerDashboardPage() {
     { name: 'Addiction', patientCount: 0 },
   ]
   const facilityUtilizationMonth = stats?.facilityUtilizationMonth ?? 0
+  const newAgreementsThisMonth = stats?.newAgreementsThisMonth ?? 0
+  const newAgreementsChangePercent = stats?.newAgreementsChangePercent ?? null
+  const newAgreementsChangeLabel =
+    newAgreementsChangePercent !== null
+      ? `${newAgreementsChangePercent >= 0 ? '+' : ''}${newAgreementsChangePercent}%`
+      : '—'
+  const newAgreementsChangePositive = newAgreementsChangePercent === null || newAgreementsChangePercent >= 0
 
   const activeClientsChangeLabel =
     activeClientsChangePercent !== null
@@ -117,6 +128,13 @@ export default async function ManagerDashboardPage() {
           changeLabel="of capacity"
           isPositive={true}
         />
+        <StatCard
+          title="New agreements"
+          value={String(newAgreementsThisMonth)}
+          change={newAgreementsChangeLabel}
+          changeLabel="vs last month"
+          isPositive={newAgreementsChangePositive}
+        />
       </div>
 
       {/* Programs Section */}
@@ -125,7 +143,7 @@ export default async function ManagerDashboardPage() {
           programs={programsByType}
           facilityUtilizationPercent={facilityUtilizationMonth}
         />
-        <GraphCard />
+        <GraphCard programs={programsByType} />
       </div>
 
       {/* Modules Section */}
@@ -135,9 +153,9 @@ export default async function ManagerDashboardPage() {
           description="Active patients • Daily forms • Departures"
           href="/patient-management"
           metrics={[
-            { label: 'Active patients', value: '14' },
-            { label: 'Daily forms', value: '8' },
-            { label: 'Departures', value: '3' },
+            { label: 'Active patients', value: String(moduleCounts?.patientManagement?.activePatients ?? '—') },
+            { label: 'Daily forms today', value: String(moduleCounts?.patientManagement?.dailyFormsToday ?? '—') },
+            { label: 'Departures this month', value: String(moduleCounts?.patientManagement?.departuresThisMonth ?? '—') },
           ]}
         />
         <ModuleCard
@@ -145,19 +163,19 @@ export default async function ManagerDashboardPage() {
           description="Patients • Forms pending • Ready for arrival"
           href="/onboarding"
           metrics={[
-            { label: 'Patients', value: '12' },
-            { label: 'Forms pending', value: '5' },
-            { label: 'Ready for arrival', value: '7' },
+            { label: 'Patients', value: String(moduleCounts?.onboarding?.total ?? '—') },
+            { label: 'Forms pending', value: String(moduleCounts?.onboarding?.formsPending ?? '—') },
+            { label: 'Ready for arrival', value: String(moduleCounts?.onboarding?.readyForArrival ?? '—') },
           ]}
         />
         <ModuleCard
           title="Research Module"
-          description="Placeholder"
+          description="Clients and outcomes in last 30 days"
           href="/research"
           metrics={[
-            { label: 'Studies', value: '8' },
-            { label: 'Publications', value: '3' },
-            { label: 'Ongoing', value: '5' },
+            { label: 'Clients (30d)', value: String(moduleCounts?.research?.clientsLast30Days ?? '—') },
+            { label: 'Active', value: String(moduleCounts?.research?.active ?? '—') },
+            { label: 'Completed', value: String(moduleCounts?.research?.completed ?? '—') },
           ]}
         />
       </div>

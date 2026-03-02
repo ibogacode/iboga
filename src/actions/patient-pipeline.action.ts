@@ -333,7 +333,7 @@ export const getPartialIntakeForms = authActionClient
       // Batch fetch all service agreements by intake_form_id
       completedIntakeFormIds.length > 0
         ? adminClient.from('service_agreements')
-          .select('intake_form_id, patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
+          .select('intake_form_id, patient_email, total_program_fee, is_activated, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
           .in('intake_form_id', completedIntakeFormIds)
         : Promise.resolve({ data: [] }),
       // Batch fetch ibogaine consent forms by intake_form_id
@@ -557,6 +557,25 @@ export const getPartialIntakeForms = authActionClient
         ...form,
         program_type: programType, // Use program_type from completed form if available
         creator: creator || null,
+        serviceAgreementFee: (() => {
+          const intakeFormId = form.completed_form_id
+            ? form.completed_form_id
+            : patientEmail
+              ? intakeFormsByEmailMap.get(patientEmail)
+              : null
+
+          const sa =
+            intakeFormId && serviceAgreementByIntakeMap.has(intakeFormId)
+              ? serviceAgreementByIntakeMap.get(intakeFormId)
+              : patientEmail && serviceAgreementByEmailMap.has(patientEmail)
+                ? serviceAgreementByEmailMap.get(patientEmail)
+                : null
+
+          // Only use fee when service agreement is activated; otherwise client uses $7,500 default
+          if (!sa || sa.is_activated !== true) return null
+          const fee = Number(sa.total_program_fee)
+          return Number.isFinite(fee) ? fee : null
+        })(),
         formCompletion: {
           completed: completedCount,
           total: totalForms
@@ -685,7 +704,7 @@ export const getPublicIntakeForms = authActionClient
     ] = await Promise.all([
       adminClient.from('medical_history_forms').select('intake_form_id').in('intake_form_id', intakeFormIds),
       adminClient.from('service_agreements')
-        .select('intake_form_id, patient_email, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
+        .select('intake_form_id, patient_email, total_program_fee, is_activated, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
         .in('intake_form_id', intakeFormIds),
       adminClient.from('ibogaine_consent_forms')
         .select('intake_form_id, email, signature_data, signature_date, signature_name')
@@ -780,6 +799,18 @@ export const getPublicIntakeForms = authActionClient
       
       return {
         ...form,
+        serviceAgreementFee: (() => {
+          const sa =
+            serviceAgreementByIntakeMap.has(intakeFormId)
+              ? serviceAgreementByIntakeMap.get(intakeFormId)
+              : patientEmail && serviceAgreementByEmailMap.has(patientEmail)
+                ? serviceAgreementByEmailMap.get(patientEmail)
+                : null
+          // Only use fee when service agreement is activated; otherwise client uses $7,500 default
+          if (!sa || sa.is_activated !== true) return null
+          const fee = Number(sa.total_program_fee)
+          return Number.isFinite(fee) ? fee : null
+        })(),
         formCompletion: {
           completed: completedCount,
           total: totalForms
@@ -836,7 +867,7 @@ export const getPipelineStatistics = authActionClient
         // Get all service agreements for pipeline value calculation
         adminClient
           .from('service_agreements')
-          .select('patient_email, total_program_fee, created_at'),
+          .select('patient_email, total_program_fee, is_activated, created_at'),
 
         // Get previous month onboarding count (30 days ago)
         adminClient
@@ -848,7 +879,7 @@ export const getPipelineStatistics = authActionClient
         // Get previous month service agreements (30 days ago)
         adminClient
           .from('service_agreements')
-          .select('total_program_fee')
+          .select('total_program_fee, is_activated')
           .lte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       ])
 
@@ -863,22 +894,34 @@ export const getPipelineStatistics = authActionClient
         return createdDate < fourteenDaysAgo
       }).length || 0
 
-      // Calculate pipeline value (sum of all service agreement amounts for patients in pipeline)
-      // We need to match service agreements with patients who are in onboarding
+      // Estimated pipeline value: $7,500 average when no service agreement; otherwise use agreement amount.
+      // One value per onboarding person (match by email); sum and show count.
+      const ESTIMATED_AVERAGE_NO_AGREEMENT = 7500
+      const onboardingRecords = onboardingResult.data || []
       const onboardingEmails = new Set(
-        onboardingResult.data?.map(o => o.email?.toLowerCase().trim()).filter(Boolean) || []
+        onboardingRecords.map(o => o.email?.toLowerCase().trim()).filter(Boolean) as string[]
       )
 
-      const pipelineValue = serviceAgreementsResult.data
-        ?.filter(sa => {
-          const email = sa.patient_email?.toLowerCase().trim()
-          return email && onboardingEmails.has(email)
-        })
-        .reduce((sum, sa) => sum + (Number(sa.total_program_fee) || 0), 0) || 0
+      const agreementByEmail = new Map<string, number>()
+      serviceAgreementsResult.data?.forEach(sa => {
+        const email = sa.patient_email?.toLowerCase().trim()
+        if (email && onboardingEmails.has(email) && sa.is_activated) {
+          const fee = Number(sa.total_program_fee) || 0
+          if (!agreementByEmail.has(email) || fee > (agreementByEmail.get(email) ?? 0)) {
+            agreementByEmail.set(email, fee)
+          }
+        }
+      })
+
+      const pipelineValue = onboardingRecords.reduce((sum, record) => {
+        const email = record.email?.toLowerCase().trim()
+        const amount = email ? (agreementByEmail.get(email) ?? ESTIMATED_AVERAGE_NO_AGREEMENT) : 0
+        return sum + amount
+      }, 0)
 
       // Calculate previous month pipeline value
       const previousPipelineValue = previousMonthServiceAgreementsResult.data
-        ?.reduce((sum, sa) => sum + (Number(sa.total_program_fee) || 0), 0) || 0
+        ?.reduce((sum, sa) => sum + (sa.is_activated ? (Number(sa.total_program_fee) || 0) : 0), 0) || 0
 
       // Calculate month-over-month percentage change
       let monthOverMonthChange = 0

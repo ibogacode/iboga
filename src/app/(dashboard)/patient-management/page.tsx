@@ -23,6 +23,9 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { useUser } from '@/hooks/use-user.hook'
 import { hasStaffAccess } from '@/lib/utils'
+import { useTour } from '@/hooks/use-tour.hook'
+import { FloatingTourTrigger } from '@/components/tours/floating-tour-trigger'
+import { getClientManagementTourSteps } from '@/components/tours/client-management-tour'
 
 interface PatientManagementRecord {
   id: string
@@ -213,10 +216,12 @@ export default function PatientManagementPage() {
   const totalOneTimeFormsCompleted = patients.reduce((sum, p) => sum + getOneTimeFormsCompleted(p), 0)
   const totalOneTimeFormsPossible = patients.reduce((sum, p) => sum + getOneTimeFormsTotal(p), 0)
 
+  const { startTour, isRunning } = useTour({ storageKey: 'hasSeenClientManagementTour' })
+
   return (
     <div className="p-4 sm:p-6">
       {/* Header */}
-      <div className="mb-6 sm:mb-8">
+      <div className="mb-6 sm:mb-8" data-tour="page-header">
         <h1 
           style={{ 
             fontFamily: 'var(--font-instrument-serif), serif',
@@ -235,7 +240,7 @@ export default function PatientManagementPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6" data-tour="stats-cards">
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Currently Present</p>
           {isLoading ? (
@@ -292,7 +297,7 @@ export default function PatientManagementPage() {
       </div>
 
       {/* Filter by status */}
-      <div className="mt-6 sm:mt-8 mb-6">
+      <div className="mt-6 sm:mt-8 mb-6" data-tour="status-filter">
         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Click to filter by status</p>
         <div className="flex flex-wrap gap-2">
           <button
@@ -351,7 +356,7 @@ export default function PatientManagementPage() {
       </div>
 
       {/* Patients List */}
-      <div className="mt-4">
+      <div className="mt-4" data-tour="clients-table">
         <div className="flex items-center gap-2 mb-4">
           <Users className="h-5 w-5 text-emerald-600" />
           <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Clients</h2>
@@ -382,7 +387,7 @@ export default function PatientManagementPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-tour="col-sort">
                       <button
                         type="button"
                         onClick={() => toggleSort('client')}
@@ -422,7 +427,7 @@ export default function PatientManagementPage() {
                         {sortBy === 'arrival_date' ? (sortDir === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />) : <span className="inline-block h-4 w-4 opacity-0 group-hover:opacity-50">↕</span>}
                       </button>
                     </th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" data-tour="col-actions">
                       Actions
                     </th>
                   </tr>
@@ -572,6 +577,10 @@ export default function PatientManagementPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <FloatingTourTrigger
+        disabled={isRunning}
+        onClick={() => startTour(getClientManagementTourSteps())}
+      />
     </div>
   )
 }

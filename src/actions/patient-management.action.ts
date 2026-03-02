@@ -167,14 +167,16 @@ export const getPatientManagementByPatientId = authActionClient
       .from('patient_management')
       .select('*')
       .eq('patient_id', parsedInput.patient_id)
-      .eq('status', 'active')
-      .maybeSingle()
+      .in('status', ['active', 'discharged', 'transferred'])
+      .order('created_at', { ascending: false })
+      .limit(1)
 
     if (error) {
       return { success: false, error: handleSupabaseError(error, 'Failed to fetch patient management') }
     }
 
-    return { success: true, data: data as PatientManagement | null }
+    const record = (data as PatientManagement[] | null)?.[0] ?? null
+    return { success: true, data: record }
   })
 
 /** Returns set of management_ids that have at least one daily or one-time form (so they are treated as "present" even if arrival_date is in the future). */

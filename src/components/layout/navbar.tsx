@@ -6,9 +6,10 @@ import Image from 'next/image'
 import { Search, Bell, Menu, MessageSquare, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUnreadMessagesContext } from '@/contexts/unread-messages-context'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { getUserConversations } from '@/app/(dashboard)/messages/actions'
 import { getMyTaskNotifications, markNotificationRead } from '@/actions/lead-tasks.action'
+import { getPartialIntakeForms, getPublicIntakeForms } from '@/actions/patient-pipeline.action'
 import {
   Sheet,
   SheetContent,
@@ -70,6 +71,46 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
   const [taskNotifications, setTaskNotifications] = useState<Array<{ id: string; title: string; link_url: string | null; read_at: string | null; created_at: string }>>([])
   const isStaff = role && ['owner', 'admin', 'manager', 'doctor', 'nurse', 'psych'].includes(role)
+  const isOwnerOrAdmin = role === 'owner' || role === 'admin'
+  const [pipelineNotifications, setPipelineNotifications] = useState<
+    Array<{ id: string; title: string; link_url: string; created_at: string }>
+  >([])
+  const [unreadTaskCount, setUnreadTaskCount] = useState(0)
+  const [pipelineReadyCount, setPipelineReadyCount] = useState(0)
+
+  // Fetch notification counts for badge (staff: unread tasks; owner/admin: pipeline ready)
+  const fetchNotificationCounts = useCallback(() => {
+    if (!isStaff && !isOwnerOrAdmin) return
+    if (isStaff) {
+      getMyTaskNotifications({}).then((res) => {
+        if (res?.data?.success && res.data.data) {
+          const unread = res.data.data.filter((n: { read_at: string | null }) => !n.read_at)
+          setUnreadTaskCount(unread.length)
+        } else {
+          setUnreadTaskCount(0)
+        }
+      })
+    }
+    if (isOwnerOrAdmin) {
+      Promise.all([
+        getPartialIntakeForms({ limit: 50 }),
+        getPublicIntakeForms({ limit: 50 }),
+      ]).then(([partialResult, publicResult]) => {
+        const partialForms = partialResult?.data?.success && partialResult.data.data ? partialResult.data.data : []
+        const publicForms = publicResult?.data?.success && publicResult.data.data ? publicResult.data.data : []
+        const ready = [...partialForms, ...publicForms].filter((lead: any) => {
+          const c = lead.formCompletion?.completed ?? 0
+          const t = lead.formCompletion?.total ?? 4
+          return c === t
+        })
+        setPipelineReadyCount(ready.length)
+      })
+    }
+  }, [isStaff, isOwnerOrAdmin])
+
+  useEffect(() => {
+    fetchNotificationCounts()
+  }, [fetchNotificationCounts])
 
   // Load recent conversations and task notifications when dropdown opens
   useEffect(() => {
@@ -88,24 +129,62 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
         }),
         isStaff ? getMyTaskNotifications({}).then((res) => {
           if (res?.data?.success && res.data.data) {
-            setTaskNotifications(res.data.data.slice(0, 10).map((n: any) => ({
+            const list = res.data.data.slice(0, 10).map((n: any) => ({
               id: n.id,
               title: n.title,
               link_url: n.link_url,
               read_at: n.read_at,
               created_at: n.created_at,
-            })))
+            }))
+            setTaskNotifications(list)
+            setUnreadTaskCount(res.data.data.filter((n: any) => !n.read_at).length)
           } else {
             setTaskNotifications([])
+            setUnreadTaskCount(0)
           }
         }) : Promise.resolve(),
+        isOwnerOrAdmin
+          ? Promise.all([
+              getPartialIntakeForms({ limit: 50 }),
+              getPublicIntakeForms({ limit: 50 }),
+            ]).then(([partialResult, publicResult]) => {
+              const partialForms = partialResult?.data?.success && partialResult.data.data
+                ? partialResult.data.data
+                : []
+              const publicForms = publicResult?.data?.success && publicResult.data.data
+                ? publicResult.data.data
+                : []
+
+              const pipelineLeads = [...partialForms, ...publicForms]
+
+              const readyLeads = pipelineLeads.filter((lead: any) => {
+                const completed = lead.formCompletion?.completed ?? 0
+                const total = lead.formCompletion?.total ?? 4
+                return completed === total
+              })
+
+              const mapped = readyLeads
+                .slice(0, 10)
+                .map((lead: any) => ({
+                  id: lead.id as string,
+                  title: `Client ready for onboarding: ${`${lead.first_name ?? ''} ${lead.last_name ?? ''}`.trim() || lead.email || 'Client'}`,
+                  link_url: `/patient-pipeline/patient-profile/${lead.id}`,
+                  created_at: lead.created_at as string,
+                }))
+
+              setPipelineNotifications(mapped)
+              setPipelineReadyCount(readyLeads.length)
+            })
+          : Promise.resolve(),
       ]).finally(() => setIsLoadingNotifications(false))
     } else {
       setConversations([])
       setTaskNotifications([])
+      setPipelineNotifications([])
       setIsLoadingNotifications(false)
+      fetchNotificationCounts()
     }
-  }, [isNotificationOpen, unreadCount, isStaff])
+  }, [isNotificationOpen, unreadCount, isStaff, isOwnerOrAdmin, fetchNotificationCounts])
 
   // Get user name - prioritize generated name column, then construct from first/last, then fallback
   const userName = profile?.name ||
@@ -122,6 +201,8 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
   // Get initials for fallback
   const userInitials = getInitials(profile?.name, profile?.first_name, profile?.last_name) ||
     (userEmail ? userEmail[0]?.toUpperCase() : 'U')
+
+  const totalNotificationCount = unreadCount + unreadTaskCount + pipelineReadyCount
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 w-full bg-[#F5F4F0] border-b border-gray-200/50">
@@ -192,16 +273,16 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
                   data-tour="tour-dashboard-notifications"
                 >
                   <Bell className="h-4 w-4 md:h-5 md:w-5 text-black" />
-                  {unreadCount > 0 && (
+                  {totalNotificationCount > 0 && (
                     <span className="absolute -top-1 -right-1 flex h-4 w-4 md:h-5 md:w-5 items-center justify-center rounded-full bg-red-500 text-[10px] md:text-xs font-medium text-white">
-                      {unreadCount > 99 ? '99+' : unreadCount}
+                      {totalNotificationCount > 99 ? '99+' : totalNotificationCount}
                     </span>
                   )}
-                  <span className="sr-only">Messages ({unreadCount} unread)</span>
+                  <span className="sr-only">Notifications ({totalNotificationCount} total)</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-80">
-                <DropdownMenuLabel>Messages</DropdownMenuLabel>
+                <DropdownMenuLabel>Notifications</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {isLoadingNotifications ? (
                   <div className="p-4 text-center">
@@ -287,6 +368,23 @@ export function Navbar({ user, profile, role = 'patient' }: NavbarProps) {
                             {!n.read_at && (
                               <span className="text-xs text-[#6E7A46]">New</span>
                             )}
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
+                    {isOwnerOrAdmin && pipelineNotifications.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        {pipelineNotifications.map((n) => (
+                          <DropdownMenuItem
+                            key={n.id}
+                            className="cursor-pointer p-3 flex flex-col items-start gap-0.5"
+                            onClick={() => {
+                              router.push(n.link_url)
+                              setIsNotificationOpen(false)
+                            }}
+                          >
+                            <span className="text-sm font-medium truncate w-full">{n.title}</span>
                           </DropdownMenuItem>
                         ))}
                       </>

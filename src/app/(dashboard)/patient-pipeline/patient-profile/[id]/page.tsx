@@ -9,7 +9,7 @@ import { sendRequestLabsEmail } from '@/actions/email.action'
 import { movePatientToOnboarding, getOnboardingByPatientId, getFormByOnboarding, uploadOnboardingFormDocument, moveToPatientManagement, markOnboardingConsultScheduled, markOnboardingPreIntegrationScheduled } from '@/actions/onboarding-forms.action'
 import { getOnboardingMedicalDocumentViewUrl, adminSkipOnboardingMedicalDocument } from '@/actions/onboarding-documents.action'
 import { markAsProspect, removeProspectStatus } from '@/actions/prospect-status.action'
-import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, BookOpen, FileX, Upload, ClipboardList, Stethoscope, LayoutGrid, ChevronDown, FlaskConical, PauseCircle, UserCheck, Heart, TestTube2, CalendarCheck, Pencil, Trash2 } from 'lucide-react'
+import { Loader2, ArrowLeft, Edit2, Save, X, FileText, CheckCircle2, Clock, Send, User, Mail, Phone, Calendar, MapPin, Eye, Download, ExternalLink, UserPlus, FileSignature, Plane, Camera, FileX, Upload, ClipboardList, Stethoscope, LayoutGrid, ChevronDown, FlaskConical, PauseCircle, UserCheck, Heart, TestTube2, CalendarCheck, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -48,6 +48,8 @@ import {
 import { ProspectBadge } from '@/components/ui/prospect-badge'
 import { recordBillingPayment, getBillingPayments, turnOffBillingReminder, updateBillingPayment } from '@/actions/patient-billing.action'
 import { TreatmentDateCalendar } from '@/components/treatment-scheduling/treatment-date-calendar'
+import { PatientProfileTour } from '@/components/tours/patient-profile-tour'
+import { FloatingTourTrigger } from '@/components/tours/floating-tour-trigger'
 import { getTaperingScheduleByOnboarding } from '@/actions/tapering-schedule.action'
 import { getClinicalDirectorConsultFormByOnboarding } from '@/actions/clinical-director-consult-form.action'
 import type { ClinicalDirectorConsultFormData } from '@/actions/clinical-director-consult-form.types'
@@ -123,6 +125,10 @@ interface PatientProfileData {
     next_reminder_date: string | null
     balance_reminder_sent_at: string | null
   }>
+  leadNotes?: LeadNoteEntry[]
+  leadTasks?: LeadTaskRow[]
+  staffList?: Array<{ id: string; name: string; first_name?: string; last_name?: string; role?: string }>
+  patientManagement?: any
 }
 
 export default function PatientProfilePage() {
@@ -257,6 +263,7 @@ export default function PatientProfilePage() {
     status: string
     arrival_date: string
     expected_departure_date: string | null
+    discharged_at: string | null
     intake_report_completed?: boolean
     parkinsons_psychological_report_completed?: boolean
     parkinsons_mortality_scales_completed?: boolean
@@ -315,12 +322,11 @@ export default function PatientProfilePage() {
     loadPatientProfile()
   }, [id])
 
-  // Refetch billing payments when service agreement becomes available/activated (e.g. after activation) and was not included in initial profile
+  // Billing payments are now preloaded in getPatientProfile; only refetch after activation toggle
   useEffect(() => {
     const agreementId = profileData?.serviceAgreement?.id
     const isActivated = profileData?.serviceAgreement?.is_activated
     if (!agreementId || !isActivated) return
-    // Initial load now includes billingPayments in getPatientProfile; only refetch if profile didn't bring them (e.g. legacy or after activation)
     const hasBillingFromProfile = Array.isArray(profileData?.billingPayments)
     if (hasBillingFromProfile && profileData!.billingPayments) {
       setBillingPayments(profileData!.billingPayments as typeof billingPayments)
@@ -336,8 +342,16 @@ export default function PatientProfilePage() {
       .finally(() => setLoadingBillingPayments(false))
   }, [profileData?.serviceAgreement?.id, profileData?.serviceAgreement?.is_activated, profileData?.billingPayments])
 
-  // Fetch active patient management (clinical stay) when profile is loaded and user is staff
+  // Patient management is preloaded in getPatientProfile; only refetch after move to management
   useEffect(() => {
+    // Use preloaded data from server action if available
+    const preloadedManagement = (profileData as any)?.patientManagement
+    if (preloadedManagement) {
+      setManagementRecord(preloadedManagement as typeof managementRecord)
+      setLoadingManagement(false)
+      return
+    }
+    // Fallback: fetch if not preloaded (e.g., after move to management action)
     const patientId = profileData?.patient?.id
     if (!patientId || !isStaff) {
       setManagementRecord(null)
@@ -361,7 +375,7 @@ export default function PatientProfilePage() {
         if (!cancelled) setLoadingManagement(false)
       })
     return () => { cancelled = true }
-  }, [profileData?.patient?.id, isStaff])
+  }, [profileData?.patient?.id, (profileData as any)?.patientManagement, isStaff])
 
   // Fetch daily forms AND one-time forms in parallel when management record exists
   useEffect(() => {
@@ -473,35 +487,16 @@ export default function PatientProfilePage() {
       .finally(() => setLoadingLeadTasks(false))
   }
 
-  // Fetch lead tasks AND staff list in parallel when staff user loads page
+  // Lead tasks and staff list are preloaded in getPatientProfile
   useEffect(() => {
     if (!isStaff) return
-    
-    const promises: Promise<any>[] = []
-    
-    // Lead tasks (needs id)
-    if (id) {
-      setLoadingLeadTasks(true)
-      promises.push(
-        getLeadTasks({ leadId: id })
-          .then((res) => {
-            if (res?.data?.success && res.data.data) setLeadTasks(res.data.data)
-            else setLeadTasks([])
-          })
-          .catch(() => setLeadTasks([]))
-          .finally(() => setLoadingLeadTasks(false))
-      )
-    }
-    
-    // Staff list (always fetch for staff)
-    promises.push(
-      getStaffForAssign({}).then((res) => {
-        if (res?.data?.success && res.data.data) setStaffList(res.data.data)
-      })
-    )
-    
-    Promise.all(promises)
-  }, [id, isStaff])
+    // Use preloaded data from server action
+    const preloadedTasks = (profileData as any)?.leadTasks
+    const preloadedStaff = (profileData as any)?.staffList
+    if (preloadedTasks) setLeadTasks(preloadedTasks)
+    if (preloadedStaff) setStaffList(preloadedStaff)
+    setLoadingLeadTasks(false)
+  }, [(profileData as any)?.leadTasks, (profileData as any)?.staffList, isStaff])
 
   async function loadPatientProfile() {
     setIsLoading(true)
@@ -514,13 +509,10 @@ export default function PatientProfilePage() {
         intakeFormId: id, // Fallback to intake form ID
       })
 
-      console.log('[PatientProfile] Load result:', result)
-
       if (result?.data?.success && result.data.data) {
         const data = result.data.data
-        console.log('[PatientProfile] Profile data:', data)
 
-        // Onboarding and billing are included in the initial load so Billing tab and Upgrade Agreement are ready without refresh
+        // All data is preloaded in getPatientProfile for faster initial load
         setProfileData(data as PatientProfileData)
         setBillingPayments(
           Array.isArray((data as PatientProfileData).billingPayments)
@@ -528,25 +520,10 @@ export default function PatientProfilePage() {
             : []
         )
 
-        // Load notes for this lead: same person can be reached via profile id, partial form id, or intake form id, so load from all and merge
-        const leadIds = [data.patient?.id, data.partialForm?.id, data.intakeForm?.id, id].filter(Boolean) as string[]
-        const uniqueLeadIds = [...new Set(leadIds)]
-        Promise.all(uniqueLeadIds.map((leadId) => getLeadNotes({ leadId })))
-          .then((results) => {
-            const byId = new Map<string, LeadNoteEntry>()
-            results.forEach((res) => {
-              if (res?.data?.success && res.data.data) {
-                res.data.data.forEach((entry) => {
-                  if (!byId.has(entry.id)) byId.set(entry.id, entry)
-                })
-              }
-            })
-            const merged = Array.from(byId.values()).sort(
-              (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-            )
-            setLeadNotes(merged)
-          })
-          .catch(() => {})
+        // Use preloaded lead notes (already merged and deduped on server)
+        if (Array.isArray((data as any).leadNotes)) {
+          setLeadNotes((data as any).leadNotes)
+        }
 
         // Set form data for editing
         setFormData({
@@ -1217,8 +1194,12 @@ export default function PatientProfilePage() {
   })()
   const sourceLabel =
     patient?.source === 'admin_owner_added' ? 'Admin/Owner added' : 'Public'
+  const isDischarged =
+    managementRecord?.status === 'discharged' || managementRecord?.status === 'transferred'
   const currentStageLabel = managementRecord
-    ? 'Management'
+    ? isDischarged
+      ? 'Discharged'
+      : 'Management'
     : profileData.onboarding
     ? 'Onboarding'
     : 'Pipeline'
@@ -1264,8 +1245,9 @@ export default function PatientProfilePage() {
   const isInActiveManagement = managementRecord?.status === 'active'
   const isReadyForNextStage =
     profileData.onboarding || allPreArrivalFormsComplete || isInActiveManagement
-  const nextStageLabel =
-    isInActiveManagement
+  const nextStageLabel = isDischarged
+    ? null
+    : isInActiveManagement
       ? 'Discharge'
       : !profileData.onboarding && allPreArrivalFormsComplete
         ? 'Onboarding'
@@ -1294,7 +1276,13 @@ export default function PatientProfilePage() {
     new Date(consultScheduledAt!) <= new Date() &&
     new Date(preIntegrationScheduledAt!) <= new Date()
   const labsDone = false
-  const travelDone = false
+  const travelDone = !!(
+    clinicalDirectorConsultForm &&
+    (clinicalDirectorConsultForm.arrival_date ||
+      clinicalDirectorConsultForm.arrival_time ||
+      (clinicalDirectorConsultForm.questions_concerns_prior_arrival?.trim?.() ?? '') ||
+      (clinicalDirectorConsultForm.dietary_restrictions_allergies?.trim?.() ?? ''))
+  )
   const readinessFactorsDoneCount = [formsDone, paymentDone, medicalClearanceDone, labsDone, travelDone].filter(Boolean).length
   const readinessScore = Math.round((readinessFactorsDoneCount / 5) * 100)
   const lastUpdatedAt =
@@ -1312,10 +1300,35 @@ export default function PatientProfilePage() {
     return map[programType] || programType
   }
 
+  const doesHaveOnboarding = !!profileData?.onboarding?.onboarding
+  const doesHaveManagement = !!managementRecord
+  const doesHaveBilling = !!(isAdminOrOwner && profileData?.serviceAgreement?.is_activated)
+
   return (
-    <div className="p-6">
+    <PatientProfileTour
+      doesHaveOnboarding={doesHaveOnboarding}
+      doesHaveManagement={doesHaveManagement}
+      doesHaveBilling={doesHaveBilling}
+      setActiveTab={setActiveTab}
+    >
+      {({ startTourForEarlyStage, startTourForFullStage, isRunning: isTourRunning }) => (
+        <div className="p-6">
+      {isDischarged && (
+        <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center gap-3">
+          <UserCheck className="h-5 w-5 text-gray-500 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-gray-700">Patient Discharged</p>
+            <p className="text-xs text-gray-500">
+              This client has been discharged from treatment.
+              {managementRecord?.discharged_at && (
+                <> Discharged on {format(new Date(managementRecord.discharged_at), 'MMM dd, yyyy')}.</>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
       {/* Header: avatar + name/contact (same height as avatar) | actions */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6" data-tour="page-header">
         <div className="flex items-center gap-4 min-h-[96px]">
           <Avatar className="h-24 w-24 shrink-0 rounded-full border-2 border-gray-200 bg-gray-100">
             <AvatarImage src={patient?.avatar_url || undefined} alt={displayName} className="object-cover" />
@@ -1433,6 +1446,10 @@ export default function PatientProfilePage() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            </>
+          )}
+          {(patient?.id || profileData?.partialForm?.id) && isAdminOrOwner && (
+            <>
               <Button
                 variant="outline"
                 size="sm"
@@ -1448,7 +1465,9 @@ export default function PatientProfilePage() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete this client permanently?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently delete the client and all related data: profile, onboarding, management, consent forms, medical history, intake and partial forms, and authentication. This cannot be undone. No records for this client will remain.
+                      {patient?.id
+                        ? 'This will permanently delete the client and all related data: profile, onboarding, management, consent forms, medical history, intake and partial forms, and authentication. This cannot be undone. No records for this client will remain.'
+                        : 'This will permanently delete this lead and all related data: partial/intake forms, notes, tasks, onboarding, consent and service forms. This cannot be undone. No records for this lead will remain.'}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -1458,10 +1477,16 @@ export default function PatientProfilePage() {
                       disabled={isDeletingClient}
                       onClick={async (e) => {
                         e.preventDefault()
-                        if (!patient?.id) return
+                        const toDeletePatientId = patient?.id
+                        const toDeletePartialFormId = !toDeletePatientId && profileData?.partialForm?.id ? id : undefined
+                        if (!toDeletePatientId && !toDeletePartialFormId) return
                         setIsDeletingClient(true)
                         try {
-                          const result = await deleteClient({ patientId: patient.id })
+                          const result = await deleteClient(
+                            toDeletePatientId
+                              ? { patientId: toDeletePatientId }
+                              : { partialFormId: toDeletePartialFormId }
+                          )
                           if (result?.data?.success) {
                             toast.success(result.data.message ?? 'Client deleted.')
                             setShowDeleteClientConfirm(false)
@@ -1561,6 +1586,7 @@ export default function PatientProfilePage() {
                 variant="outline"
                 size="sm"
                 className="gap-2 relative bg-gray-100 hover:bg-gray-200 border-gray-200 disabled:opacity-50 disabled:pointer-events-none"
+                data-tour="action-dropdown"
                 disabled={!isReadyForNextStage}
                 title={!isReadyForNextStage ? 'Complete all pre-arrival forms (Intake, Medical History, Service Agreement, Ibogaine Consent) to move stage' : undefined}
               >
@@ -1779,7 +1805,7 @@ export default function PatientProfilePage() {
 
       {/* Left sidebar card (Figma Frame 5871) + main content */}
       <div className="flex flex-col lg:flex-row gap-6">
-        <aside className="w-full lg:w-[311px] shrink-0">
+        <aside className="w-full lg:w-[311px] shrink-0" data-tour="patient-sidebar">
           <div className="rounded-2xl border border-[#D6D2C8] bg-white p-5 flex flex-col gap-5 shadow-sm">
             {/* Avatar + Name + Lead ID */}
             <div className="flex items-center gap-3">
@@ -1798,7 +1824,13 @@ export default function PatientProfilePage() {
             <div className="flex flex-wrap items-stretch gap-4">
               <div className="flex flex-col gap-2.5">
                 <p className="text-xs text-[#777777]">Current Stage</p>
-                <span className="inline-flex items-center justify-center self-start px-3 py-1.5 rounded-[10px] text-sm bg-[#FFFBD4] text-[#F59E0B]">
+                <span
+                  className={`inline-flex items-center justify-center self-start px-3 py-1.5 rounded-[10px] text-sm ${
+                    isDischarged
+                      ? 'bg-gray-100 text-gray-600'
+                      : 'bg-[#FFFBD4] text-[#F59E0B]'
+                  }`}
+                >
                   {currentStageLabel}
                 </span>
               </div>
@@ -1810,13 +1842,21 @@ export default function PatientProfilePage() {
               </div>
             </div>
             {/* Key Dates */}
-            <div className="flex flex-col gap-2.5">
+            <div className="flex flex-col gap-2.5" data-tour="key-dates">
               <p className="text-xs text-[#777777]">Key Dates</p>
               <div className="rounded-[10px] border border-[#D6D2C8] bg-[#F5F4F0] p-3.5 flex flex-col gap-2.5">
                 <div className="flex justify-between items-center gap-2">
                   <span className="text-xs text-[#777777]">Inquiry</span>
                   <span className="text-xs text-[#2B2820]">{inquiryDate}</span>
                 </div>
+                {isDischarged && managementRecord?.discharged_at && (
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-xs text-[#777777]">Discharged</span>
+                    <span className="text-xs text-[#2B2820] font-medium">
+                      {format(new Date(managementRecord.discharged_at), 'MMM dd, yyyy')}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center gap-2">
                   <span className="text-xs text-[#777777]">Planned Arrival</span>
                   {profileData?.onboarding && isStaff && profileData?.onboarding?.onboarding?.id ? (
@@ -1852,7 +1892,7 @@ export default function PatientProfilePage() {
               </div>
             </div>
             {/* Notes */}
-            <div className="flex flex-col gap-2.5">
+            <div className="flex flex-col gap-2.5" data-tour="notes-section">
               <p className="text-xs text-[#777777]">Notes</p>
               {leadNotes.length > 0 && (
                 <div className="rounded-[10px] border border-[#D6D2C8] bg-[#F5F4F0] max-h-[220px] overflow-y-auto">
@@ -1990,7 +2030,7 @@ export default function PatientProfilePage() {
             </div>
 
             {/* Documents list */}
-            <div className="flex flex-col gap-2.5">
+            <div className="flex flex-col gap-2.5" data-tour="documents-list">
               <p className="text-xs text-[#777777]">Documents</p>
               {sidebarDocumentList.length > 0 ? (
                 <div className="rounded-[10px] border border-[#D6D2C8] bg-[#F5F4F0] max-h-[220px] overflow-y-auto">
@@ -2026,7 +2066,7 @@ export default function PatientProfilePage() {
 
         <div className="flex-1 min-w-0">
       <div className="rounded-2xl border border-[#D6D2C8] bg-white p-5 shadow-sm">
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-7" style={{ minWidth: 0 }}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="space-y-7" style={{ minWidth: 0 }} data-tour="tab-navigation">
         <TabsList className="h-10 w-full max-w-full justify-between rounded-full bg-[#F5F4F0] p-1">
           <TabsTrigger
             value="overview"
@@ -2043,6 +2083,7 @@ export default function PatientProfilePage() {
           {isAdminOrOwner && (
             <TabsTrigger
               value="billing"
+              data-tour="billing-tab"
               disabled={!profileData.serviceAgreement?.is_activated}
               title={!profileData.serviceAgreement?.is_activated ? 'Activate Service Agreement to access Billing' : undefined}
               className="rounded-full px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-[#6E7A46] data-[state=active]:shadow-md data-[state=inactive]:text-[#090909] disabled:opacity-50 disabled:pointer-events-none"
@@ -2052,6 +2093,7 @@ export default function PatientProfilePage() {
           )}
           <TabsTrigger
             value="travel"
+            data-tour="travel-tab"
             className="rounded-full px-4 text-sm data-[state=active]:bg-white data-[state=active]:text-[#6E7A46] data-[state=active]:shadow-md data-[state=inactive]:text-[#090909]"
           >
             Travel
@@ -2065,7 +2107,7 @@ export default function PatientProfilePage() {
             <div className="h-[15px] w-px bg-[#6B7280]" />
             <p className="text-sm text-[#777777]">Showing All Activity</p>
           </div>
-          <div className="relative flex flex-col gap-0">
+          <div className="relative flex flex-col gap-0" data-tour="activity-timeline">
             {/* Timeline items */}
             {(() => {
               const appSubmittedAt = profileData.intakeForm?.created_at || profileData.partialForm?.created_at
@@ -2331,47 +2373,45 @@ export default function PatientProfilePage() {
                             <>
                               <p className="text-sm text-[#777777]">{format(new Date(item.consultRow.scheduledAt), 'MMM d, yyyy • h:mm a')}</p>
                               <p className="text-sm text-[#777777] mt-0.5">Consult call with Clinical Director is scheduled.</p>
-                              {isStaff && (
-                                <>
-                                  {item.consultRow.formData && (
-                                    <ul className="mt-3 space-y-2 text-sm">
-                                      {CLINICAL_DIRECTOR_CONSULT_QUESTION_LABELS.map(({ key, label }) => {
-                                        const raw = (item.consultRow!.formData as any)?.[key]
-                                        let value: string | null = null
-                                        if (raw === true || raw === false) value = raw ? 'Yes' : 'No'
-                                        else if (typeof raw === 'number') value = String(raw)
-                                        else if (key === 'diagnosed_conditions' && typeof raw === 'string') {
-                                          try {
-                                            const arr = JSON.parse(raw) as string[]
-                                            value = Array.isArray(arr) && arr.length ? arr.join(', ') : null
-                                          } catch {
-                                            value = raw.trim() || null
-                                          }
-                                        }
-                                        else if (typeof raw === 'string' && raw.trim()) value = raw.trim()
-                                        if (!value) return null
-                                        return (
-                                          <li key={key} className="flex flex-col gap-0.5">
-                                            <span className="font-medium text-[#2B2820]">{label}</span>
-                                            <span className="text-[#777777]">{value}</span>
-                                          </li>
-                                        )
-                                      })}
-                                    </ul>
-                                  )}
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="mt-3 rounded-full border-[#D6D2C8] text-xs text-[#6E7A46] hover:bg-[#F5F4F0]"
-                                    onClick={() => router.push(`/patient-pipeline/patient-profile/${id}/clinical-director-consult-form`)}
-                                  >
-                                    {item.consultRow.formData ? 'View / Edit form' : 'Fill questionnaire'}
-                                  </Button>
-                                </>
-                              )}
                             </>
                           ) : (
                             <p className="text-sm text-[#777777]">Consult with Clinical Director has not been scheduled yet.</p>
+                          )}
+                          {item.consultRow.formData && (
+                            <ul className="mt-3 space-y-2 text-sm">
+                              {CLINICAL_DIRECTOR_CONSULT_QUESTION_LABELS.map(({ key, label }) => {
+                                const raw = (item.consultRow!.formData as any)?.[key]
+                                let value: string | null = null
+                                if (raw === true || raw === false) value = raw ? 'Yes' : 'No'
+                                else if (typeof raw === 'number') value = String(raw)
+                                else if (key === 'diagnosed_conditions' && typeof raw === 'string') {
+                                  try {
+                                    const arr = JSON.parse(raw) as string[]
+                                    value = Array.isArray(arr) && arr.length ? arr.join(', ') : null
+                                  } catch {
+                                    value = raw.trim() || null
+                                  }
+                                }
+                                else if (typeof raw === 'string' && raw.trim()) value = raw.trim()
+                                if (!value) return null
+                                return (
+                                  <li key={key} className="flex flex-col gap-0.5">
+                                    <span className="font-medium text-[#2B2820]">{label}</span>
+                                    <span className="text-[#777777]">{value}</span>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          )}
+                          {isStaff && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-3 rounded-full border-[#D6D2C8] text-xs text-[#6E7A46] hover:bg-[#F5F4F0]"
+                              onClick={() => router.push(`/patient-pipeline/patient-profile/${id}/clinical-director-consult-form`)}
+                            >
+                              {item.consultRow.formData ? 'View / Edit form' : 'Fill questionnaire'}
+                            </Button>
                           )}
                         </div>
                       )}
@@ -2414,8 +2454,8 @@ export default function PatientProfilePage() {
           {/* Forms & Docs – table layout per Figma (no Reviewed by) */}
           <div className="rounded-[16px] border border-[#D6D2C8] bg-white px-5 py-5">
             <div className="flex flex-col">
-              {/* Table header */}
-              <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 border-b border-[#D6D2C8] py-2 pr-0">
+            {/* Table header */}
+            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 border-b border-[#D6D2C8] py-2 pr-0" data-tour="forms-table">
                 <div className="text-sm text-[#777777] font-normal py-2">Form</div>
                 <div className="text-sm text-[#777777] font-normal py-2 px-3 min-w-[90px]">Status</div>
                 <div className="text-sm text-[#777777] font-normal py-2 px-3 min-w-[80px]">Submitted</div>
@@ -2424,7 +2464,7 @@ export default function PatientProfilePage() {
               {/* Application Form row */}
               <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0">
                 <div className="text-sm text-[#2B2820] py-2">Application Form</div>
-                <div className="py-2 px-3">
+                <div className="py-2 px-3" data-tour="form-status-badge">
                   {profileData.formStatuses.intake === 'completed' ? (
                     <span className="inline-flex items-center justify-center px-3 h-[26px] rounded-[10px] text-xs font-normal bg-[#DEF8EE] text-[#10B981]">Submitted</span>
                   ) : (
@@ -2432,7 +2472,7 @@ export default function PatientProfilePage() {
                   )}
                 </div>
                 <div className="text-sm text-[#2B2820] py-2 px-3">{getFormSubmittedDate('intake') ?? '—'}</div>
-                <div className="py-2 px-3 flex gap-2 flex-wrap">
+                <div className="py-2 px-3 flex gap-2 flex-wrap" data-tour="form-actions">
                   {profileData.formStatuses.intake === 'not_started' ? (
                     <>
                       {isAdminOrOwner && (
@@ -2700,7 +2740,7 @@ export default function PatientProfilePage() {
 
             {/* Onboarding Forms – same table design as pre-arrival forms */}
             {profileData.onboarding && (
-              <div className="mt-6">
+              <div className="mt-6" data-tour="onboarding-forms">
                 <div className="rounded-[16px] border border-[#D6D2C8] bg-white px-5 py-5">
                   <div className="flex flex-col">
                     <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 border-b border-[#D6D2C8] py-2 pr-0">
@@ -3068,8 +3108,8 @@ export default function PatientProfilePage() {
                       </div>
                     )}
 
-                    {/* Clinical Director Consult Questionnaire – visible when consult is scheduled */}
-                    {isStaff && profileData?.onboarding?.onboarding?.id && (profileData.onboarding.onboarding as { consult_scheduled_at?: string | null }).consult_scheduled_at && (
+                    {/* Clinical Director Consult Questionnaire */}
+                    {isStaff && profileData?.onboarding?.onboarding?.id && (
                       <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 items-center border-b border-[#D6D2C8] py-2 pr-0 last:border-b-0">
                         <div className="text-sm text-[#2B2820] py-2 flex items-center gap-2">
                           <Phone className="h-4 w-4 text-[#6E7A46]" />
@@ -3272,24 +3312,6 @@ export default function PatientProfilePage() {
                                 {isAddiction && renderDailyColumn('sows', 'SOWS')}
                               </div>
                             </div>
-                            <div className="mt-4 pt-4 border-t border-[#D6D2C8] flex flex-wrap gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="rounded-full border-[#D6D2C8] text-sm h-[22px] px-4"
-                                onClick={() => setViewFormIframe({ url: `/patient-management/${mid}/one-time-forms`, title: 'One-time forms' })}
-                              >
-                                One-time forms
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="rounded-full border-[#D6D2C8] text-sm h-[22px] px-4"
-                                onClick={() => setViewFormIframe({ url: `/patient-management/${mid}/daily-forms`, title: 'Daily forms' })}
-                              >
-                                Daily forms
-                              </Button>
-                            </div>
                           </>
                         )
                       })()}
@@ -3363,7 +3385,7 @@ export default function PatientProfilePage() {
         </div>
         </TabsContent>
 
-        <TabsContent value="billing" className="mt-0">
+        <TabsContent value="billing" className="mt-0" data-tour="billing-section">
           {!isAdminOrOwner ? (
             <div className="rounded-[14px] bg-[#F5F4F0] border border-[#D6D2C8] p-6">
               <p className="text-sm text-[#777777]">You do not have permission to view billing information.</p>
@@ -3762,10 +3784,80 @@ export default function PatientProfilePage() {
             </div>
           )}
         </TabsContent>
-        <TabsContent value="travel" className="mt-0">
-          <div className="rounded-[14px] bg-[#F5F4F0] p-6">
-            <h3 className="text-lg font-medium text-black mb-2">Travel</h3>
-            <p className="text-sm text-[#777777]">Travel details will appear here.</p>
+        <TabsContent value="travel" className="mt-0" data-tour="travel-section">
+          <div className="rounded-[14px] border border-[#D6D2C8] bg-white p-6">
+            <h3 className="text-lg font-medium text-black mb-4">Travel</h3>
+            {profileData?.onboarding?.onboarding?.id && loadingClinicalDirectorConsultForm ? (
+              <div className="flex items-center gap-2 text-sm text-[#777777]">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading travel details…
+              </div>
+            ) : clinicalDirectorConsultForm && (clinicalDirectorConsultForm.arrival_date ?? clinicalDirectorConsultForm.arrival_time ?? clinicalDirectorConsultForm.questions_concerns_prior_arrival?.trim() ?? clinicalDirectorConsultForm.dietary_restrictions_allergies?.trim()) ? (
+              <div className="space-y-5">
+                {(clinicalDirectorConsultForm.arrival_date || clinicalDirectorConsultForm.arrival_time) && (
+                  <div>
+                    <h4 className="text-sm font-medium text-[#2B2820] mb-2">Arrival (from Clinical Director consult)</h4>
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      {clinicalDirectorConsultForm.arrival_date && (
+                        <div>
+                          <span className="text-[#777777]">Date: </span>
+                          <span className="text-[#2B2820]">
+                            {format(new Date(clinicalDirectorConsultForm.arrival_date + 'T12:00:00'), 'MMM d, yyyy')}
+                          </span>
+                        </div>
+                      )}
+                      {clinicalDirectorConsultForm.arrival_time && (
+                        <div>
+                          <span className="text-[#777777]">Time: </span>
+                          <span className="text-[#2B2820]">{clinicalDirectorConsultForm.arrival_time}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {clinicalDirectorConsultForm.questions_concerns_prior_arrival?.trim() && (
+                  <div>
+                    <h4 className="text-sm font-medium text-[#2B2820] mb-2">Questions or concerns prior to arrival</h4>
+                    <p className="text-sm text-[#2B2820] whitespace-pre-wrap">{clinicalDirectorConsultForm.questions_concerns_prior_arrival.trim()}</p>
+                  </div>
+                )}
+                {clinicalDirectorConsultForm.dietary_restrictions_allergies?.trim() && (
+                  <div>
+                    <h4 className="text-sm font-medium text-[#2B2820] mb-2">Food allergies (from Clinical Director consult)</h4>
+                    <p className="text-sm text-[#2B2820] whitespace-pre-wrap">{clinicalDirectorConsultForm.dietary_restrictions_allergies.trim()}</p>
+                  </div>
+                )}
+                {(() => {
+                  const ob = profileData?.onboarding?.onboarding as { travel_arranged?: boolean; expected_arrival_date?: string | null } | undefined
+                  if (!ob || (typeof ob.travel_arranged !== 'boolean' && !ob.expected_arrival_date)) return null
+                  return (
+                    <div>
+                      <h4 className="text-sm font-medium text-[#2B2820] mb-2">Onboarding</h4>
+                      <div className="space-y-1 text-sm">
+                        {typeof ob.travel_arranged === 'boolean' && (
+                          <p className="text-[#2B2820]">
+                            <span className="text-[#777777]">Travel arranged: </span>
+                            {ob.travel_arranged ? 'Yes' : 'No'}
+                          </p>
+                        )}
+                        {ob.expected_arrival_date && (
+                          <p className="text-[#2B2820]">
+                            <span className="text-[#777777]">Expected arrival: </span>
+                            {format(new Date(ob.expected_arrival_date + 'T12:00:00'), 'MMM d, yyyy')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            ) : (
+              <p className="text-sm text-[#777777]">
+                {profileData?.onboarding?.onboarding?.id
+                  ? 'Travel details will appear here once the Clinical Director has submitted the consult form.'
+                  : 'No travel details for this profile.'}
+              </p>
+            )}
           </div>
         </TabsContent>
       </Tabs>
@@ -3775,7 +3867,7 @@ export default function PatientProfilePage() {
         {/* Right sidebar: Tasks + Readiness */}
         <aside className="w-full lg:w-[313px] shrink-0 flex flex-col gap-6">
           {/* Tasks card */}
-          <div className="rounded-2xl border border-[#D6D2C8] bg-white p-5 flex flex-col gap-5 shadow-sm">
+          <div className="rounded-2xl border border-[#D6D2C8] bg-white p-5 flex flex-col gap-5 shadow-sm" data-tour="tasks-card">
             <div className="flex items-center gap-2.5">
               <h3 className="text-lg font-medium text-black">Tasks</h3>
               <div className="h-[15px] w-px bg-[#6B7280]" />
@@ -4043,7 +4135,7 @@ export default function PatientProfilePage() {
           </div>
 
           {/* Readiness card */}
-          <div className="rounded-2xl border border-[#D6D2C8] bg-white p-5 flex flex-col gap-[34px] shadow-sm">
+          <div className="rounded-2xl border border-[#D6D2C8] bg-white p-5 flex flex-col gap-[34px] shadow-sm" data-tour="readiness-card">
             <div>
               <h3 className="text-lg font-medium text-black mb-2.5">Readiness</h3>
               <div className="flex items-end justify-between gap-2 h-16">
@@ -4110,7 +4202,11 @@ export default function PatientProfilePage() {
                     { label: paymentLabel, status: paymentStatus, statusStyle: paymentStatusStyle },
                     { label: 'Labs Uploaded', status: 'Missing', statusStyle: 'Missing' },
                     { label: 'Medical Clearance', status: medicalClearanceStatus, statusStyle: medicalClearanceStyle },
-                    { label: 'Travel Details', status: 'Pending', statusStyle: 'Pending' },
+                    {
+                      label: 'Travel Details',
+                      status: travelDone ? 'Done' : 'Pending',
+                      statusStyle: travelDone ? 'Done' : 'Pending',
+                    },
                   ]
                   return requirements
                 })().map((row) => {
@@ -5275,7 +5371,17 @@ export default function PatientProfilePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <FloatingTourTrigger
+        disabled={isTourRunning}
+        ariaLabel="Start patient profile guide"
+        onClick={() => {
+          if (doesHaveOnboarding || doesHaveManagement || doesHaveBilling) startTourForFullStage()
+          else startTourForEarlyStage()
+        }}
+      />
     </div>
+      )}
+    </PatientProfileTour>
   )
 }
 
