@@ -21,6 +21,9 @@ import {
 import { toast } from 'sonner'
 import { MedicalHistoryFormView } from '@/components/admin/medical-history-form-view'
 import { X } from 'lucide-react'
+import { useTour } from '@/hooks/use-tour.hook'
+import { FloatingTourTrigger } from '@/components/tours/floating-tour-trigger'
+import { getOneTimeFormsTourSteps } from '@/components/tours/one-time-forms-tour'
 
 interface PatientManagementData {
   id: string
@@ -122,11 +125,13 @@ export default function OneTimeFormsPage() {
   const parkinsonsPsychologicalStatus = getFormStatus('parkinsons_psychological')
   const parkinsonsMortalityStatus = getFormStatus('parkinsons_mortality')
 
+  const { startTour, isRunning } = useTour({ storageKey: 'hasSeenOneTimeFormsTour' })
+
   return (
     <div className="p-4 sm:p-6">
       {/* Header */}
-      <div className="mb-6">
-        <Button variant="ghost" onClick={() => router.push('/patient-management')} className="mb-4">
+      <div className="mb-6" data-tour="page-header">
+        <Button variant="ghost" onClick={() => router.push('/patient-management')} className="mb-4" data-tour="back-nav">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Client Management
         </Button>
@@ -147,7 +152,7 @@ export default function OneTimeFormsPage() {
       </div>
 
       {/* Forms List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-tour="forms-grid">
         {/* Medical Intake Report - All Programs */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
@@ -297,7 +302,7 @@ export default function OneTimeFormsPage() {
 
       {/* Medical Health History Document - Show if form exists OR uploaded document exists */}
       {(forms?.medicalHistory || forms?.medicalHistoryDocument) && (
-        <div className="mt-8 bg-white rounded-xl border border-gray-200 p-6">
+        <div className="mt-8 bg-white rounded-xl border border-gray-200 p-6" data-tour="medical-history-section">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <FileText className="h-6 w-6 text-emerald-600" />
@@ -387,6 +392,10 @@ export default function OneTimeFormsPage() {
           )}
         </div>
       )}
+      <FloatingTourTrigger
+        disabled={isRunning}
+        onClick={() => startTour(getOneTimeFormsTourSteps())}
+      />
     </div>
   )
 }

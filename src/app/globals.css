@@ -314,3 +314,77 @@
     /* This class is detected by the PDF generator as a safe break point */
   }
 }
+
+/* Driver.js tour popover customization */
+.driver-popover.driverjs-theme {
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  max-width: 320px;
+  padding: 16px;
+}
+
+.driver-popover.driverjs-theme .driver-popover-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2B2820;
+  margin-bottom: 8px;
+}
+
+.driver-popover.driverjs-theme .driver-popover-description {
+  font-size: 14px;
+  color: #555555;
+  line-height: 1.5;
+}
+
+.driver-popover.driverjs-theme .driver-popover-progress-text {
+  font-size: 12px;
+  color: #777777;
+}
+
+.driver-popover.driverjs-theme .driver-popover-prev-btn,
+.driver-popover.driverjs-theme .driver-popover-next-btn {
+  background-color: #6E7A46;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.driver-popover.driverjs-theme .driver-popover-prev-btn:hover,
+.driver-popover.driverjs-theme .driver-popover-next-btn:hover {
+  background-color: #5a6639;
+}
+
+.driver-popover.driverjs-theme .driver-popover-prev-btn {
+  background-color: #F5F4F0;
+  color: #2B2820;
+}
+
+.driver-popover.driverjs-theme .driver-popover-prev-btn:hover {
+  background-color: #E8E7E3;
+}
+
+.driver-popover.driverjs-theme .driver-popover-close-btn {
+  color: #777777;
+}
+
+.driver-popover.driverjs-theme .driver-popover-close-btn:hover {
+  color: #2B2820;
+}
+
+.driver-popover.driverjs-theme .driver-popover-arrow-side-left,
+.driver-popover.driverjs-theme .driver-popover-arrow-side-right,
+.driver-popover.driverjs-theme .driver-popover-arrow-side-top,
+.driver-popover.driverjs-theme .driver-popover-arrow-side-bottom {
+  border-color: #ffffff;
+}
+
+/* Ensure popover stays within viewport */
+.driver-popover {
+  z-index: 100001 !important;
+}

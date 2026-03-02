@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { TrendingUp, UserPlus, Loader2, Pencil } from 'lucide-react'
+import { UserPlus, Loader2, Pencil } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -10,13 +10,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { addEmployeeAction, getEmployees, updateEmployeeAction } from '@/actions/facility.action'
+import { addEmployeeAction, getEmployees, getFacilityOverviewStats, updateEmployeeAction } from '@/actions/facility.action'
 import { addEmployeeSchema, updateEmployeeSchema } from '@/lib/validations/facility'
 import { User, UserRole } from '@/types'
 import { roleConfig } from '@/config/navigation'
 import { format } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import type { z } from 'zod'
+import { useTour } from '@/hooks/use-tour.hook'
+import { FloatingTourTrigger } from '@/components/tours/floating-tour-trigger'
+import { getFacilityManagementTourSteps } from '@/components/tours/facility-management-tour'
 
 type AddEmployeeFormValues = z.infer<typeof addEmployeeSchema>
 type UpdateEmployeeFormValues = z.infer<typeof updateEmployeeSchema>
@@ -30,6 +33,17 @@ export default function FacilityManagementPage() {
   const [employees, setEmployees] = useState<User[]>([])
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true)
   const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null)
+  const [facilityStats, setFacilityStats] = useState<{
+    occupancyPercent: number
+    occupancySubtitle: string
+    bedsAvailableNext30: number
+    bedsAvailableSubtitle: string
+    confirmedRevenueFormatted: string
+    confirmedRevenueSubtitle: string
+    staffLoadPercent: number
+    staffLoadSubtitle: string
+  } | null>(null)
+  const [isLoadingStats, setIsLoadingStats] = useState(true)
 
   const employeeForm = useForm<AddEmployeeFormValues>({
     resolver: zodResolver(addEmployeeSchema),
@@ -126,6 +140,33 @@ export default function FacilityManagementPage() {
     loadEmployees()
   }, [loadEmployees])
 
+  const loadFacilityStats = useCallback(async () => {
+    setIsLoadingStats(true)
+    try {
+      const result = await getFacilityOverviewStats({})
+      if (result?.data?.success && result.data.data) {
+        setFacilityStats({
+          occupancyPercent: result.data.data.occupancyPercent,
+          occupancySubtitle: result.data.data.occupancySubtitle,
+          bedsAvailableNext30: result.data.data.bedsAvailableNext30,
+          bedsAvailableSubtitle: result.data.data.bedsAvailableSubtitle,
+          confirmedRevenueFormatted: result.data.data.confirmedRevenueFormatted,
+          confirmedRevenueSubtitle: result.data.data.confirmedRevenueSubtitle,
+          staffLoadPercent: result.data.data.staffLoadPercent,
+          staffLoadSubtitle: result.data.data.staffLoadSubtitle,
+        })
+      }
+    } catch {
+      // Non-blocking; cards can show loading/fallback
+    } finally {
+      setIsLoadingStats(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadFacilityStats()
+  }, [loadFacilityStats])
+
   function handleEditClick(employee: User) {
     setEditingEmployee(employee)
     // Filter out 'owner' and 'patient' roles as they're not editable through this form
@@ -197,10 +238,12 @@ export default function FacilityManagementPage() {
   }
 
 
+  const { startTour, isRunning } = useTour({ storageKey: 'hasSeenFacilityManagementTour' })
+
   return (
     <div className="p-4 sm:p-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-0 mb-6 sm:mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 sm:gap-0 mb-6 sm:mb-8" data-tour="page-header">
         <div>
           <h1 
             className="text-2xl sm:text-3xl md:text-[44px] font-normal leading-[1.3em] text-black"
@@ -220,7 +263,7 @@ export default function FacilityManagementPage() {
           {/* Add Employee Dialog */}
           <Dialog open={isEmployeeDialogOpen} onOpenChange={setIsEmployeeDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2 bg-gray-900 hover:bg-gray-800 text-white border-gray-900 hover:border-gray-800">
+              <Button data-tour="add-employee-btn" className="gap-2 bg-gray-900 hover:bg-gray-800 text-white border-gray-900 hover:border-gray-800">
                 <UserPlus className="h-4 w-4" />
                 Add Employee
               </Button>
@@ -375,63 +418,71 @@ export default function FacilityManagementPage() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-        {/* Occupancy */}
+      {/* Stats Cards – live from facility overview */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8" data-tour="stats-cards">
+        {/* Occupancy this month */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Occupancy (this month)</p>
-          <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">78</p>
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1 text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
-              <TrendingUp className="h-3.5 w-3.5" />
-              14%
-            </span>
-            <span className="text-gray-400 text-sm">in target range</span>
-          </div>
+          {isLoadingStats ? (
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400 mb-2" />
+          ) : (
+            <>
+              <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">
+                {facilityStats?.occupancyPercent ?? 0}%
+              </p>
+              <p className="text-gray-500 text-xs sm:text-sm">{facilityStats?.occupancySubtitle ?? '—'}</p>
+            </>
+          )}
         </div>
 
-        {/* Beds Available */}
+        {/* Beds available next 30 days */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Beds Available (next 30 days)</p>
-          <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">11</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="flex items-center gap-1 text-xs sm:text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
-              <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              5%
-            </span>
-            <span className="text-gray-400 text-xs sm:text-sm">empty beds beyond 6 weeks</span>
-          </div>
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Beds available (next 30 days)</p>
+          {isLoadingStats ? (
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400 mb-2" />
+          ) : (
+            <>
+              <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">
+                {facilityStats?.bedsAvailableNext30 ?? 0}
+              </p>
+              <p className="text-gray-500 text-xs sm:text-sm">{facilityStats?.bedsAvailableSubtitle ?? '—'}</p>
+            </>
+          )}
         </div>
 
-        {/* Confirmed Revenue */}
+        {/* Confirmed revenue */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Confirmed Revenue</p>
-          <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">$142K</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="flex items-center gap-1 text-xs sm:text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
-              <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              40%
-            </span>
-            <span className="text-gray-400 text-xs sm:text-sm">Booked for next 60 days</span>
-          </div>
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Confirmed revenue</p>
+          {isLoadingStats ? (
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400 mb-2" />
+          ) : (
+            <>
+              <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">
+                {facilityStats?.confirmedRevenueFormatted ?? '—'}
+              </p>
+              <p className="text-gray-500 text-xs sm:text-sm">{facilityStats?.confirmedRevenueSubtitle ?? '—'}</p>
+            </>
+          )}
         </div>
 
-        {/* Staff Load */}
+        {/* Staff load */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Staff Load</p>
-          <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">86%</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="flex items-center gap-1 text-xs sm:text-sm font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">
-              <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              7%
-            </span>
-            <span className="text-gray-400 text-xs sm:text-sm">High-monitor overtime</span>
-          </div>
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Staff load</p>
+          {isLoadingStats ? (
+            <Loader2 className="h-8 w-8 animate-spin text-gray-400 mb-2" />
+          ) : (
+            <>
+              <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">
+                {facilityStats?.staffLoadPercent ?? 0}%
+              </p>
+              <p className="text-gray-500 text-xs sm:text-sm">{facilityStats?.staffLoadSubtitle ?? '—'}</p>
+            </>
+          )}
         </div>
       </div>
 
       {/* Employees List */}
-      <div className="mt-6 sm:mt-8">
+      <div className="mt-6 sm:mt-8" data-tour="employees-section">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-4">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Employees</h2>
           <span className="text-xs sm:text-sm text-gray-500">{employees.length} total</span>
@@ -471,7 +522,7 @@ export default function FacilityManagementPage() {
                     Added
                   </th>
                   {(currentUserRole === 'admin' || currentUserRole === 'owner') && (
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider" data-tour="edit-employee-action">
                       Actions
                     </th>
                   )}
@@ -675,6 +726,10 @@ export default function FacilityManagementPage() {
           </Form>
         </DialogContent>
       </Dialog>
+      <FloatingTourTrigger
+        disabled={isRunning}
+        onClick={() => startTour(getFacilityManagementTourSteps())}
+      />
     </div>
   )
 }

@@ -19,6 +19,9 @@ import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getTodayEST, formatDateEST, formatDateFullEST } from '@/lib/utils'
+import { useTour } from '@/hooks/use-tour.hook'
+import { FloatingTourTrigger } from '@/components/tours/floating-tour-trigger'
+import { getDailyFormsTourSteps } from '@/components/tours/daily-forms-tour'
 
 interface PatientManagementData {
   id: string
@@ -124,11 +127,13 @@ export default function DailyFormsPage() {
   
   const isAddictionProgram = management?.program_type === 'addiction'
 
+  const { startTour, isRunning } = useTour({ storageKey: 'hasSeenDailyFormsTour' })
+
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="mb-6 sm:mb-8">
-        <Button variant="ghost" onClick={() => router.push('/patient-management')} className="mb-4">
+      <div className="mb-6 sm:mb-8" data-tour="page-header">
+        <Button variant="ghost" onClick={() => router.push('/patient-management')} className="mb-4" data-tour="back-nav">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Client Management
         </Button>
@@ -154,7 +159,7 @@ export default function DailyFormsPage() {
       </div>
 
       {/* Date Selection */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-6" data-tour="date-selection">
         <Label htmlFor="form-date" className="text-base font-semibold text-gray-900 mb-2 block">
           Select Date (EST)
         </Label>
@@ -172,7 +177,7 @@ export default function DailyFormsPage() {
       </div>
 
       {/* Form Buttons */}
-      <div className={`grid grid-cols-1 ${isAddictionProgram ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2'} gap-4 sm:gap-6`}>
+      <div className={`grid grid-cols-1 ${isAddictionProgram ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2'} gap-4 sm:gap-6`} data-tour="form-type-cards">
         {/* Psychological Update */}
         <div 
           className="bg-white rounded-xl border border-gray-200 p-6 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer"
@@ -312,7 +317,7 @@ export default function DailyFormsPage() {
 
       {/* Forms History - Separate sections */}
       {(psychologicalForms.length > 0 || medicalForms.length > 0 || (isAddictionProgram && (sowsForms.length > 0 || oowsForms.length > 0))) && (
-        <div className={`mt-8 grid grid-cols-1 ${isAddictionProgram ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2'} gap-4 sm:gap-6`}>
+        <div className={`mt-8 grid grid-cols-1 ${isAddictionProgram ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2'} gap-4 sm:gap-6`} data-tour="forms-history">
           {/* Psychological Forms */}
           <div>
             <div className="flex items-center gap-2 mb-3">
@@ -454,6 +459,10 @@ export default function DailyFormsPage() {
           )}
         </div>
       )}
+      <FloatingTourTrigger
+        disabled={isRunning}
+        onClick={() => startTour(getDailyFormsTourSteps())}
+      />
     </div>
   )
 }

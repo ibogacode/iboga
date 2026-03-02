@@ -16,6 +16,9 @@ import type { PatientOnboardingWithProgress } from '@/types'
 import { useUser } from '@/hooks/use-user.hook'
 import { hasStaffAccess, parseDateString } from '@/lib/utils'
 import { TreatmentDateCalendar } from '@/components/treatment-scheduling/treatment-date-calendar'
+import { useTour } from '@/hooks/use-tour.hook'
+import { FloatingTourTrigger } from '@/components/tours/floating-tour-trigger'
+import { getOnboardingTourSteps } from '@/components/tours/onboarding-tour'
 
 // Onboarding forms
 const ONBOARDING_FORMS = [
@@ -167,11 +170,16 @@ export default function OnboardingPage() {
   const inProgress = patients.filter(p => p.steps_completed < ONBOARDING_STEPS_TOTAL).length
   const totalStepsCompleted = patients.reduce((sum, p) => sum + p.steps_completed, 0)
   const totalStepsPossible = patients.length * ONBOARDING_STEPS_TOTAL
+  const readyForManagementPatients = patients.filter(
+    (p) => p.steps_completed === ONBOARDING_STEPS_TOTAL && p.status !== 'moved_to_management'
+  )
+
+  const { startTour, isRunning } = useTour({ storageKey: 'hasSeenOnboardingTour' })
 
   return (
     <div className="p-4 sm:p-6">
       {/* Header */}
-      <div className="mb-6 sm:mb-8">
+      <div className="mb-6 sm:mb-8" data-tour="page-header">
         <h1 
           style={{ 
             fontFamily: 'var(--font-instrument-serif), serif',
@@ -189,9 +197,49 @@ export default function OnboardingPage() {
         </p>
       </div>
 
+      {readyForManagementPatients.length > 0 && (
+        <div className="mb-6 sm:mb-8" data-tour="ready-banner">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 sm:p-5">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm sm:text-base font-medium text-amber-900">
+                  {readyForManagementPatients.length === 1
+                    ? '1 client is ready to be moved to Client Management.'
+                    : `${readyForManagementPatients.length} clients are ready to be moved to Client Management.`}
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {readyForManagementPatients.slice(0, 5).map((patient) => (
+                    <li key={patient.id} className="text-xs sm:text-sm text-amber-900 flex items-center justify-between gap-2">
+                      <span>
+                        {patient.first_name} {patient.last_name}
+                        {patient.program_type ? ` • ${formatProgramName(patient.program_type)}` : ''}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => handleViewPatient(patient)}
+                      >
+                        View
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+                {readyForManagementPatients.length > 5 && (
+                  <p className="mt-2 text-xs text-amber-800">
+                    And {readyForManagementPatients.length - 5} more ready clients listed in the table below.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        {/* Patients in Onboarding */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6" data-tour="stats-cards">
+        {/* Clients in Onboarding */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Clients in Onboarding</p>
           {isLoading ? (
@@ -199,59 +247,65 @@ export default function OnboardingPage() {
           ) : (
             <>
               <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">{totalOnboarding}</p>
-              <p className="text-blue-600 text-xs sm:text-sm font-medium">{inProgress} in progress</p>
+              <p className="text-gray-600 text-xs sm:text-sm">
+                {inProgress} in progress · {completedSteps} ready to move
+              </p>
             </>
           )}
         </div>
 
-        {/* Forms Completed */}
+        {/* Completion Rate */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Forms Completed</p>
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Completion Rate</p>
           {isLoading ? (
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           ) : (
             <>
               <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">
-                {totalStepsCompleted}/{totalStepsPossible}
+                {totalStepsPossible > 0 ? Math.round((totalStepsCompleted / totalStepsPossible) * 100) : 0}%
               </p>
-              <p className="text-emerald-600 text-xs sm:text-sm font-medium">
-                {totalStepsPossible > 0 ? Math.round((totalStepsCompleted / totalStepsPossible) * 100) : 0}% completion rate
+              <p className="text-gray-600 text-xs sm:text-sm">
+                Form steps completed across all clients
               </p>
             </>
           )}
         </div>
 
-        {/* Ready for Treatment */}
+        {/* Ready for Management */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Ready for Treatment</p>
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Ready for Management</p>
           {isLoading ? (
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           ) : (
             <>
               <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">{completedSteps}</p>
-              <p className="text-emerald-600 text-xs sm:text-sm font-medium">All 6 steps completed</p>
+              <p className="text-gray-600 text-xs sm:text-sm">
+                All {ONBOARDING_STEPS_TOTAL} steps done · assign date to move
+              </p>
             </>
           )}
         </div>
 
-        {/* Pending Forms */}
+        {/* Pending Steps */}
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
-          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Pending Forms</p>
+          <p className="text-gray-500 text-xs sm:text-sm font-medium mb-2">Pending Steps</p>
           {isLoading ? (
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           ) : (
             <>
               <p className="text-3xl sm:text-4xl font-semibold text-gray-900 mb-2 sm:mb-3">
-                {patients.length * ONBOARDING_STEPS_TOTAL - totalStepsCompleted}
+                {totalStepsPossible - totalStepsCompleted}
               </p>
-              <p className="text-amber-600 text-xs sm:text-sm font-medium">Awaiting completion</p>
+              <p className="text-gray-600 text-xs sm:text-sm">
+                Steps remaining across all clients
+              </p>
             </>
           )}
         </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="mt-6 sm:mt-8 flex gap-2 mb-4">
+      <div className="mt-6 sm:mt-8 flex gap-2 mb-4" data-tour="filter-tabs">
         <Button
           variant={statusFilter === 'all' ? 'default' : 'outline'}
           size="sm"
@@ -276,7 +330,7 @@ export default function OnboardingPage() {
       </div>
 
       {/* Patients List */}
-      <div className="mt-4">
+      <div className="mt-4" data-tour="clients-table">
         <div className="flex items-center gap-2 mb-4">
           <Users className="h-5 w-5 text-emerald-600" />
           <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Clients in Onboarding</h2>
@@ -308,19 +362,19 @@ export default function OnboardingPage() {
                     <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Program
                     </th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-tour="col-steps">
                       Steps
                     </th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-tour="col-treatment-date">
                       Treatment Date
                     </th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th scope="col" className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider" data-tour="col-actions">
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {patients.map((patient) => {
+                  {patients.map((patient, index) => {
                     const allStepsCompleted = patient.steps_completed === ONBOARDING_STEPS_TOTAL
                     
                     return (
@@ -393,6 +447,7 @@ export default function OnboardingPage() {
                                 disabled={!patient.treatment_date || movingPatient === patient.id}
                                 className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                                 title={!patient.treatment_date ? 'Treatment date must be assigned first' : ''}
+                                data-tour="action-move-to-management"
                               >
                                 {movingPatient === patient.id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -448,6 +503,10 @@ export default function OnboardingPage() {
           onSuccess={handleCalendarSuccess}
         />
       )}
+      <FloatingTourTrigger
+        disabled={isRunning}
+        onClick={() => startTour(getOnboardingTourSteps())}
+      />
     </div>
   )
 }

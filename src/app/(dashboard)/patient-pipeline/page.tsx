@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getPartialIntakeForms, getPublicIntakeForms, getScheduledPatientsCount, getPipelineStatistics } from '@/actions/patient-pipeline.action'
+import { getPartialIntakeForms, getPublicIntakeForms } from '@/actions/patient-pipeline.action'
 import { getProspects } from '@/actions/prospect-status.action'
-import { Loader2, TrendingUp, TrendingDown, Eye, CheckCircle2, Users, Mail, UserPlus, ChevronDown } from 'lucide-react'
+import { Loader2, TrendingUp, TrendingDown, Eye, CheckCircle2, Users, Mail, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
@@ -14,6 +14,9 @@ import { AddPatientModal } from '@/components/patient/add-patient-modal'
 import { ProspectsTable, type Prospect } from '@/components/patient/prospects-table'
 import { format } from 'date-fns'
 import { useUser } from '@/hooks/use-user.hook'
+import { useTour } from '@/hooks/use-tour.hook'
+import { FloatingTourTrigger } from '@/components/tours/floating-tour-trigger'
+import { getClientPipelineTourSteps } from '@/components/tours/client-pipeline-tour'
 
 interface PartialIntakeForm {
   id: string
@@ -30,6 +33,9 @@ interface PartialIntakeForm {
   completed_form_id: string | null
   email_sent_at: string | null
   program_type: 'neurological' | 'mental_health' | 'addiction' | null
+  lead_source?: string | null
+  lead_source_other?: string | null
+  serviceAgreementFee?: number | null
   creator?: {
     first_name: string | null
     last_name: string | null
@@ -49,6 +55,7 @@ interface PublicIntakeForm {
   phone_number: string
   created_at: string
   program_type: 'neurological' | 'mental_health' | 'addiction' | null
+  serviceAgreementFee?: number | null
   formCompletion?: {
     completed: number
     total: number
@@ -60,15 +67,9 @@ export default function PatientPipelinePage() {
   const { profile } = useUser()
   const [partialForms, setPartialForms] = useState<PartialIntakeForm[]>([])
   const [publicForms, setPublicForms] = useState<PublicIntakeForm[]>([])
-  const [scheduledCount, setScheduledCount] = useState<number>(0)
   const [isLoading, setIsLoading] = useState(true)
-
-  // Pipeline statistics state
-  const [onboardingCount, setOnboardingCount] = useState<number>(0)
-  const [atRiskCount, setAtRiskCount] = useState<number>(0)
-  const [pipelineValue, setPipelineValue] = useState<number>(0)
-  const [monthOverMonthChange, setMonthOverMonthChange] = useState<number>(0)
   const [selectedProgram, setSelectedProgram] = useState<string>('all')
+  const [selectedSource, setSelectedSource] = useState<string>('all')
   const [currentPagePartial, setCurrentPagePartial] = useState(1)
   const [currentPagePublic, setCurrentPagePublic] = useState(1)
   const [itemsPerPage] = useState(6)
@@ -80,6 +81,8 @@ export default function PatientPipelinePage() {
   const [activeApplicationsTab, setActiveApplicationsTab] = useState<'invites' | 'applications'>('applications')
   const [prospects, setProspects] = useState<Prospect[]>([])
   const [isProspectsLoading, setIsProspectsLoading] = useState(true)
+
+  const { startTour, isRunning } = useTour({ storageKey: 'hasSeenClientPipelineTour' })
 
   // All staff roles can view client profiles
 
@@ -106,6 +109,21 @@ export default function PatientPipelinePage() {
       addiction: 'Addiction',
     }
     return map[programType] ?? programType
+  }
+
+  function formatSourceLabel(source: string) {
+    const map: Record<string, string> = {
+      instagram: 'Insta',
+      facebook: 'Facebook',
+      linkedin: 'LinkedIn',
+      website: 'Web',
+      tiktok: 'TikTok',
+      youtube: 'YouTube',
+      recovery_com: 'Recover.com',
+      other: 'Other',
+      unknown: 'Unknown',
+    }
+    return map[source] ?? source
   }
 
   function handleViewPartial(id: string) {
@@ -158,31 +176,6 @@ export default function PatientPipelinePage() {
       // Don't block UI - load scheduled count in background
       setIsLoading(false)
       
-      // Load scheduled count and pipeline statistics asynchronously (doesn't block page render)
-      Promise.all([
-        getScheduledPatientsCount({}),
-        getPipelineStatistics({})
-      ]).then(([scheduledResult, statsResult]) => {
-        if (scheduledResult?.data?.success && scheduledResult.data.data) {
-          setScheduledCount(scheduledResult.data.data.count)
-
-          // Only log debug info in development
-          if (process.env.NODE_ENV === 'development' && scheduledResult.data.data.debug) {
-            console.log('[PatientPipeline] Scheduled Patients Debug Info:', scheduledResult.data.data.debug)
-          }
-        }
-
-        if (statsResult?.data?.success && statsResult.data.data) {
-          setOnboardingCount(statsResult.data.data.onboardingCount)
-          setAtRiskCount(statsResult.data.data.atRiskCount)
-          setPipelineValue(statsResult.data.data.pipelineValue)
-          setMonthOverMonthChange(statsResult.data.data.monthOverMonthChange)
-        }
-      }).catch(error => {
-        console.error('[PatientPipeline] Failed to get scheduled count or statistics:', error)
-        // Set to 0 on error to not break UI
-        setScheduledCount(0)
-      })
     }
     
     loadPipelineData()
@@ -212,24 +205,6 @@ export default function PatientPipelinePage() {
       if (result?.success && result.data) setProspects(result.data)
     })
 
-    Promise.all([
-      getScheduledPatientsCount({}),
-      getPipelineStatistics({})
-    ]).then(([scheduledResult, statsResult]) => {
-      if (scheduledResult?.data?.success && scheduledResult.data.data) {
-        setScheduledCount(scheduledResult.data.data.count)
-      }
-
-      if (statsResult?.data?.success && statsResult.data.data) {
-        setOnboardingCount(statsResult.data.data.onboardingCount)
-        setAtRiskCount(statsResult.data.data.atRiskCount)
-        setPipelineValue(statsResult.data.data.pipelineValue)
-        setMonthOverMonthChange(statsResult.data.data.monthOverMonthChange)
-      }
-    }).catch(error => {
-      console.error('[PatientPipeline] Failed to get scheduled count or statistics:', error)
-      setScheduledCount(0)
-    })
   }, [])
 
   // Calculate date range based on selection
@@ -286,6 +261,11 @@ export default function PatientPipelinePage() {
     if (selectedProgram !== 'all' && form.program_type !== selectedProgram) {
       return false
     }
+    // Filter by source (partial invites)
+    if (selectedSource !== 'all') {
+      const source = (form.lead_source ?? 'unknown').toLowerCase().trim()
+      if (source !== selectedSource) return false
+    }
     // Filter by date range
     return filterByDateRange(form.created_at)
   })
@@ -295,11 +275,31 @@ export default function PatientPipelinePage() {
     if (selectedProgram !== 'all' && form.program_type !== selectedProgram) {
       return false
     }
+    // Filter by source (direct public applications)
+    // Treat direct public applications as "Web"
+    if (selectedSource !== 'all' && selectedSource !== 'website') return false
     // Filter by date range
     return filterByDateRange(form.created_at)
   })
 
   const totalInquiries = filteredByProgramPartial.length + filteredByProgramPublic.length
+
+  const sourceOptions = [
+    { value: 'all', label: 'All Sources' },
+    { value: 'instagram', label: formatSourceLabel('instagram') },
+    { value: 'facebook', label: formatSourceLabel('facebook') },
+    { value: 'linkedin', label: formatSourceLabel('linkedin') },
+    { value: 'website', label: formatSourceLabel('website') },
+    { value: 'recovery_com', label: formatSourceLabel('recovery_com') },
+    { value: 'other', label: formatSourceLabel('other') },
+  ]
+
+  const pipelineLeads = [...filteredByProgramPartial, ...filteredByProgramPublic]
+  const readyLeads = pipelineLeads.filter((lead) => (lead.formCompletion?.completed ?? 0) === 4)
+  const readyForOnboardingCount = readyLeads.length
+
+  const pipelineClientCount = pipelineLeads.length
+  const estimatedPipelineValue = pipelineClientCount * 7500
 
   // No tab filtering - show all forms
   const filteredPartialForms = filteredByProgramPartial
@@ -326,7 +326,7 @@ export default function PatientPipelinePage() {
   return (
     <div className="px-4 sm:px-6 md:px-[25px] pt-4 sm:pt-6 md:pt-[30px] pb-0">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-[25px]">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-[25px]" data-tour="page-header">
         <div className="flex flex-col gap-1">
           <h1 
             className="text-2xl sm:text-3xl md:text-[40px] font-normal leading-[1.3em] text-black"
@@ -344,12 +344,13 @@ export default function PatientPipelinePage() {
         {/* Action Buttons */}
         <div className="grid grid-cols-2 sm:flex sm:flex-row gap-3 sm:gap-[23px] shrink-0">
           <Button 
+            data-tour="add-client-btn"
             onClick={() => setIsAddPatientModalOpen(true)}
             className="gap-[10px] px-3 sm:px-4 py-[10px] h-auto min-h-[44px] bg-[#6E7A46] hover:bg-[#6E7A46]/90 text-white rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm sm:text-base truncate"
           >
             <span className="truncate">+ Add Client</span>
           </Button>
-          <Link href="/patient-pipeline/add-existing-patient" className="w-full sm:w-auto">
+          <Link href="/patient-pipeline/add-existing-patient" className="w-full sm:w-auto" data-tour="add-existing-btn">
             <Button variant="outline" className="gap-[10px] px-3 sm:px-4 py-[10px] h-auto min-h-[44px] bg-white border border-[#D6D2C8] text-[#777777] hover:bg-gray-50 rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-sm sm:text-base w-full truncate">
               <span className="truncate">+ Add Existing</span>
             </Button>
@@ -358,7 +359,7 @@ export default function PatientPipelinePage() {
       </div>
 
       {/* Filter Buttons */}
-      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 sm:gap-4 md:gap-[25px] mb-4 sm:mb-6 md:mb-[25px]">
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 sm:gap-4 md:gap-[25px] mb-4 sm:mb-6 md:mb-[25px]" data-tour="filters">
         <div className="flex flex-col gap-2 col-span-2 sm:col-span-1">
           <Select 
             value={selectedDateRange} 
@@ -440,27 +441,24 @@ export default function PatientPipelinePage() {
           </SelectContent>
         </Select>
 
-        <Select defaultValue="all">
-          <SelectTrigger className="h-[44px] w-full px-3 sm:px-4 py-[10px] bg-white border border-[#D6D2C8] rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-xs sm:text-sm text-[#777777] sm:w-auto">
-            <SelectValue placeholder="Coordinator" className="truncate" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Coordinators</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select defaultValue="all">
+        <Select value={selectedSource} onValueChange={(value) => {
+          setSelectedSource(value)
+          setCurrentPagePartial(1)
+          setCurrentPagePublic(1)
+        }}>
           <SelectTrigger className="h-[44px] w-full px-3 sm:px-4 py-[10px] bg-white border border-[#D6D2C8] rounded-[24px] shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)] text-xs sm:text-sm text-[#777777] sm:w-auto">
             <SelectValue placeholder="Source" className="truncate" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Sources</SelectItem>
+            {sourceOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 md:gap-[25px] mb-4 sm:mb-6 md:mb-[25px]">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 md:gap-[25px] mb-4 sm:mb-6 md:mb-[25px]" data-tour="stats-cards">
         {/* Total Inquiries */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
           <div className="flex flex-col gap-2">
@@ -472,61 +470,51 @@ export default function PatientPipelinePage() {
           </div>
         </div>
 
-        {/* Scheduled Patients */}
+        {/* Prospects */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
           <div className="flex flex-col gap-2">
-            <p className="text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Scheduled Clients</p>
-            <p className="text-xl sm:text-2xl md:text-[25px] font-semibold text-black leading-[1.193em] tracking-[-0.04em]">{scheduledCount}</p>
+            <p className="text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Prospects</p>
+            <p className="text-xl sm:text-2xl md:text-[25px] font-semibold text-black leading-[1.193em] tracking-[-0.04em]">{prospects.length}</p>
             <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">
-              with calendar events
+              marked as prospect
             </p>
           </div>
         </div>
 
-        {/* In Onboarding */}
+        {/* Ready for onboarding */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
           <div className="flex flex-col gap-2">
-            <p className="text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">In Onboarding</p>
-            <p className="text-xl sm:text-2xl md:text-[25px] font-semibold text-black leading-[1.193em] tracking-[-0.04em]">{onboardingCount}</p>
-            <div className="flex items-center gap-[10px] flex-wrap">
-              <span className="flex items-center justify-center gap-[1px] px-3 py-0 h-[19px] rounded-[10px] bg-[#DEF8EE] text-[#10B981] text-xs leading-[1.193em] tracking-[-0.04em]">
-                {atRiskCount}
-              </span>
-              <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">at risk (slow)</p>
-            </div>
+            <p className="text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Ready for onboarding</p>
+            <p className="text-xl sm:text-2xl md:text-[25px] font-semibold text-black leading-[1.193em] tracking-[-0.04em]">{readyForOnboardingCount}</p>
+            <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">
+              finished all 4 forms
+            </p>
           </div>
         </div>
 
-        {/* Pipeline Value */}
+        {/* Estimated pipeline value: clients in pipeline × $7,500 */}
         <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
           <div className="flex flex-col gap-2">
-            <p className="text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Pipeline Value</p>
+            <p className="text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Estimated pipeline value</p>
             <p className="text-xl sm:text-2xl md:text-[25px] font-semibold text-black leading-[1.193em] tracking-[-0.04em]">
-              ${pipelineValue >= 1000 ? `${(pipelineValue / 1000).toFixed(0)}K` : pipelineValue.toFixed(0)}
+              ${estimatedPipelineValue >= 1000 ? `${(estimatedPipelineValue / 1000).toFixed(0)}K` : estimatedPipelineValue.toFixed(0)}
             </p>
-            <div className="flex items-center gap-[10px] flex-wrap">
-              <span className={`flex items-center justify-center gap-[1px] px-3 py-0 h-[19px] rounded-[10px] text-xs leading-[1.193em] tracking-[-0.04em] ${
-                monthOverMonthChange >= 0
-                  ? 'bg-[#DEF8EE] text-[#10B981]'
-                  : 'bg-[#FEE2E2] text-[#EF4444]'
-              }`}>
-                {monthOverMonthChange > 0 ? '+' : ''}{monthOverMonthChange}%
-              </span>
-              <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">vs last month</p>
-            </div>
+            <p className="text-xs text-[#777777] leading-[1.193em] tracking-[-0.04em]">
+              {pipelineClientCount} client{pipelineClientCount === 1 ? '' : 's'} × $7,500
+            </p>
           </div>
         </div>
       </div>
 
       {/* Client Applications - single card with tabs */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-[0px_4px_8px_0px_rgba(0,0,0,0.05)]" data-tour="applications-section">
         {/* Section Header */}
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Client Applications</h2>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-0 border-b border-gray-200">
+        <div className="flex gap-0 border-b border-gray-200" data-tour="tab-nav">
           <button
             type="button"
             onClick={() => setActiveApplicationsTab('applications')}
@@ -553,7 +541,7 @@ export default function PatientPipelinePage() {
 
         {/* Tab Content: Admin/Owner Sent Invites */}
         {activeApplicationsTab === 'invites' && (
-          <div className="p-5">
+          <div className="p-5" data-tour="admin-invites-content">
             <p className="text-xs sm:text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em] mb-4">
               Mode = data captured before sending the client application link (Minimal: Name+Email • Partial: +Emergency Contact)
             </p>
@@ -756,7 +744,7 @@ export default function PatientPipelinePage() {
 
             {/* Pagination */}
             {totalPagesPartial > 1 && (
-              <div className="flex items-center justify-between mt-[26px] pt-5 border-t border-[#D6D2C8]">
+              <div className="flex items-center justify-between mt-[26px] pt-5 border-t border-[#D6D2C8]" data-tour="admin-invites-pagination">
                 <p className="text-sm text-[#9C9387] leading-[1.193em] tracking-[-0.04em]">
                   Showing {startIndexPartial + 1} to {Math.min(endIndexPartial, filteredPartialForms.length)} of {filteredPartialForms.length} leads
                 </p>
@@ -831,10 +819,10 @@ export default function PatientPipelinePage() {
         ) : (
           <>
             {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+            <div className="hidden md:block overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0" data-tour="direct-public-table">
               <div className="flex gap-0 min-w-full">
                 {/* Name Column */}
-                <div className="flex flex-col w-[180px] md:w-[238px] shrink-0">
+                <div className="flex flex-col w-[180px] md:w-[238px] shrink-0" data-tour="col-name">
                   <div className="px-3 py-2 h-[40px] border-b border-[rgba(28,28,28,0.2)] flex items-center">
                     <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Name</p>
                   </div>
@@ -848,7 +836,7 @@ export default function PatientPipelinePage() {
                 </div>
 
                 {/* Email Column */}
-                <div className="flex flex-col min-w-[250px] md:min-w-[296px]">
+                <div className="flex flex-col min-w-[250px] md:min-w-[296px]" data-tour="col-email">
                   <div className="px-3 py-2 h-[40px] border-b border-[rgba(28,28,28,0.2)] flex items-center">
                     <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Email</p>
                   </div>
@@ -862,7 +850,7 @@ export default function PatientPipelinePage() {
                 </div>
 
                 {/* Program Type Column */}
-                <div className="flex flex-col w-[150px] md:w-[192px] shrink-0">
+                <div className="flex flex-col w-[150px] md:w-[192px] shrink-0" data-tour="col-program-type">
                   <div className="px-3 py-2 h-[40px] border-b border-[rgba(28,28,28,0.2)] flex items-center">
                     <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Program Type</p>
                   </div>
@@ -876,7 +864,7 @@ export default function PatientPipelinePage() {
                 </div>
 
                 {/* Status Column */}
-                <div className="flex flex-col w-[120px] md:w-[154px] shrink-0">
+                <div className="flex flex-col w-[120px] md:w-[154px] shrink-0" data-tour="col-status">
                   <div className="px-3 py-2 h-[40px] border-b border-[rgba(28,28,28,0.2)] flex items-center">
                     <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Status</p>
                   </div>
@@ -911,7 +899,7 @@ export default function PatientPipelinePage() {
                 </div>
 
                 {/* Submission Date Column */}
-                <div className="flex flex-col w-[150px] md:w-[192px] shrink-0">
+                <div className="flex flex-col w-[150px] md:w-[192px] shrink-0" data-tour="col-submission-date">
                   <div className="px-3 py-2 h-[40px] border-b border-[rgba(28,28,28,0.2)] flex items-center">
                     <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Submission Date</p>
                   </div>
@@ -925,7 +913,7 @@ export default function PatientPipelinePage() {
                 </div>
 
                 {/* Action Column */}
-                <div className="flex flex-col flex-1 min-w-[86px]">
+                <div className="flex flex-col flex-1 min-w-[86px]" data-tour="col-action">
                   <div className="px-3 py-2 h-[40px] border-b border-[rgba(28,28,28,0.2)] flex items-center">
                     <p className="text-sm text-[#777777] leading-[1.193em] tracking-[-0.04em]">Action</p>
                   </div>
@@ -994,7 +982,7 @@ export default function PatientPipelinePage() {
 
             {/* Pagination */}
             {totalPagesPublic > 1 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 sm:mt-6 md:mt-[26px] pt-5 border-t border-[#D6D2C8]">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 sm:mt-6 md:mt-[26px] pt-5 border-t border-[#D6D2C8]" data-tour="direct-public-pagination">
                 <p className="text-xs sm:text-sm text-[#9C9387] leading-[1.193em] tracking-[-0.04em] text-center sm:text-left">
                   Showing {startIndexPublic + 1} to {Math.min(endIndexPublic, filteredByProgramPublic.length)} of {filteredByProgramPublic.length} leads
                 </p>
@@ -1060,7 +1048,7 @@ export default function PatientPipelinePage() {
       </div>
 
       {/* Prospects */}
-      <div className="mt-6">
+      <div className="mt-6" data-tour="prospects-section">
         <ProspectsTable prospects={prospects} isLoading={isProspectsLoading} />
       </div>
 
@@ -1072,6 +1060,24 @@ export default function PatientPipelinePage() {
           // Reload pipeline data after successful submission
           loadPipelineData()
         }}
+      />
+      <FloatingTourTrigger
+        disabled={isRunning}
+        onClick={() =>
+          startTour(getClientPipelineTourSteps(), {
+            onPrepareForStep: (_index, step) => {
+              const el = typeof step?.element === 'string' ? step.element : ''
+              if (el.includes('admin-invites-content') || el.includes('admin-invites-pagination'))
+                setActiveApplicationsTab('invites')
+              if (
+                el.includes('direct-public-table') ||
+                el.includes('col-') ||
+                el.includes('direct-public-pagination')
+              )
+                setActiveApplicationsTab('applications')
+            },
+          })
+        }
       />
     </div>
   )

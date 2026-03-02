@@ -41,195 +41,99 @@ export const getPatientProfile = authActionClient
     let intakeForm: any = null
     let partialForm: any = null
 
-    // Try to find patient by different identifiers
-    if (parsedInput.patientId) {
-      // Get by patient profile ID
-      const { data: patientProfile } = await adminClient
-        .from('profiles')
-        .select('*')
-        .eq('id', parsedInput.patientId)
-        .eq('role', 'patient')
-        .maybeSingle()
-      
-      if (patientProfile) {
-        patientData = patientProfile
-      }
-      // If no profile found, id may be a partial form id (e.g. prospect added via Add Client)
-      if (!patientData) {
-        const { data: partialById } = await adminClient
+    // OPTIMIZATION: Fetch patient profile, partial form, and intake form in parallel
+    const id = parsedInput.patientId || parsedInput.partialFormId || parsedInput.intakeFormId
+    
+    if (id) {
+      const [patientResult, partialResult, intakeResult] = await Promise.all([
+        // Try as patient profile ID
+        adminClient
+          .from('profiles')
+          .select('*')
+          .eq('id', id)
+          .eq('role', 'patient')
+          .maybeSingle(),
+        // Try as partial form ID
+        adminClient
           .from('partial_intake_forms')
           .select('*')
-          .eq('id', parsedInput.patientId)
-          .maybeSingle()
-        if (partialById) {
-          partialForm = partialById
-        }
-      }
-    } else if (parsedInput.email) {
-      // Get by email
+          .eq('id', id)
+          .maybeSingle(),
+        // Try as intake form ID
+        adminClient
+          .from('patient_intake_forms')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle(),
+      ])
+      
+      if (patientResult.data) patientData = patientResult.data
+      if (partialResult.data) partialForm = partialResult.data
+      if (intakeResult.data) intakeForm = intakeResult.data
+    }
+
+    // If we found partial form with completed_form_id, get that intake form
+    if (partialForm?.completed_form_id && !intakeForm) {
+      const { data: intakeData } = await adminClient
+        .from('patient_intake_forms')
+        .select('*')
+        .eq('id', partialForm.completed_form_id)
+        .maybeSingle()
+      if (intakeData) intakeForm = intakeData
+    }
+
+    // If we found forms but no patient, try to find patient by email
+    const formEmail = intakeForm?.email || partialForm?.email
+    if (!patientData && formEmail) {
       const { data: patientProfile } = await adminClient
         .from('profiles')
         .select('*')
-        .eq('email', parsedInput.email)
+        .ilike('email', formEmail)
         .eq('role', 'patient')
         .maybeSingle()
-      
-      if (patientProfile) {
-        patientData = patientProfile
-      }
-    }
-
-    // Get intake form or partial form first (prioritize by what ID was provided)
-    if (parsedInput.intakeFormId) {
-      console.log('[getPatientProfile] Looking for intake form:', parsedInput.intakeFormId)
-      const { data, error } = await adminClient
-        .from('patient_intake_forms')
-        .select('*')
-        .eq('id', parsedInput.intakeFormId)
-        .maybeSingle()
-      
-      console.log('[getPatientProfile] Intake form result:', { data: !!data, error })
-      
-      if (data) {
-        intakeForm = data
-        // If we don't have patient data yet, try to find by email
-        if (!patientData && data.email) {
-          const { data: patientProfile } = await adminClient
-            .from('profiles')
-            .select('*')
-            .eq('email', data.email)
-            .eq('role', 'patient')
-            .maybeSingle()
-          
-          if (patientProfile) {
-            patientData = patientProfile
-          }
-        }
-      }
+      if (patientProfile) patientData = patientProfile
     }
     
-    if (parsedInput.partialFormId) {
-      console.log('[getPatientProfile] Looking for partial form:', parsedInput.partialFormId)
-      // Get partial form
-      const { data, error } = await adminClient
-        .from('partial_intake_forms')
-        .select('*')
-        .eq('id', parsedInput.partialFormId)
-        .maybeSingle()
+    // If we have patient data but no forms yet, try to get forms by email in parallel
+    if (patientData?.email && (!intakeForm || !partialForm)) {
+      const [intakeByEmail, partialByEmail] = await Promise.all([
+        !intakeForm ? adminClient
+          .from('patient_intake_forms')
+          .select('*')
+          .ilike('email', patientData.email)
+          .order('created_at', { ascending: false })
+          .limit(1) : Promise.resolve({ data: null }),
+        !partialForm ? adminClient
+          .from('partial_intake_forms')
+          .select('*')
+          .ilike('email', patientData.email)
+          .order('created_at', { ascending: false })
+          .limit(1) : Promise.resolve({ data: null }),
+      ])
       
-      console.log('[getPatientProfile] Partial form result:', { data: !!data, error })
-      
-      if (data) {
-        partialForm = data
-        // Get intake form if completed
-        if (data.completed_form_id) {
-          const { data: intakeData } = await adminClient
-            .from('patient_intake_forms')
-            .select('*')
-            .eq('id', data.completed_form_id)
-            .maybeSingle()
-          
-          if (intakeData) {
-            intakeForm = intakeData
-          }
-        }
-        
-        // If we don't have patient data yet, try to find by email
-        if (!patientData && data.email) {
-          const { data: patientProfile } = await adminClient
-            .from('profiles')
-            .select('*')
-            .eq('email', data.email)
-            .eq('role', 'patient')
-            .maybeSingle()
-          
-          if (patientProfile) {
-            patientData = patientProfile
-          }
-        }
-      }
-    }
-    
-    // If we have patient data but no forms yet, try to get latest intake form
-    if (patientData?.email && !intakeForm && !partialForm) {
-      const { data: intakeForms } = await adminClient
-        .from('patient_intake_forms')
-        .select('*')
-        .ilike('email', patientData.email)
-        .order('created_at', { ascending: false })
-        .limit(1)
-      
-      if (intakeForms && intakeForms.length > 0) {
-        intakeForm = intakeForms[0]
-      }
+      if (intakeByEmail.data?.[0]) intakeForm = intakeByEmail.data[0]
+      if (partialByEmail.data?.[0]) partialForm = partialByEmail.data[0]
     }
 
-    // If we have patient data but still no intake form, fetch by email (so notes with lead_id = intake_form_id are always loaded on profile)
-    if (patientData?.email && !intakeForm) {
-      const { data: intakeFormsByEmail } = await adminClient
-        .from('patient_intake_forms')
-        .select('*')
-        .ilike('email', patientData.email)
-        .order('created_at', { ascending: false })
-        .limit(1)
-      if (intakeFormsByEmail && intakeFormsByEmail.length > 0) {
-        intakeForm = intakeFormsByEmail[0]
-      }
-    }
-
-    // If we have patient data but no partial form yet, try to get partial form by email (so notes saved under partial form id are loaded when viewing by patient id)
-    if (patientData?.email && !partialForm) {
-      const { data: partialsByEmail } = await adminClient
-        .from('partial_intake_forms')
-        .select('*')
-        .ilike('email', patientData.email)
-        .order('created_at', { ascending: false })
-        .limit(1)
-      if (partialsByEmail && partialsByEmail.length > 0) {
-        partialForm = partialsByEmail[0]
-      }
-    }
-
-    // If we still don't have patient data but have intake form, create a basic patient object
-    if (!patientData && intakeForm) {
-      console.log('[getPatientProfile] Creating patient object from intake form')
+    // If we still don't have patient data but have forms, create a basic patient object
+    if (!patientData && (intakeForm || partialForm)) {
+      const source = intakeForm || partialForm
       patientData = {
         id: null,
-        first_name: intakeForm.first_name,
-        last_name: intakeForm.last_name,
-        email: intakeForm.email,
-        phone: intakeForm.phone_number,
+        first_name: source.first_name,
+        last_name: source.last_name,
+        email: source.email,
+        phone: source.phone_number,
         role: 'patient',
       }
     }
-
-    // If we still don't have patient data but have partial form, create a basic patient object
-    if (!patientData && partialForm) {
-      console.log('[getPatientProfile] Creating patient object from partial form')
-      patientData = {
-        id: null,
-        first_name: partialForm.first_name,
-        last_name: partialForm.last_name,
-        email: partialForm.email,
-        phone: partialForm.phone_number,
-        role: 'patient',
-      }
-    }
-
-    console.log('[getPatientProfile] Final patient data:', { 
-      hasPatient: !!patientData, 
-      hasIntake: !!intakeForm, 
-      hasPartial: !!partialForm 
-    })
 
     if (!patientData && !intakeForm && !partialForm) {
-      console.error('[getPatientProfile] No patient data, intake form, or partial form found')
       return { success: false, error: 'Patient not found - no forms or profile found with the provided ID' }
     }
 
     // If we still don't have patient data, create a minimal one
     if (!patientData) {
-      console.log('[getPatientProfile] Creating minimal patient object')
       patientData = {
         id: null,
         first_name: intakeForm?.first_name || partialForm?.first_name || 'Unknown',
@@ -243,139 +147,133 @@ export const getPatientProfile = authActionClient
     // Get form statuses
     const patientEmail = patientData.email || intakeForm?.email || partialForm?.email
     const patientId = patientData.id
+    const intakeFormId = intakeForm?.id
 
-    // Get medical history form
-    let medicalHistoryForm: any = null
-    if (intakeForm?.id) {
-      const { data: medicalData } = await adminClient
-        .from('medical_history_forms')
-        .select('*')
-        .eq('intake_form_id', intakeForm.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
+    // OPTIMIZATION: Fetch all form data in parallel
+    const [
+      medicalHistoryResult,
+      serviceAgreementResult,
+      ibogaineConsentResult,
+      existingDocsResult,
+      onboardingResult,
+    ] = await Promise.all([
+      // Medical history form
+      intakeFormId
+        ? adminClient
+            .from('medical_history_forms')
+            .select('*')
+            .eq('intake_form_id', intakeFormId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+        : patientEmail
+          ? adminClient
+              .from('medical_history_forms')
+              .select('*')
+              .ilike('email', patientEmail)
+              .order('created_at', { ascending: false })
+              .limit(1)
+          : Promise.resolve({ data: null }),
       
-      if (medicalData && medicalData.length > 0) {
-        medicalHistoryForm = medicalData[0]
-      }
-    } else if (patientEmail) {
-      const { data: medicalData } = await adminClient
-        .from('medical_history_forms')
-        .select('*')
-        .ilike('email', patientEmail)
-        .order('created_at', { ascending: false })
-        .limit(1)
+      // Service agreement
+      patientId
+        ? adminClient
+            .from('service_agreements')
+            .select('*, is_activated, activated_at, activated_by, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
+            .eq('patient_id', patientId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+        : patientEmail
+          ? adminClient
+              .from('service_agreements')
+              .select('*, is_activated, activated_at, activated_by, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
+              .ilike('patient_email', patientEmail)
+              .order('created_at', { ascending: false })
+              .limit(1)
+          : Promise.resolve({ data: null }),
       
-      if (medicalData && medicalData.length > 0) {
-        medicalHistoryForm = medicalData[0]
-      }
-    }
+      // Ibogaine consent form
+      patientId
+        ? adminClient
+            .from('ibogaine_consent_forms')
+            .select('*, is_activated, activated_at, activated_by, signature_data, signature_date, signature_name')
+            .eq('patient_id', patientId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+        : intakeFormId
+          ? adminClient
+              .from('ibogaine_consent_forms')
+              .select('*, is_activated, activated_at, activated_by, signature_data, signature_date, signature_name')
+              .eq('intake_form_id', intakeFormId)
+              .order('created_at', { ascending: false })
+              .limit(1)
+          : patientEmail
+            ? adminClient
+                .from('ibogaine_consent_forms')
+                .select('*, is_activated, activated_at, activated_by, signature_data, signature_date, signature_name')
+                .ilike('email', patientEmail)
+                .order('created_at', { ascending: false })
+                .limit(1)
+            : Promise.resolve({ data: null }),
+      
+      // Existing patient documents
+      partialForm?.id
+        ? adminClient
+            .from('existing_patient_documents')
+            .select('*')
+            .eq('partial_intake_form_id', partialForm.id)
+        : patientEmail
+          ? adminClient
+              .from('partial_intake_forms')
+              .select('id')
+              .eq('email', patientEmail)
+              .order('created_at', { ascending: false })
+          : Promise.resolve({ data: null }),
+      
+      // Onboarding
+      patientId
+        ? adminClient
+            .from('patient_onboarding')
+            .select('*')
+            .eq('patient_id', patientId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : patientEmail
+          ? adminClient
+              .from('patient_onboarding')
+              .select('*')
+              .ilike('email', patientEmail)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+    ])
 
-    // Get service agreement (include patient signature fields to check completion)
-    let serviceAgreement: any = null
-    if (patientId) {
-      const { data: serviceData } = await adminClient
-        .from('service_agreements')
-        .select('*, is_activated, activated_at, activated_by, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
-        .eq('patient_id', patientId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-      
-      if (serviceData && serviceData.length > 0) {
-        serviceAgreement = serviceData[0]
-      }
-    } else if (patientEmail) {
-      const { data: serviceData } = await adminClient
-        .from('service_agreements')
-        .select('*, is_activated, activated_at, activated_by, patient_signature_name, patient_signature_first_name, patient_signature_last_name, patient_signature_date, patient_signature_data')
-        .ilike('patient_email', patientEmail)
-        .order('created_at', { ascending: false })
-        .limit(1)
-      
-      if (serviceData && serviceData.length > 0) {
-        serviceAgreement = serviceData[0]
-      }
-    }
+    const medicalHistoryForm = medicalHistoryResult.data?.[0] || null
+    const serviceAgreement = serviceAgreementResult.data?.[0] || null
+    const ibogaineConsentForm = ibogaineConsentResult.data?.[0] || null
 
-    // Get ibogaine consent form (include patient signature fields to check completion)
-    let ibogaineConsentForm: any = null
-    if (patientId) {
-      const { data: consentData } = await adminClient
-        .from('ibogaine_consent_forms')
-        .select('*, is_activated, activated_at, activated_by, signature_data, signature_date, signature_name')
-        .eq('patient_id', patientId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-      
-      if (consentData && consentData.length > 0) {
-        ibogaineConsentForm = consentData[0]
-      }
-    } else if (intakeForm?.id) {
-      const { data: consentData } = await adminClient
-        .from('ibogaine_consent_forms')
-        .select('*, is_activated, activated_at, activated_by, signature_data, signature_date, signature_name')
-        .eq('intake_form_id', intakeForm.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-      
-      if (consentData && consentData.length > 0) {
-        ibogaineConsentForm = consentData[0]
-      }
-    } else if (patientEmail) {
-      const { data: consentData } = await adminClient
-        .from('ibogaine_consent_forms')
-        .select('*, is_activated, activated_at, activated_by, signature_data, signature_date, signature_name')
-        .ilike('email', patientEmail)
-        .order('created_at', { ascending: false })
-        .limit(1)
-      
-      if (consentData && consentData.length > 0) {
-        ibogaineConsentForm = consentData[0]
-      }
-    }
-
-    // Check for existing patient documents (uploaded documents for existing patients)
+    // Handle existing patient documents
     let existingPatientDocuments: any[] = []
-
-    // First try to find by partial form ID
-    if (partialForm?.id) {
-      const { data: existingDocs } = await adminClient
-        .from('existing_patient_documents')
-        .select('*')
-        .eq('partial_intake_form_id', partialForm.id)
-
-      if (existingDocs) {
-        existingPatientDocuments = existingDocs
-      }
-    }
-
-    // Also check by patient email if we have it (for documents uploaded directly)
-    if (existingPatientDocuments.length === 0 && patientEmail) {
-      // Find partial forms for this email and get their documents
-      const { data: partialFormsForEmail } = await adminClient
-        .from('partial_intake_forms')
-        .select('id')
-        .eq('email', patientEmail)
-        .order('created_at', { ascending: false })
-
-      if (partialFormsForEmail && partialFormsForEmail.length > 0) {
-        const partialFormIds = partialFormsForEmail.map(pf => pf.id)
-        const { data: existingDocs } = await adminClient
+    if (partialForm?.id && existingDocsResult.data) {
+      existingPatientDocuments = existingDocsResult.data
+    } else if (!partialForm?.id && existingDocsResult.data && patientEmail) {
+      const partialFormIds = existingDocsResult.data.map((pf: { id: string }) => pf.id)
+      if (partialFormIds.length > 0) {
+        const { data: docs } = await adminClient
           .from('existing_patient_documents')
           .select('*')
           .in('partial_intake_form_id', partialFormIds)
-
-        if (existingDocs) {
-          existingPatientDocuments = existingDocs
-        }
+        if (docs) existingPatientDocuments = docs
       }
     }
 
-    // Also check by intake form id: partial forms that completed this intake may have uploaded documents
-    if (intakeForm?.id) {
+    // Also check by intake form id for documents
+    if (intakeFormId) {
       const { data: partialsForIntake } = await adminClient
         .from('partial_intake_forms')
         .select('id')
-        .eq('completed_form_id', intakeForm.id)
+        .eq('completed_form_id', intakeFormId)
 
       if (partialsForIntake && partialsForIntake.length > 0) {
         const partialIds = partialsForIntake.map(p => p.id)
@@ -392,105 +290,46 @@ export const getPatientProfile = authActionClient
       }
     }
 
-    // Get onboarding data if patient has patient_id or email
+    // Get onboarding forms and medical documents in parallel if onboarding exists
     let onboardingData: any = null
-    if (patientId) {
-      const { data: onboarding } = await adminClient
-        .from('patient_onboarding')
-        .select('*')
-        .eq('patient_id', patientId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+    const onboarding = onboardingResult.data
+    if (onboarding) {
+      const [releaseForm, outingForm, regulationsForm, medicalDocsResult] = await Promise.all([
+        adminClient
+          .from('onboarding_release_forms')
+          .select('*')
+          .eq('onboarding_id', onboarding.id)
+          .maybeSingle()
+          .then(r => r.data),
+        adminClient
+          .from('onboarding_outing_consent_forms')
+          .select('*')
+          .eq('onboarding_id', onboarding.id)
+          .maybeSingle()
+          .then(r => r.data),
+        adminClient
+          .from('onboarding_internal_regulations_forms')
+          .select('*')
+          .eq('onboarding_id', onboarding.id)
+          .maybeSingle()
+          .then(r => r.data),
+        adminClient
+          .from('onboarding_medical_documents')
+          .select('id, document_type, document_path, document_name, uploaded_at')
+          .eq('onboarding_id', onboarding.id),
+      ])
+      const medicalDocs = medicalDocsResult.data || []
+      const ekgDoc = medicalDocs.find((d: { document_type: string }) => d.document_type === 'ekg') ?? null
+      const bloodworkDoc = medicalDocs.find((d: { document_type: string }) => d.document_type === 'bloodwork') ?? null
 
-      if (onboarding) {
-        // Get onboarding forms and EKG/Bloodwork documents
-        const [releaseForm, outingForm, regulationsForm, medicalDocsResult] = await Promise.all([
-          adminClient
-            .from('onboarding_release_forms')
-            .select('*')
-            .eq('onboarding_id', onboarding.id)
-            .maybeSingle()
-            .then(r => r.data),
-          adminClient
-            .from('onboarding_outing_consent_forms')
-            .select('*')
-            .eq('onboarding_id', onboarding.id)
-            .maybeSingle()
-            .then(r => r.data),
-          adminClient
-            .from('onboarding_internal_regulations_forms')
-            .select('*')
-            .eq('onboarding_id', onboarding.id)
-            .maybeSingle()
-            .then(r => r.data),
-          adminClient
-            .from('onboarding_medical_documents')
-            .select('id, document_type, document_path, document_name, uploaded_at')
-            .eq('onboarding_id', onboarding.id),
-        ])
-        const medicalDocs = medicalDocsResult.data || []
-        const ekgDoc = medicalDocs.find((d: { document_type: string }) => d.document_type === 'ekg') ?? null
-        const bloodworkDoc = medicalDocs.find((d: { document_type: string }) => d.document_type === 'bloodwork') ?? null
-
-        onboardingData = {
-          onboarding,
-          forms: {
-            releaseForm,
-            outingForm,
-            regulationsForm,
-          },
-          medicalDocuments: { ekg: ekgDoc, bloodwork: bloodworkDoc },
-        }
-      }
-    } else if (patientEmail) {
-      const { data: onboarding } = await adminClient
-        .from('patient_onboarding')
-        .select('*')
-        .ilike('email', patientEmail)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (onboarding) {
-        // Get onboarding forms and EKG/Bloodwork documents
-        const [releaseForm, outingForm, regulationsForm, medicalDocsResult] = await Promise.all([
-          adminClient
-            .from('onboarding_release_forms')
-            .select('*')
-            .eq('onboarding_id', onboarding.id)
-            .maybeSingle()
-            .then(r => r.data),
-          adminClient
-            .from('onboarding_outing_consent_forms')
-            .select('*')
-            .eq('onboarding_id', onboarding.id)
-            .maybeSingle()
-            .then(r => r.data),
-          adminClient
-            .from('onboarding_internal_regulations_forms')
-            .select('*')
-            .eq('onboarding_id', onboarding.id)
-            .maybeSingle()
-            .then(r => r.data),
-          adminClient
-            .from('onboarding_medical_documents')
-            .select('id, document_type, document_path, document_name, uploaded_at')
-            .eq('onboarding_id', onboarding.id),
-        ])
-        const medicalDocs = medicalDocsResult.data || []
-        const ekgDoc = medicalDocs.find((d: { document_type: string }) => d.document_type === 'ekg') ?? null
-        const bloodworkDoc = medicalDocs.find((d: { document_type: string }) => d.document_type === 'bloodwork') ?? null
-
-        onboardingData = {
-          onboarding,
-          forms: {
-            releaseForm,
-            outingForm,
-            regulationsForm,
-          },
-          medicalDocuments: { ekg: ekgDoc, bloodwork: bloodworkDoc },
-        }
+      onboardingData = {
+        onboarding,
+        forms: {
+          releaseForm,
+          outingForm,
+          regulationsForm,
+        },
+        medicalDocuments: { ekg: ekgDoc, bloodwork: bloodworkDoc },
       }
     }
 
@@ -538,16 +377,162 @@ export const getPatientProfile = authActionClient
       ibogaineConsentForm ? 'pending' : // Form exists but patient hasn't filled signature - show as pending
       'not_started'
 
-    // Load billing payments in same request when service agreement is activated (so Billing tab and Upgrade Agreement are ready on first load)
-    let billingPayments: any[] = []
-    if (serviceAgreement?.id && serviceAgreement?.is_activated) {
-      const { data: payments } = await adminClient
-        .from('patient_billing_payments')
-        .select('*')
-        .eq('service_agreement_id', serviceAgreement.id)
-        .order('payment_received_at', { ascending: false })
-      if (payments) billingPayments = payments
+    // OPTIMIZATION: Load billing, lead notes, lead tasks, staff list, and patient management in parallel
+    // This eliminates client-side waterfall of API calls
+    const leadIds = [patientData?.id, partialForm?.id, intakeForm?.id].filter(Boolean) as string[]
+    const uniqueLeadIds = [...new Set(leadIds)]
+    
+    const [
+      billingPaymentsResult,
+      leadNotesResults,
+      leadTasksResults,
+      staffListResult,
+      patientManagementResult,
+    ] = await Promise.all([
+      // Billing payments
+      serviceAgreement?.id && serviceAgreement?.is_activated
+        ? adminClient
+            .from('patient_billing_payments')
+            .select('*')
+            .eq('service_agreement_id', serviceAgreement.id)
+            .order('payment_received_at', { ascending: false })
+        : Promise.resolve({ data: null }),
+      
+      // Lead notes for all possible lead IDs
+      Promise.all(
+        uniqueLeadIds.map(leadId =>
+          adminClient
+            .from('lead_note_entries')
+            .select(`
+              id,
+              lead_id,
+              notes,
+              created_at,
+              created_by,
+              created_by_profile:created_by(first_name, last_name)
+            `)
+            .eq('lead_id', leadId)
+            .order('created_at', { ascending: false })
+        )
+      ),
+      
+      // Lead tasks for all possible lead IDs
+      Promise.all(
+        uniqueLeadIds.map(leadId =>
+          adminClient
+            .from('lead_tasks')
+            .select(`
+              id,
+              lead_id,
+              title,
+              description,
+              status,
+              due_date,
+              assigned_to_id,
+              created_by_id,
+              created_at,
+              updated_at
+            `)
+            .eq('lead_id', leadId)
+            .order('created_at', { ascending: false })
+        )
+      ),
+      
+      // Staff list for task assignment
+      adminClient
+        .from('profiles')
+        .select('id, first_name, last_name, role')
+        .in('role', ['owner', 'admin', 'manager', 'sales', 'staff', 'medical_staff', 'customer_service'])
+        .order('first_name'),
+      
+      // Patient management record
+      patientId
+        ? adminClient
+            .from('patient_management')
+            .select('*')
+            .eq('patient_id', patientId)
+            .in('status', ['active', 'discharged', 'transferred'])
+            .order('created_at', { ascending: false })
+            .limit(1)
+        : Promise.resolve({ data: null }),
+    ])
+
+    const billingPayments = billingPaymentsResult.data || []
+
+    // Merge lead notes from all IDs and deduplicate
+    const notesById = new Map<string, any>()
+    leadNotesResults.forEach(result => {
+      if (result.data) {
+        result.data.forEach((row: any) => {
+          if (!notesById.has(row.id)) {
+            const profile = row.created_by_profile
+            const createdByName = profile
+              ? [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim() || null
+              : null
+            notesById.set(row.id, {
+              id: row.id,
+              lead_id: row.lead_id,
+              notes: row.notes ?? '',
+              created_at: row.created_at,
+              created_by: row.created_by,
+              created_by_name: createdByName,
+            })
+          }
+        })
+      }
+    })
+    const leadNotes = Array.from(notesById.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+
+    // Merge lead tasks from all IDs and deduplicate
+    const tasksById = new Map<string, any>()
+    const profileIds = new Set<string>()
+    leadTasksResults.forEach(result => {
+      if (result.data) {
+        result.data.forEach((t: any) => {
+          if (!tasksById.has(t.id)) {
+            tasksById.set(t.id, t)
+            if (t.created_by_id) profileIds.add(t.created_by_id)
+            if (t.assigned_to_id) profileIds.add(t.assigned_to_id)
+          }
+        })
+      }
+    })
+    
+    // Get profile names for tasks
+    let taskProfileNames: Record<string, string> = {}
+    const taskProfileIdsArray = Array.from(profileIds)
+    if (taskProfileIdsArray.length > 0) {
+      const { data: profiles } = await adminClient
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .in('id', taskProfileIdsArray)
+      profiles?.forEach((p: any) => {
+        taskProfileNames[p.id] = [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unknown'
+      })
     }
+    
+    const leadTasks = Array.from(tasksById.values())
+      .map((t: any) => ({
+        ...t,
+        created_by_name: taskProfileNames[t.created_by_id] || null,
+        assigned_to_name: t.assigned_to_id ? (taskProfileNames[t.assigned_to_id] || null) : null,
+      }))
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    // Process staff list
+    const staffList = (staffListResult.data || []).map((s: any) => ({
+      id: s.id,
+      first_name: s.first_name,
+      last_name: s.last_name,
+      name: [s.first_name, s.last_name].filter(Boolean).join(' ') || 'Unknown',
+      role: s.role,
+    }))
+
+    const patientManagement = Array.isArray(patientManagementResult.data)
+      ? patientManagementResult.data[0] ?? null
+      : patientManagementResult.data ?? null
 
     return {
       success: true,
@@ -558,9 +543,13 @@ export const getPatientProfile = authActionClient
         medicalHistoryForm,
         serviceAgreement,
         ibogaineConsentForm,
-        existingPatientDocuments, // Include uploaded documents
-        onboarding: onboardingData, // Include onboarding data
-        billingPayments, // Include so Billing tab and sidebar show on first load without refresh
+        existingPatientDocuments,
+        onboarding: onboardingData,
+        billingPayments,
+        leadNotes,
+        leadTasks,
+        staffList,
+        patientManagement,
         formStatuses: {
           intake: intakeStatus,
           medicalHistory: medicalHistoryStatus,
@@ -1080,10 +1069,12 @@ export const activateIbogaineConsent = authActionClient
 // =============================================================================
 // Delete client (owner/admin only): remove from onboarding, management, profile,
 // consent, medical history, partial/intake forms, and auth. Verifies no records remain.
+// Supports both: patientId (profile) and partialFormId (inquiry-only lead, no profile).
 // =============================================================================
 const deleteClientSchema = z.object({
-  patientId: z.string().uuid(),
-})
+  patientId: z.string().uuid().optional(),
+  partialFormId: z.string().uuid().optional(),
+}).refine((data) => data.patientId ?? data.partialFormId, { message: 'Either patientId or partialFormId is required' })
 
 export const deleteClient = authActionClient
   .schema(deleteClientSchema)
@@ -1103,8 +1094,72 @@ export const deleteClient = authActionClient
       return { success: false, error: 'Only owner or admin can delete a client' }
     }
 
-    const patientId = parsedInput.patientId
+    const partialFormId = parsedInput.partialFormId
+    if (partialFormId) {
+      // ---------- Inquiry-only lead (no profile): delete by partial_intake_forms.id ----------
+      const { data: partialForm, error: partialErr } = await admin
+        .from('partial_intake_forms')
+        .select('id, email, recipient_email, completed_form_id')
+        .eq('id', partialFormId)
+        .single()
+      if (partialErr || !partialForm) {
+        return { success: false, error: 'Lead (partial form) not found' }
+      }
+      const leadEmail = (partialForm.email ?? partialForm.recipient_email ?? '').trim().toLowerCase()
+      const completedFormId = partialForm.completed_form_id ?? undefined
 
+      // Lead-scoped tables (lead_id = partial form id)
+      const { error: notesErr } = await admin.from('lead_note_entries').delete().eq('lead_id', partialFormId)
+      if (notesErr) return { success: false, error: `Failed to delete lead_note_entries: ${notesErr.message}` }
+      const { error: tasksErr } = await admin.from('lead_tasks').delete().eq('lead_id', partialFormId)
+      if (tasksErr) return { success: false, error: `Failed to delete lead_tasks: ${tasksErr.message}` }
+
+      // Onboarding rows that reference this partial form (CASCADE will remove clinical_director_consult_forms, onboarding_medical_documents)
+      const { error: onboardingErr } = await admin.from('patient_onboarding').delete().eq('partial_intake_form_id', partialFormId)
+      if (onboardingErr) return { success: false, error: `Failed to delete patient_onboarding: ${onboardingErr.message}` }
+      // Onboarding by intake_form_id if this partial had a completed form
+      if (completedFormId) {
+        const { error: obByIntakeErr } = await admin.from('patient_onboarding').delete().eq('intake_form_id', completedFormId)
+        if (obByIntakeErr) return { success: false, error: `Failed to delete patient_onboarding (by intake): ${obByIntakeErr.message}` }
+      }
+
+      // Consent/agreement by intake_form_id or email (inquiry may have forms by email)
+      if (completedFormId) {
+        const { error: icErr } = await admin.from('ibogaine_consent_forms').delete().eq('intake_form_id', completedFormId)
+        if (icErr) return { success: false, error: `Failed to delete ibogaine_consent_forms: ${icErr.message}` }
+        const { error: saByIntakeErr } = await admin.from('service_agreements').delete().eq('intake_form_id', completedFormId)
+        if (saByIntakeErr) return { success: false, error: `Failed to delete service_agreements (by intake): ${saByIntakeErr.message}` }
+      }
+      if (leadEmail) {
+        const { error: icEmailErr } = await admin.from('ibogaine_consent_forms').delete().ilike('email', leadEmail)
+        if (icEmailErr) return { success: false, error: `Failed to delete ibogaine_consent_forms (by email): ${icEmailErr.message}` }
+        const { error: saEmailErr } = await admin.from('service_agreements').delete().ilike('patient_email', leadEmail)
+        if (saEmailErr) return { success: false, error: `Failed to delete service_agreements (by email): ${saEmailErr.message}` }
+      }
+
+      if (completedFormId) {
+        const { error: mhErr } = await admin.from('medical_history_forms').delete().eq('intake_form_id', completedFormId)
+        if (mhErr) return { success: false, error: `Failed to delete medical_history_forms: ${mhErr.message}` }
+      }
+
+      const { error: docErr } = await admin.from('existing_patient_documents').delete().eq('partial_intake_form_id', partialFormId)
+      if (docErr) return { success: false, error: `Failed to delete existing_patient_documents: ${docErr.message}` }
+
+      const { error: partialDelErr } = await admin.from('partial_intake_forms').delete().eq('id', partialFormId)
+      if (partialDelErr) return { success: false, error: `Failed to delete partial_intake_forms: ${partialDelErr.message}` }
+
+      if (completedFormId) {
+        const { error: intakeErr } = await admin.from('patient_intake_forms').delete().eq('id', completedFormId)
+        if (intakeErr) return { success: false, error: `Failed to delete patient_intake_forms: ${intakeErr.message}` }
+      }
+
+      revalidatePath('/patient-pipeline')
+      revalidatePath('/onboarding')
+      return { success: true, message: 'Lead and all related records deleted. No remaining records found.' }
+    }
+
+    // ---------- Profile (patient) path: full delete including auth ----------
+    const patientId = parsedInput.patientId!
     const { data: patientProfile, error: profileErr } = await admin
       .from('profiles')
       .select('id, role, email')
@@ -1131,6 +1186,17 @@ export const deleteClient = authActionClient
         if (o.partial_intake_form_id) partialFormIds.push(o.partial_intake_form_id)
       })
     }
+    // Include any intake forms by email (inquiry/app form not yet linked via onboarding)
+    if (clientEmail) {
+      const { data: intakeByEmail } = await admin
+        .from('patient_intake_forms')
+        .select('id')
+        .ilike('email', clientEmail)
+      if (intakeByEmail?.length) {
+        intakeByEmail.forEach((r) => intakeFormIds.push(r.id))
+      }
+    }
+    const uniqueIntakeFormIds = [...new Set(intakeFormIds)]
 
     const deleteSteps: Array<{ table: string; fn: () => Promise<{ error: unknown } | null> }> = [
       { table: 'user_notifications', fn: async () => { const r = await admin.from('user_notifications').delete().eq('user_id', patientId); return r.error ? { error: r.error } : null } },
@@ -1150,19 +1216,26 @@ export const deleteClient = authActionClient
       }
     }
 
-    if (intakeFormIds.length > 0) {
-      const { error: mhErr } = await admin.from('medical_history_forms').delete().in('intake_form_id', intakeFormIds)
+    if (uniqueIntakeFormIds.length > 0) {
+      const { error: mhErr } = await admin.from('medical_history_forms').delete().in('intake_form_id', uniqueIntakeFormIds)
       if (mhErr) return { success: false, error: `Failed to delete medical_history_forms: ${mhErr.message}` }
     }
 
     const { error: icErr } = await admin.from('ibogaine_consent_forms').delete().eq('patient_id', patientId)
     if (icErr) return { success: false, error: `Failed to delete ibogaine_consent_forms: ${icErr.message}` }
+    if (clientEmail) {
+      const { error: icEmailErr } = await admin.from('ibogaine_consent_forms').delete().ilike('email', clientEmail)
+      if (icEmailErr) return { success: false, error: `Failed to delete ibogaine_consent_forms (by email): ${icEmailErr.message}` }
+    }
 
     const { error: saErr } = await admin.from('service_agreements').delete().eq('patient_id', patientId)
     if (saErr) return { success: false, error: `Failed to delete service_agreements: ${saErr.message}` }
+    if (clientEmail) {
+      const { error: saEmailErr } = await admin.from('service_agreements').delete().ilike('patient_email', clientEmail)
+      if (saEmailErr) return { success: false, error: `Failed to delete service_agreements (by email): ${saEmailErr.message}` }
+    }
 
     // Delete existing_patient_documents and partial_intake_forms BEFORE patient_intake_forms
-    // (partial_intake_forms.completed_form_id references patient_intake_forms)
     if (partialFormIds.length > 0) {
       const { error: docErr } = await admin.from('existing_patient_documents').delete().in('partial_intake_form_id', partialFormIds)
       if (docErr) return { success: false, error: `Failed to delete existing_patient_documents: ${docErr.message}` }
@@ -1185,8 +1258,8 @@ export const deleteClient = authActionClient
       }
     }
 
-    if (intakeFormIds.length > 0) {
-      const { error: intakeErr } = await admin.from('patient_intake_forms').delete().in('id', intakeFormIds)
+    if (uniqueIntakeFormIds.length > 0) {
+      const { error: intakeErr } = await admin.from('patient_intake_forms').delete().in('id', uniqueIntakeFormIds)
       if (intakeErr) return { success: false, error: `Failed to delete patient_intake_forms: ${intakeErr.message}` }
     }
 

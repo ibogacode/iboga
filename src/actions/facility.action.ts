@@ -9,6 +9,8 @@ import { revalidatePath } from 'next/cache'
 import { User } from '@/types'
 import { hasOwnerAccess } from '@/lib/utils'
 import { sendEmployeeWelcomeEmail } from '@/actions/email.action'
+import { getAvailableTreatmentDates } from '@/actions/treatment-scheduling.action'
+import { getPatientManagementList } from '@/actions/patient-management.action'
 
 export const addEmployeeAction = actionClient
   .schema(addEmployeeSchema)
@@ -354,6 +356,128 @@ export const addPatientAction = actionClient
         userId: authData.user.id,
         message: 'Patient created. They will receive an email to set their password.',
       } 
+    }
+  })
+
+const BEDS_PER_DAY = 5
+
+/**
+ * Live facility overview stats: occupancy, beds available, confirmed revenue, staff load.
+ */
+export const getFacilityOverviewStats = authActionClient
+  .schema(z.object({}))
+  .action(async ({ ctx }) => {
+    const supabase = await createClient()
+    const adminClient = createAdminClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'Unauthorized' }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    if (!profile || !hasOwnerAccess(profile.role)) {
+      return { success: false, error: 'Unauthorized - Owner or Admin access required' }
+    }
+
+    const now = new Date()
+    const todayStr = now.toISOString().split('T')[0]
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    const monthStartStr = monthStart.toISOString().split('T')[0]
+    const monthEndStr = monthEnd.toISOString().split('T')[0]
+    const next30End = new Date(now)
+    next30End.setDate(next30End.getDate() + 30)
+    const next30EndStr = next30End.toISOString().split('T')[0]
+
+    const [
+      monthDatesResult,
+      next30DatesResult,
+      presentListResult,
+      agreementsResult,
+      careStaffResult,
+    ] = await Promise.all([
+      getAvailableTreatmentDates({ startDate: monthStartStr, endDate: monthEndStr }),
+      getAvailableTreatmentDates({ startDate: todayStr, endDate: next30EndStr }),
+      getPatientManagementList({ status: 'present', limit: 1, offset: 0, include_counts: true }),
+      adminClient
+        .from('service_agreements')
+        .select('total_program_fee')
+        .eq('is_activated', true),
+      adminClient
+        .from('profiles')
+        .select('id')
+        .in('role', ['doctor', 'nurse', 'psych'])
+        .eq('is_active', true),
+    ])
+
+    const presentCount = presentListResult?.data?.counts?.present ?? 0
+    const careStaffCount = careStaffResult.data?.length ?? 0
+    const totalConfirmedRevenue = (agreementsResult.data ?? []).reduce(
+      (sum, row) => sum + (Number((row as { total_program_fee: unknown }).total_program_fee) || 0),
+      0
+    )
+
+    let occupancyPercent = 0
+    let bedsAvailableNext30 = 0
+    const occupancyByDateMonth = (monthDatesResult?.data?.success && monthDatesResult.data.data
+      ? (monthDatesResult.data.data as { occupancyByDate?: Record<string, number> }).occupancyByDate
+      : {}) as Record<string, number>
+    let totalPatientDays = 0
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      totalPatientDays += occupancyByDateMonth[dayStr] ?? 0
+    }
+    const monthCapacity = BEDS_PER_DAY * daysInMonth
+    if (monthCapacity > 0) {
+      occupancyPercent = Math.round((totalPatientDays / monthCapacity) * 100)
+    }
+
+    const occupancyByDateNext30 = (next30DatesResult?.data?.success && next30DatesResult.data.data
+      ? (next30DatesResult.data.data as { occupancyByDate?: Record<string, number>; schedule?: Array<{ treatment_date: string; capacity_max?: number }> }).occupancyByDate
+      : {}) as Record<string, number>
+    const scheduleNext30 = (next30DatesResult?.data?.success && next30DatesResult.data.data
+      ? (next30DatesResult.data.data as { schedule?: Array<{ treatment_date: string; capacity_max?: number }> }).schedule ?? []
+      : []) as Array<{ treatment_date: string; capacity_max?: number }>
+    let totalBedsAvailable = 0
+    const start = new Date(todayStr)
+    const end = new Date(next30EndStr)
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dayStr = d.toISOString().split('T')[0]
+      const occ = occupancyByDateNext30[dayStr] ?? 0
+      const s = scheduleNext30.find((s) => s.treatment_date === dayStr)
+      const cap = s?.capacity_max === 4 ? BEDS_PER_DAY : (s?.capacity_max ?? BEDS_PER_DAY)
+      totalBedsAvailable += Math.max(0, cap - occ)
+    }
+    bedsAvailableNext30 = totalBedsAvailable
+
+    const staffLoadPercent =
+      careStaffCount > 0 ? Math.round((presentCount / careStaffCount) * 100) : 0
+
+    const formatRevenue = (value: number) => {
+      if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
+      if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
+      return `$${value.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+    }
+
+    return {
+      success: true,
+      data: {
+        occupancyPercent,
+        occupancySubtitle: `Patient-days this month vs ${BEDS_PER_DAY} beds/day`,
+        bedsAvailableNext30,
+        bedsAvailableSubtitle: `Bed-nights free in next 30 days`,
+        confirmedRevenue: totalConfirmedRevenue,
+        confirmedRevenueFormatted: formatRevenue(totalConfirmedRevenue),
+        confirmedRevenueSubtitle: 'From activated service agreements',
+        staffLoadPercent,
+        careStaffCount,
+        presentCount,
+        staffLoadSubtitle: careStaffCount > 0 ? `${presentCount} clients / ${careStaffCount} care staff` : 'No care staff',
+      },
     }
   })
 
