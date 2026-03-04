@@ -190,7 +190,7 @@ export const submitServiceAgreement = authActionClient
       if (error || !data) {
         return { success: false, error: error?.message || 'Failed to update service agreement' }
       }
-      
+
       // Get intake form data to check for filler details
       let intakeFormData: any = null
       if (parsedInput.intake_form_id) {
@@ -199,36 +199,45 @@ export const submitServiceAgreement = authActionClient
           .select('filled_by, filler_email, filler_first_name, filler_last_name, first_name, last_name, email')
           .eq('id', parsedInput.intake_form_id)
           .maybeSingle()
-        
+
         if (intakeData) {
           intakeFormData = intakeData
         }
       }
-      
+
       // Send confirmation email to patient (fire and forget - don't block response)
-      // Only send if patient completed the form (has patient signature)
+      // Only send if patient completed the form (has patient signature). Include Ibogaine consent form link so one email covers both.
       if (parsedInput.patient_signature_name && parsedInput.patient_signature_name.trim() !== '') {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.ibogawellness.com'
+        const ibogaineFormLink = parsedInput.intake_form_id
+          ? `${baseUrl}/patient/ibogaine-consent?intake_form_id=${parsedInput.intake_form_id}`
+          : `${baseUrl}/patient/ibogaine-consent`
+
         sendServiceAgreementConfirmationEmail(
           parsedInput.patient_email,
           parsedInput.patient_first_name,
-          parsedInput.patient_last_name
+          parsedInput.patient_last_name,
+          undefined,
+          undefined,
+          ibogaineFormLink
         ).catch((error) => {
           console.error('Failed to send service agreement confirmation email to patient:', error)
         })
-        
-        // Send email to filler if application has filler details
+
+        // Send email to filler if application has filler details (same email with Ibogaine link)
         if (intakeFormData && intakeFormData.filled_by === 'someone_else' && intakeFormData.filler_email) {
           sendServiceAgreementConfirmationEmail(
             intakeFormData.filler_email,
             intakeFormData.filler_first_name || 'Filler',
             intakeFormData.filler_last_name || '',
             intakeFormData.first_name || parsedInput.patient_first_name,
-            intakeFormData.last_name || parsedInput.patient_last_name
+            intakeFormData.last_name || parsedInput.patient_last_name,
+            ibogaineFormLink
           ).catch((error) => {
             console.error('Failed to send service agreement confirmation email to filler:', error)
           })
         }
-        
+
         // Send admin notification email when client completes service agreement (fire and forget)
         const clientName = `${parsedInput.patient_first_name} ${parsedInput.patient_last_name}`.trim()
         // Use fee amounts from the updated database record (data already contains all fields from .select())
@@ -447,36 +456,45 @@ export const submitServiceAgreement = authActionClient
           .select('filled_by, filler_email, filler_first_name, filler_last_name, first_name, last_name, email')
           .eq('id', parsedInput.intake_form_id)
           .maybeSingle()
-        
+
         if (intakeData) {
           intakeFormData = intakeData
         }
       }
-      
+
       // Send confirmation email to patient (fire and forget - don't block response)
-      // Only send if patient completed the form (has patient signature)
+      // Only send if patient completed the form (has patient signature). Include Ibogaine consent form link so one email covers both.
       if (parsedInput.patient_signature_name && parsedInput.patient_signature_name.trim() !== '') {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.ibogawellness.com'
+        const ibogaineFormLink = parsedInput.intake_form_id
+          ? `${baseUrl}/patient/ibogaine-consent?intake_form_id=${parsedInput.intake_form_id}`
+          : `${baseUrl}/patient/ibogaine-consent`
+
         sendServiceAgreementConfirmationEmail(
           parsedInput.patient_email,
           parsedInput.patient_first_name,
-          parsedInput.patient_last_name
+          parsedInput.patient_last_name,
+          undefined,
+          undefined,
+          ibogaineFormLink
         ).catch((error) => {
           console.error('Failed to send service agreement confirmation email to patient:', error)
         })
-        
-        // Send email to filler if application has filler details
+
+        // Send email to filler if application has filler details (same email with Ibogaine link)
         if (intakeFormData && intakeFormData.filled_by === 'someone_else' && intakeFormData.filler_email) {
           sendServiceAgreementConfirmationEmail(
             intakeFormData.filler_email,
             intakeFormData.filler_first_name || 'Filler',
             intakeFormData.filler_last_name || '',
             intakeFormData.first_name || parsedInput.patient_first_name,
-            intakeFormData.last_name || parsedInput.patient_last_name
+            intakeFormData.last_name || parsedInput.patient_last_name,
+            ibogaineFormLink
           ).catch((error) => {
             console.error('Failed to send service agreement confirmation email to filler:', error)
           })
         }
-        
+
         // Send admin notification email when client completes service agreement (fire and forget)
         const clientName = `${parsedInput.patient_first_name} ${parsedInput.patient_last_name}`.trim()
         const adminNotificationBody = `

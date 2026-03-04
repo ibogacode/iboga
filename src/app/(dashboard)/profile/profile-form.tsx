@@ -449,6 +449,7 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
                 style={{
                   fontFamily: designTokens.typography.navItem.fontFamily,
                 }}
+                data-tour="tour-profile-password"
                 data-tour-security-tab="true"
               >
                 <div className="flex items-start gap-3">
