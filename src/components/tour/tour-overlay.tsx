@@ -50,23 +50,10 @@ export function TourOverlay() {
       return element
     }
 
-    // Navigate to route if needed
+    // Navigate to route if needed, then look for element
     if (currentStep.route) {
-      // Wait a bit for navigation to complete
-      setTimeout(() => {
-        // Special handling for profile password step - activate security tab
-        if (currentStep.id === 'profile-password') {
-          // Find and click the security tab button
-          const securityTabButton = document.querySelector('button[data-tour-security-tab="true"]') as HTMLElement
-          if (securityTabButton) {
-            securityTabButton.click()
-            // Wait a bit for tab to activate and content to render
-            setTimeout(() => checkForElement(), 500)
-            return
-          }
-        }
-        checkForElement()
-      }, 500)
+      // Wait for navigation to complete before finding element
+      setTimeout(() => checkForElement(), 500)
     } else {
       checkForElement()
     }

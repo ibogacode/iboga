@@ -50,6 +50,7 @@ export const DIRECT_EMAIL_TEST_KINDS = [
   'tapering_admin',
   'client_ready_tapering',
   'form_automation_admin',
+  'onboarding_reminder',
 ] as const
 
 export type DirectEmailTestKind = (typeof DIRECT_EMAIL_TEST_KINDS)[number]
@@ -74,6 +75,7 @@ export const DIRECT_EMAIL_LABELS: Record<DirectEmailTestKind, string> = {
   tapering_admin: 'Tapering schedule – admin notification',
   client_ready_tapering: 'Client ready for tapering – notification',
   form_automation_admin: 'Patient moved to onboarding – admin (form automation)',
+  onboarding_reminder: 'Onboarding forms reminder (incomplete forms)',
 }
 
 /** Single entry for the unified email test list (template or direct). */

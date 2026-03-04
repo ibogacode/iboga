@@ -152,14 +152,14 @@ export const tourSteps: TourStep[] = [
     waitForSelector: 3000,
   },
 
-  // Step 14: Change Password (requires security tab to be active)
+  // Step 14: Security tab (always visible in sidebar - no tab switch needed)
   {
     id: 'profile-password',
     route: '/profile',
     selector: 'tour-profile-password',
     title: 'Change Password',
-    content: 'Click the "Security" tab, then use this section to change your password. Keep your account secure by updating your password regularly.',
-    placement: 'bottom',
+    content: 'Click the Security tab here to change your password and manage security settings. Keep your account secure by updating your password regularly.',
+    placement: 'right',
     waitForSelector: 3000,
   },
 ]

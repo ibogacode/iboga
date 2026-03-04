@@ -33,6 +33,7 @@ interface EmailTemplateRequest {
   recipientName?: string
   schedulingLink?: string
   onboardingId?: string
+  ibogaineFormLink?: string
   // Add other fields as needed
 }
 
@@ -787,7 +788,8 @@ function generateServiceAgreementConfirmationEmail(
   firstName: string,
   lastName: string,
   patientFirstName?: string,
-  patientLastName?: string
+  patientLastName?: string,
+  ibogaineFormLink?: string
 ): { subject: string; body: string } {
   const isFiller = !!(patientFirstName && patientLastName)
   const displayName = `${firstName} ${lastName}`.trim()
@@ -796,6 +798,16 @@ function generateServiceAgreementConfirmationEmail(
   const introBlock = isFiller
     ? `<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#535065">You have successfully completed the service agreement form for <strong>${patientName}</strong>.</p>`
     : `<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#535065">Thank you for taking the time to complete your service agreement form.</p>`
+
+  const nextStepBlock = ibogaineFormLink
+    ? `<table role="presentation" width="100%"><tr><td style="padding:10px 0 20px">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0"><tr><td valign="top" style="padding:30px 20px;background-color:#d4dabb;border-radius:11px;border-left:6px solid #6e7a46" bgcolor="#d4dabb">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="left" valign="top" style="padding:0 0 5px"><p style="margin:0;font-size:19px;line-height:150%;color:#28243d;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif">Next step</p></td></tr>
+<tr><td align="left" valign="top" style="padding:5px 0 12px"><p style="margin:0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Please complete your Ibogaine Therapy Consent Form. This is required before we can move you to onboarding.</p></td></tr>
+<tr><td align="center" valign="top" style="padding:12px 0 0;text-align:center"><a href="${ibogaineFormLink}" target="_blank" style="display:inline-block;box-sizing:border-box;border-radius:8px;background-color:#6e7a46;color:#fff !important;padding:10px 24px;text-decoration:none;font-size:16px;line-height:200%;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif" bgcolor="#6e7a46">Complete Ibogaine Consent Form</a></td></tr>
+</table></td></tr></table>
+</td></tr></table>`
+    : ''
 
   const body = `<!DOCTYPE html>
 <html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -832,6 +844,7 @@ body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;
 <p style="margin:0 0 15px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Hello, ${displayName}</p>
 ${introBlock}
 <p style="margin:0 0 20px;font-size:16px;line-height:150%;color:#535065">Our team will review your service agreement and will let you know if we need any further details.</p>
+${nextStepBlock}
 <table role="presentation" width="100%"><tr><td style="padding:20px 0 0"><p style="margin:0 0 8px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Contact</p>
 <p style="margin:0 0 16px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">Questions or need to update your service agreement? Reach us directly.</p>
 <ul style="margin:0;padding:0 0 0 20px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">
@@ -877,58 +890,82 @@ function generateIbogaineConsentConfirmationEmail(
   const displayName = `${firstName} ${lastName}`.trim()
   const patientName = isFiller ? `${patientFirstName} ${patientLastName}`.trim() : displayName
 
+  const fillerBlock = isFiller
+    ? `<table role="presentation" width="100%"><tr><td style="padding:10px 0 20px">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0"><tr><td valign="top" style="padding:30px 20px;background-color:#d4dabb;border-radius:11px;border-left:6px solid #6e7a46" bgcolor="#d4dabb">
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td align="left" valign="top" style="padding:0 0 5px"><p style="margin:0;font-size:19px;line-height:150%;color:#28243d;font-weight:600;font-family:'Inter',Arial,Helvetica,sans-serif">Form Completed on Behalf of Patient</p></td></tr>
+<tr><td align="left" valign="top" style="padding:5px 0 0"><p style="margin:0;font-size:16px;line-height:182%;color:rgba(40,36,61,0.8);font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">You have successfully completed the Ibogaine Therapy Consent Form for <strong>${patientName}</strong>.</p></td></tr></table></td></tr></table>
+</td></tr></table>`
+    : ''
+
+  const body = `<!DOCTYPE html>
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Thank You for Completing Your Ibogaine Consent Form | The Iboga Wellness Institute</title>
+<link href="https://fonts.googleapis.com/css?family=Instrument+Serif:ital,wght@0,400" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css?family=Inter:ital,wght@0,400;0,500;0,600" rel="stylesheet" />
+<style>
+body{margin:0;padding:0;background:#ece9df;font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased;} table{border-collapse:collapse;}
+.banner-heading{font-family:'Instrument Serif',Georgia,serif;}
+@media (max-width:620px){ table[role="presentation"]{max-width:100% !important;} .email-banner-title{font-size:36px !important;line-height:1.2 !important;} }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#ece9df" bgcolor="#ece9df">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#ece9df" bgcolor="#ece9df">
+<tr><td align="center" style="padding:20px 0">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px">
+<tr><td style="padding:0 0 15px">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+<tr><td style="background-image:url('https://postcards-cdn.designmodo.com/images-cdn/Iboga_wellness_institute_email_banner.png');background-size:cover;background-position:center right;background-repeat:no-repeat;padding:40px 48px;border-radius:10px;background-color:#036243" bgcolor="#036243">
+<table role="presentation" width="100%"><tr><td align="left" valign="middle">
+<img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="140" height="39" alt="" style="display:block;border:0" />
+</td></tr>
+<tr><td style="padding-top:20px">
+<div class="banner-heading email-banner-title" style="font-family:'Instrument Serif',Georgia,serif;font-size:50px;line-height:130%;color:#fff;letter-spacing:-0.03em">Ibogaine Consent Received</div>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:0">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#fff;border-radius:10px 10px 0 0" bgcolor="#ffffff">
+<tr><td style="padding:48px">
+<p style="margin:0 0 15px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Hello, ${displayName}</p>
+${isFiller ? '' : '<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#141414;font-weight:500">Thank you for taking the time to complete your Ibogaine Therapy Consent Form.</p>'}
+${fillerBlock}
+<p style="margin:0 0 12px;font-size:16px;line-height:150%;color:#535065">Our team will review your consent form and will let you know if we need any further details.</p>
+<p style="margin:0 0 20px;font-size:16px;line-height:150%;color:#535065">If you have any questions, please don't hesitate to contact us.</p>
+<table role="presentation" width="100%"><tr><td style="padding:20px 0 0"><p style="margin:0 0 8px;font-size:19px;line-height:150%;color:#28243d;font-weight:600">Contact Us</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">If you need assistance, our team is here to support you.</p>
+<ul style="margin:0;padding:0 0 0 20px;font-size:16px;line-height:150%;color:rgba(40,36,61,0.8)">
+<li style="margin-bottom:0">Phone: +1 (800) 604-7294</li>
+<li style="margin-bottom:0">Email: <a href="mailto:contactus@theibogainstitute.org" style="color:inherit;text-decoration:none">contactus@theibogainstitute.org</a></li>
+</ul>
+</td></tr></table>
+</td></tr></table>
+</td></tr>
+<tr><td style="padding:48px;background-color:#6e7a46;border-radius:0" bgcolor="#6e7a46">
+<p style="margin:0 0 24px;font-size:21px;line-height:150%;color:#fff;font-weight:600">Thank you for your time and trust. We look forward to supporting you on your wellness journey.</p>
+<p style="margin:0;font-size:16px;line-height:150%;color:#ece9df">Warm regards,<br>The Iboga Wellness Institute Team</p>
+</td></tr>
+<tr><td style="padding:48px;background-color:#272315;border-radius:0 0 10px 10px" bgcolor="#272315">
+<table role="presentation" width="100%"><tr><td align="center" style="padding:0 0 8px"><img src="https://postcards-cdn.designmodo.com/images-cdn/Secondary_Logo_White.png" width="152" height="42" alt="" style="display:block;border:0;margin:0 auto" /></td></tr><tr><td align="center" style="padding:0 0 16px"><p style="margin:0;font-size:14px;line-height:150%;color:rgba(255,255,255,0.9);font-family:'Inter',Arial,sans-serif">The Iboga Wellness Institute</p></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:16px 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:16px 0 17px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/about/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">About Us</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/our-programs/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Programs</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/insights/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Insights</a></td><td align="center" valign="middle" style="padding-left:1.5px;padding-right:1.5px;font-size:16px;line-height:150%;color:#fff">|</td><td align="center" valign="middle" style="width:25%;padding-top:0;padding-bottom:0"><a href="https://theibogainstitute.org/podcast/" target="_blank" style="color:#fff;text-decoration:none;font-size:16px;line-height:150%;font-weight:400;font-family:'Inter',Arial,Helvetica,sans-serif">Podcast</a></td></tr></table></td></tr></table>
+<table role="presentation" width="100%"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" width="478" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto;max-width:100%"><tr><td style="line-height:1px;font-size:1px;border-bottom:1px solid #ffffff1a">&nbsp;</td></tr></table></td></tr></table>
+<table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0"><tr><td style="padding:0 0 24px" align="center"><table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center" style="margin:0 auto"><tr><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.facebook.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/49d3df40d21a60424c3bf0f27d4ce8f9.png" width="24" height="24" alt="Facebook" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.linkedin.com/company/iboga-wellness-institute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/f180a29d5510c0f44c08bdde9bc397f5.png" width="24" height="24" alt="LinkedIn" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.instagram.com/ibogawellnessinstitute/" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/97d1e3e2fd722d0140b51806fa857340.png" width="24" height="24" alt="Instagram" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.youtube.com/@IbogaWellnessCenters" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/9807838a6a4c0dd0d700aff6f20f6d98.png" width="24" height="24" alt="YouTube" style="display:block;border:0;line-height:100%" /></a></td><td align="center" valign="middle" style="padding:0 17.5px"><a href="https://www.tiktok.com/@ibogawellnessinstitute" target="_blank" style="text-decoration:none;display:inline-block;vertical-align:top"><img src="https://postcards-cdn.designmodo.com/images-cdn/045f5352f42e1f3aad7a52d07f950976.png" width="24" height="24" alt="TikTok" style="display:block;border:0;line-height:100%" /></a></td></tr></table></td></tr></table>
+</td></tr>
+</table>
+</td></tr></table>
+</td></tr></table>
+</body>
+</html>`
+
   return {
     subject: isFiller
       ? `Ibogaine Consent Form Completed for ${patientName} | The Iboga Wellness Institute`
       : `Thank You for Completing Your Ibogaine Consent Form | The Iboga Wellness Institute`,
-    body: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          ${commonStyles}
-          .info-box {
-            background: #f9f9f9;
-            border-left: 4px solid #5D7A5F;
-            padding: 20px;
-            margin: 20px 0;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>The Iboga Wellness Institute</h1>
-          </div>
-          <div class="content">
-            <h2>Thank You for Completing Your Ibogaine Consent Form</h2>
-            ${isFiller
-        ? `
-            <p>Hello ${displayName},</p>
-            <div class="info-box">
-              <p><strong>Form Completed on Behalf of Patient</strong></p>
-              <p>You have successfully completed the Ibogaine Therapy Consent Form for <strong>${patientName}</strong>.</p>
-            </div>
-            `
-        : `
-            <p>Hello ${displayName},</p>
-            <p>Thank you for taking the time to complete your Ibogaine Therapy Consent Form.</p>
-            `}
-            
-            <p>Our team will review your consent form and will let you know if we need any further details.</p>
-            
-            <p>If you have any questions, please don't hesitate to contact us.</p>
-            
-            <p>Warm regards,<br>The Iboga Wellness Institute Team</p>
-          </div>
-          <div class="footer">
-            <p>The Iboga Wellness Institute | Cozumel, Mexico</p>
-            <p>https://theibogainstitute.org</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
+    body,
   }
 }
 
@@ -1239,7 +1276,8 @@ serve(async (req) => {
           request.firstName || 'Patient',
           request.lastName || '',
           request.patientFirstName,
-          request.patientLastName
+          request.patientLastName,
+          request.ibogaineFormLink
         )
         break
 

@@ -9,7 +9,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/server'
-import { sendIbogaineConsentFormEmail, sendOnboardingFormsEmail, sendEmailDirect } from './email.action'
+import { sendOnboardingFormsEmail, sendEmailDirect } from './email.action'
 import { revalidatePath } from 'next/cache'
 
 /**
@@ -68,23 +68,7 @@ export async function autoActivateIbogaineConsent({
         console.log('[autoActivateIbogaineConsent] Ibogaine consent form already activated:', existingForm.id)
       }
 
-      // Send email notification
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://iboga.app'
-      const formLink = intakeFormId
-        ? `${baseUrl}/patient/ibogaine-consent?intake_form_id=${intakeFormId}`
-        : `${baseUrl}/patient/ibogaine-consent`
-
-      await sendIbogaineConsentFormEmail(
-        patientEmail,
-        `${patientFirstName} ${patientLastName}`.trim(),
-        patientFirstName,
-        patientLastName,
-        formLink,
-        'self',
-        null,
-        null
-      )
-
+      // Ibogaine form link is included in the Service Agreement confirmation email (no separate email)
       return { success: true, formId: existingForm.id, action: 'activated_existing' }
     } else {
       // Get default facilitator_doctor_name from form_defaults
@@ -120,23 +104,7 @@ export async function autoActivateIbogaineConsent({
 
       console.log('[autoActivateIbogaineConsent] Created new ibogaine consent form:', newForm.id)
 
-      // Send email notification
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://iboga.app'
-      const formLink = intakeFormId
-        ? `${baseUrl}/patient/ibogaine-consent?intake_form_id=${intakeFormId}`
-        : `${baseUrl}/patient/ibogaine-consent`
-
-      await sendIbogaineConsentFormEmail(
-        patientEmail,
-        `${patientFirstName} ${patientLastName}`.trim(),
-        patientFirstName,
-        patientLastName,
-        formLink,
-        'self',
-        null,
-        null
-      )
-
+      // Ibogaine form link is included in the Service Agreement confirmation email (no separate email)
       return { success: true, formId: newForm.id, action: 'created_new' }
     }
   } catch (error) {
